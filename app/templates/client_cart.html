@@ -28,6 +28,8 @@
                             <img src="{{ url_for('static', filename='uploads/products/' + item.image) }}" alt="{{ item.name }}">
                             <div>
                                 <a href="#">{{ item.name }}</a>
+
+                                <span class="variant-name">{{ item.variant_name }}</span>
                                 </div>
                         </div>
                     </td>

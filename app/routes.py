@@ -2,7 +2,7 @@ import os
 import secrets
 from PIL import Image
 from flask import current_app as app
-from flask import render_template, redirect, url_for, flash, request, session
+from flask import render_template, redirect, url_for, flash, request, session, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 from app.models import User
 from app.forms import AdminLoginForm
@@ -100,26 +100,48 @@ def client_menu():
 def add_to_cart():
     """
     Add a product to the user's session cart.
+    Now handles variant_id and quantity.
     """
     cart = session.get('cart', {})
+    
+    # Get all data from the modal form
     product_id = request.form.get('product_id')
+    variant_id = request.form.get('variant_id')
     
-    # --- THIS IS THE FIX ---
-    # Get the product object *before* the if/else logic.
-    # This ensures the 'product' variable always exists.
-    product = Product.query.get_or_404(product_id)
-    # -----------------------
+    try:
+        quantity = int(request.form.get('quantity', 1))
+        if quantity < 1:
+            quantity = 1
+    except:
+        quantity = 1
+        
+    # --- We now use the VARIANT_ID as the unique key in our cart ---
+    # This lets us add "Small Spaghetti" AND "Large Spaghetti" as separate items
+    
+    if not variant_id:
+        flash("Could not add item. No product size selected.", 'danger')
+        return redirect(url_for('client_menu'))
+        
+    # Get the specific variant to get its name and price
+    variant = ProductVariant.query.get(variant_id)
+    if not variant:
+        flash("Could not find that product option.", 'danger')
+        return redirect(url_for('client_menu'))
 
-    quantity = 1
+    product = variant.product # Get the parent product
     
-    if product_id in cart:
-        # If item is already in cart, increment quantity
-        cart[product_id]['quantity'] += quantity
+    # Use variant_id as the key in the cart
+    if variant_id in cart:
+        # If item is already in cart, just add to its quantity
+        cart[variant_id]['quantity'] += quantity
     else:
         # If new, add it to the cart
-        # We already have the 'product' object
-        cart[product_id] = {
+        cart[variant_id] = {
+            'product_id': product.product_id,
             'name': product.name,
+            'variant_name': variant.size_name,
+            'price': float(variant.price),
+            'image': product.image_file,
             'quantity': quantity
         }
     
@@ -127,50 +149,65 @@ def add_to_cart():
     
     print("Updated Cart:", session['cart'])
     
-    # Now this line will always work
-    flash(f"Added {product.name} to cart!", 'success')
+    flash(f"Added {quantity} x {product.name} ({variant.size_name}) to cart!", 'success')
     return redirect(url_for('client_menu'))
+
+@app.route('/product_details/<int:product_id>')
+def product_details(product_id):
+        """
+        API endpoint to get product details (especially variants) as JSON.
+        """
+        product = Product.query.get_or_404(product_id)
+        
+        variants_data = []
+        for variant in product.variants:
+            variants_data.append({
+                'id': variant.variant_id,
+                'size': variant.size_name,
+                'price': float(variant.price) # Convert Decimal to float for JSON
+            })
+            
+        return jsonify({
+            'id': product.product_id,
+            'name': product.name,
+            'has_variants': product.has_variants,
+            'variants': variants_data
+        })
 
 @app.route('/cart')
 def client_cart():
     """
     (R)EAD: Display the user's shopping cart.
     """
-    # Get the cart from the session, default to an empty dict
     cart_session = session.get('cart', {})
-    
+
     cart_items = []
     total_price = 0.0
 
-    # Loop through items in the session cart to get full details
-    for product_id, item_data in cart_session.items():
-        product = Product.query.get(product_id)
-        
-        if product:
-            # --- This logic gets the price ---
-            price = 0.0
-            if product.has_variants:
-                # If it has variants, grab the cheapest one (for now)
-                if product.variants:
-                    price = min(v.price for v in product.variants)
-            else:
-                # If it's a simple product, grab the 'Regular' price
-                if product.variants:
-                    price = product.variants[0].price
-            # --- End of price logic ---
-            
-            quantity = item_data['quantity']
-            line_total = float(price) * quantity
-            total_price += line_total
-            
-            cart_items.append({
-                'id': product.product_id,
-                'name': product.name,
-                'image': product.image_file,
-                'price': float(price),
-                'quantity': quantity,
-                'line_total': line_total
-            })
+    # Loop through items in the session cart
+    # The 'item_id' is the VARIANT_ID
+    for item_id, item_data in cart_session.items():
+
+        # --- THIS IS THE FIX ---
+        # We don't need to query the database for price.
+        # We already saved all the info we need in the session.
+
+        quantity = item_data['quantity']
+        price = item_data['price'] # Get the exact price from session
+        line_total = float(price) * quantity
+        total_price += line_total
+
+        cart_items.append({
+            'product_id': item_data['product_id'],
+            'variant_id': item_id, # The key is the variant_id
+            'name': item_data['name'],
+            'variant_name': item_data['variant_name'], # Get variant name
+            'image': item_data['image'],
+            'price': float(price),
+            'quantity': quantity,
+            'line_total': line_total
+        })
+        # --- END OF FIX ---
 
     return render_template(
         'client_cart.html', 

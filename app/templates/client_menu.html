@@ -46,11 +46,9 @@
                             {% endif %}
                         </div>
                         
-                        <form action="{{ url_for('add_to_cart') }}" method="POST">
-                            <input type="hidden" name="product_id" value="{{ product.product_id }}">
-                            <button type="submit" class="btn btn-primary">Add to Cart</button>
-                        </form>
-
+                        <button class="btn btn-primary btn-add-to-cart" data-product-id="{{ product.product_id }}">
+                            Add to Cart
+                        </button>
                     </div>
                 </div>
             </div>
@@ -59,4 +57,87 @@
         {% endfor %}
     </div>
 
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Get Modal Elements ---
+        const modal = document.getElementById('productModal');
+        const closeModalBtn = document.querySelector('.modal-close-btn');
+        const modalProductName = document.getElementById('modalProductName');
+        const modalProductId = document.getElementById('modalProductId');
+        const modalVariantSelector = document.getElementById('modalVariantSelector');
+        const modalVariantSelect = document.getElementById('modalVariantId');
+        const modalCartForm = document.getElementById('modalCartForm');
+        const modalVariantLabel = document.getElementById('modalVariantLabel');
+
+        // --- Function to close the modal ---
+        const closeModal = () => {
+            modal.style.display = 'none';
+        }
+        closeModalBtn.onclick = closeModal;
+        window.onclick = (event) => {
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // --- Find all "Add to Cart" buttons ---
+        document.querySelectorAll('.btn-add-to-cart').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault(); 
+                
+                const productId = this.dataset.productId;
+                
+                // --- Fetch product data from our API route ---
+                fetch(`/product_details/${productId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // 1. Populate modal fields
+                        modalProductName.innerText = data.name;
+                        modalProductId.value = data.id;
+                        
+                        // 2. Clear old variant options
+                        modalVariantSelect.innerHTML = ''; 
+                        
+                        // 3. Check if product has variants
+                        if (data.has_variants) {
+                            // Show the variant dropdown
+                            modalVariantSelector.style.display = 'block';
+                            
+                            // 4. Populate variant options
+                            data.variants.forEach(variant => {
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            });
+                        } else {
+                            // Simple product (like 'Regular')
+                            // Hide the variant dropdown
+                            modalVariantSelector.style.display = 'none';
+                            
+                            // Add its single variant (if it exists)
+                            if (data.variants.length > 0) {
+                                const variant = data.variants[0];
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            }
+                        }
+
+                        // 5. Show the modal
+                        modal.style.display = 'block';
+                    })
+                    .catch(err => {
+                        console.error('Error fetching product details:', err);
+                        alert('Could not get product details. Please try again.');
+                    });
+            });
+        });
+    });
+</script>
 {% endblock %}

@@ -7,8 +7,6 @@
     
     <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
-
     {% block styles %}{% endblock %}
 </head>
 <body>
@@ -20,9 +18,10 @@
             <ul>
                 <li><a href="{{ url_for('client_home') }}">Home</a></li>
                 <li><a href="{{ url_for('client_menu') }}">Order Now</a></li>
-                 <li><a href="#">Build a Buffet</a></li> 
+                <li><a href="#">Build a Buffet</a></li> 
                 <li><a href="{{ url_for('client_cart') }}">Cart</a></li> 
-                <li><a href="#">Login/Register</a></li> </ul>
+                <li><a href="#">Login/Register</a></li> 
+            </ul>
         </nav>
     </header>
 
@@ -34,6 +33,34 @@
         <p>&copy; 2025 Anjet's Catering. All rights reserved.</p>
     </footer>
 
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-btn">&times;</span>
+            <div class="modal-header">
+                <h2 id="modalProductName">Product Name</h2>
+            </div>
+            
+            <form id="modalCartForm" method="POST" action="{{ url_for('add_to_cart') }}">
+                <div class="modal-body">
+                    <input type="hidden" id="modalProductId" name="product_id">
+                    
+                    <div id="modalVariantSelector" class="form-group">
+                        <label for="modalVariantId" id="modalVariantLabel">Size</label>
+                        <select id="modalVariantId" name="variant_id" class="form-control">
+                            </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modalQuantity">Quantity</label>
+                        <input type="number" id="modalQuantity" name="quantity" class="form-control" value="1" min="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Add to Cart</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <div id="toastContainer"></div>
 
     <script>
@@ -74,6 +101,9 @@
                 {% endif %}
             {% endwith %}
         });
-    </script>
+    </SCRIpt>
+
+    {% block scripts %}{% endblock %}
+    
 </body>
 </html>
