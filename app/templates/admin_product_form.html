@@ -1,0 +1,60 @@
+{% extends "admin_base.html" %} {% block title %}{{ form_title }}{% endblock %}
+{% block content %}
+<h2>{{ form_title }}</h2>
+
+<div class="card">
+  <form method="POST" action="{{ action_url }}" novalidate enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+      {{ form.category.label }} {{ form.category(class="form-control") }} {% for
+      error in form.category.errors %}
+      <span class="error-message">{{ error }}</span>
+      {% endfor %}
+    </div>
+
+    <div class="form-group">
+      {{ form.name.label }} {{ form.name(class="form-control") }} {% for error
+      in form.name.errors %}
+      <span class="error-message">{{ error }}</span>
+      {% endfor %}
+    </div>
+
+    <div class="form-group">
+      {{ form.description.label }} {{ form.description(class="form-control",
+      rows=5) }}
+    </div>
+
+    <hr />
+
+    <div class="form-group">
+      {{ form.has_variants.label }} {{ form.has_variants() }}
+      <p style="font-size: 0.9em; color: #555">
+        Check this if the product has multiple sizes (e.g., Small, Medium,
+        Large). If unchecked, please provide a single price below.
+      </p>
+    </div>
+
+    <div class="form-group">
+      {{ form.price.label }} {{ form.price(class="form-control") }} {% for error
+      in form.price.errors %}
+      <span class="error-message">{{ error }}</span>
+      {% endfor %}
+    </div>
+
+    <div class="form-group">
+    {{ form.image.label }}
+    {{ form.image(class="form-control") }}
+    {% for error in form.image.errors %}
+        <span class="error-message">{{ error }}</span>
+    {% endfor %}
+</div>
+
+    <div class="form-group">
+      {{ form.submit(class="btn btn-primary") }}
+      <a href="{{ url_for('admin_products') }}" class="btn btn-secondary"
+        >Cancel</a
+      >
+    </div>
+  </form>
+</div>
+{% endblock %}

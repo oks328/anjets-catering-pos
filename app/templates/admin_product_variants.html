@@ -1,0 +1,78 @@
+{% extends "admin_base.html" %} {% block title %}Manage Variants for {{
+product.name }}{% endblock %} {% block content %}
+<a
+  href="{{ url_for('admin_products') }}"
+  class="btn btn-secondary"
+  style="margin-bottom: 1rem"
+>
+  &larr; Back to All Products
+</a>
+<h2>Manage Variants for: <strong>{{ product.name }}</strong></h2>
+
+<div class="card" id="add-variant-card">
+  <h3>Add New Variant</h3>
+  <form
+    method="POST"
+    action="{{ url_for('admin_add_variant', product_id=product.product_id) }}"
+    novalidate
+  >
+    {{ add_form.hidden_tag() }}
+    <div class="form-group">
+      {{ add_form.size_name.label }} {{ add_form.size_name(class="form-control")
+      }}
+      <p style="font-size: 0.9em; color: #555">
+        e.g., "Small", "Medium", "100 pcs"
+      </p>
+    </div>
+
+    <div class="form-group">
+      {{ add_form.price.label }} {{ add_form.price(class="form-control") }}
+    </div>
+
+    <div class="form-group">{{ add_form.submit(class="btn btn-primary") }}</div>
+  </form>
+</div>
+
+<div class="card" id="existing-variants-card">
+  <form method="GET" action="{{ url_for('admin_product_variants', product_id=product.product_id) }}#existing-variants-card" class="search-form">
+    <input type="text" name="search" class="form-control" placeholder="Search variants..." value="{{ search_query or '' }}">
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+  <h3>Existing Variants</h3>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Size / Name</th>
+        <th>Price</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+                {% for variant in variants %}
+                <tr>
+                    <form method="POST" action="{{ url_for('admin_edit_variant', variant_id=variant.variant_id) }}" novalidate>
+                        {{ edit_form.hidden_tag() }}
+                        <td>
+                            {{ edit_form.size_name(class="form-control", value=variant.size_name) }}
+                        </td>
+                        <td>
+                            {{ edit_form.price(class="form-control", value=variant.price) }}
+                        </td>
+                        
+                        <td class="action-buttons">
+                            {{ edit_form.submit(class="btn btn-secondary", value="Update") }}
+                    </form> <form method="POST" action="{{ url_for('admin_delete_variant', variant_id=variant.variant_id) }}" style="display:inline;" class="delete-form-modal">
+                        <input type="submit" value="Delete" class="btn btn-danger">
+                    </form>
+                        </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">No variants found for this product. Add one above!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+  </table>
+</div>
+{% endblock %}

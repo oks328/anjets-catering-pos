@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Anjet's Admin{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/admin_style.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <h1>Anjet's Catering - Mission Control</h1>
+    </header>
+
+    {% if current_user.is_authenticated %}
+    <nav class="admin-nav">
+      <ul>
+        <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
+        <li><a href="{{ url_for('admin_categories') }}">Categories</a></li>
+        <li><a href="{{ url_for('admin_products') }}">Products</a></li>
+        <li><a href="#">Orders</a></li>
+        <li><a href="{{ url_for('admin_vouchers') }}">Vouchers</a></li>
+        <li><a href="{{ url_for('admin_users') }}">Staff Management</a></li>
+        <li><a href="{{ url_for('admin_logout') }}">Logout</a></li>
+      </ul>
+    </nav>
+    {% endif %}
+
+    <main>{% block content %}{% endblock %}</main>
+
+    <footer>&copy; 2025 Anjet's Catering</footer>
+    <div id="deleteModal" class="modal">
+      <div class="modal-content">
+        <span class="modal-close-btn">&times;</span>
+        <h4>Confirm Deletion</h4>
+        <p>
+          Are you sure you want to delete this item? This action cannot be
+          undone.
+        </p>
+        <div class="modal-actions">
+          <button id="modalCancel" class="btn btn-secondary">Cancel</button>
+          <button id="modalConfirmDelete" class="btn btn-danger">Delete</button>
+        </div>
+      </div>
+    </div>
+    <form id="modalDeleteForm" method="POST" style="display: none"></form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+          // Get modal elements
+          const modal = document.getElementById("deleteModal");
+          const cancelBtn = document.getElementById("modalCancel");
+          const closeBtn = document.querySelector(".modal-close-btn");
+          const confirmDeleteBtn = document.getElementById("modalConfirmDelete");
+          const modalDeleteForm = document.getElementById("modalDeleteForm");
+
+
+          // Function to close the modal
+          const closeModal = () => {
+            modal.style.display = "none";
+          };
+
+          // Close modal when clicking "Cancel" or "X"
+          cancelBtn.onclick = closeModal;
+          closeBtn.onclick = closeModal;
+
+          // Close modal when clicking outside of it
+          window.onclick = (event) => {
+            if (event.target == modal) {
+              closeModal();
+            }
+          };
+
+          // Find all delete forms
+          document.querySelectorAll(".delete-form-modal").forEach((form) => {
+            form.addEventListener("submit", function (e) {
+              // Stop the form from submitting immediately
+              e.preventDefault();
+
+              // Get the URL from the form's 'action' attribute
+              const formAction = this.action;
+
+              // Set the hidden modal form's action
+              modalDeleteForm.action = formAction;
+
+              // Show the modal
+              modal.style.display = "block";
+            });
+          });
+
+          // When the user clicks the *real* delete button in the modal...
+          confirmDeleteBtn.addEventListener("click", () => {
+            // ...submit the hidden form
+            modalDeleteForm.submit();
+          });
+
+          // --- Toast Notification Script ---
+      const toastContainer = document.getElementById('toastContainer');
+
+      function createToast(message, category) {
+          // Create the toast element
+          const toast = document.createElement('div');
+          toast.classList.add('toast', `toast-${category}`); // e.g., toast-success
+
+          // Create the message text
+          const messageNode = document.createElement('span');
+          messageNode.innerText = message;
+
+          // Create a close button
+          const closeBtn = document.createElement('button');
+          closeBtn.classList.add('toast-close-btn');
+          closeBtn.innerHTML = '&times;';
+
+          // Function to close the toast
+          const closeToast = () => {
+              toast.style.animation = 'fadeOut 0.5s forwards';
+              toast.addEventListener('animationend', () => {
+                  toast.remove();
+              });
+          }
+
+          closeBtn.onclick = closeToast;
+
+          // Assemble the toast
+          toast.appendChild(messageNode);
+          toast.appendChild(closeBtn);
+
+          // Add toast to the container
+          toastContainer.appendChild(toast);
+
+          // Set timeout to automatically remove the toast
+          setTimeout(() => {
+              // Check if the toast hasn't already been closed
+              if (toast.parentElement) {
+                  closeToast();
+              }
+          }, 5000); // 5 seconds
+      }
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+              {% for category, message in messages %}
+                  // Call our function for each message
+            createToast("{{ message | safe }}", "{{ category }}");
+              {% endfor %}
+          {% endif %}
+      {% endwith %}
+      // --- End of Toast Script ---
+
+        });
+    </script>
+    <div id="toastContainer"></div>
+  </body>
+</html>

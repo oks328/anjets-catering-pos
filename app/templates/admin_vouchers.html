@@ -1,0 +1,82 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Manage Vouchers{% endblock %}
+
+{% block content %}
+    <h2>Manage Discount Vouchers</h2>
+
+    <div class="card" id="add-voucher-card">
+        <h3>Add New Voucher</h3>
+        <form method="POST" action="{{ url_for('admin_add_voucher') }}" novalidate>
+            {{ add_form.hidden_tag() }} <div class="form-group">
+                {{ add_form.code.label }}
+                {{ add_form.code(class="form-control") }}
+                <p style="font-size: 0.9em; color: #555;">{{ add_form.code.description }}</p>
+            </div>
+
+            <div class="form-group">
+                {{ add_form.discount_percentage.label }}
+                {{ add_form.discount_percentage(class="form-control") }}
+                <p style="font-size: 0.9em; color: #555;">{{ add_form.discount_percentage.description }}</p>
+            </div>
+
+            <div class="form-group form-group-checkbox">
+                {{ add_form.is_active(id="add_is_active") }}
+                {{ add_form.is_active.label(for="add_is_active") }}
+            </div>
+
+            <div class="form-group">
+                {{ add_form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+
+    <div class="card" id="existing-vouchers-card">
+        <h3>Existing Vouchers</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Discount %</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for voucher in vouchers %}
+                <tr>
+                    <form method="POST" action="{{ url_for('admin_edit_voucher', voucher_id=voucher.voucher_id) }}" novalidate>
+                        {{ edit_form.hidden_tag() }}
+                        <td>
+                            {{ edit_form.code(class="form-control", value=voucher.code) }}
+                        </td>
+                        <td>
+                            {{ edit_form.discount_percentage(class="form-control", value=voucher.discount_percentage) }}
+                        </td>
+                        <td>
+                        {% if voucher.is_active %}
+                            <span style="color: #155724; font-weight: bold;">Active</span>
+                        {% else %}
+                            <span style="color: #6c757d; font-weight: bold;">Inactive</span>
+                        {% endif %}
+                    </td>
+                        <td class="action-buttons">
+                            {{ edit_form.submit(class="btn btn-secondary", value="Update") }}
+                    </form> <form method="POST" action="{{ url_for('admin_toggle_voucher_status', voucher_id=voucher.voucher_id) }}" style="display:inline;">
+                    {% if voucher.is_active %}
+                        <input type="submit" value="Deactivate" class="btn btn-danger">
+                    {% else %}
+                        <input type="submit" value="Activate" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
+                    {% endif %}
+                </form>
+                        </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">No vouchers found. Add one above!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

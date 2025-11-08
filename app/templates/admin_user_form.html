@@ -1,0 +1,86 @@
+{% extends "admin_base.html" %}
+
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+    <h2>{{ form_title }}</h2>
+
+    <div class="card">
+        <form method="POST" action="{{ action_url }}" novalidate>
+            {{ form.hidden_tag() }} <div class="form-group">
+                {{ form.username.label }}
+                {{ form.username(class="form-control") }} 
+                {% for error in form.username.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ form.role.label }}
+                {{ form.role(class="form-control") }} 
+                {% for error in form.role.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <hr>
+
+            <div class="form-group">
+                {{ form.password.label }}
+                {{ form.password(class="form-control", id="password_field") }}
+                {% for error in form.password.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem;">
+                <input type="checkbox" id="toggle_password">
+                <label for="toggle_password">Show Password</label>
+            </div>
+
+            <div class="form-group">
+                {{ form.confirm_password.label }}
+                {{ form.confirm_password(class="form-control", id="confirm_password_field") }}
+                {% for error in form.confirm_password.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+            
+            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem;">
+                <input type="checkbox" id="toggle_confirm_password">
+                <label for="toggle_confirm_password">Show Password</label>
+            </div>
+
+            <div class="form-group">
+                {{ form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- Logic for the first password field ---
+        const togglePassword = document.getElementById('toggle_password');
+        const passwordField = document.getElementById('password_field');
+
+        togglePassword.addEventListener('click', function() {
+            // Toggle the type attribute
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+        });
+
+        // --- Logic for the confirm password field ---
+        const toggleConfirmPassword = document.getElementById('toggle_confirm_password');
+        const confirmPasswordField = document.getElementById('confirm_password_field');
+
+        toggleConfirmPassword.addEventListener('click', function() {
+            // Toggle the type attribute
+            const type = confirmPasswordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            confirmPasswordField.setAttribute('type', type);
+        });
+    });
+</script>
+
+{% endblock %}

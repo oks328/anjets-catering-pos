@@ -1,0 +1,78 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Manage Categories{% endblock %}
+
+{% block content %}
+    <h2>Manage Menu Categories</h2>
+
+    <div class="card" id="add-category-card">
+        <h3>Add New Category</h3>
+        <form method="POST" action="{{ url_for('admin_add_category') }}" novalidate>
+            {{ add_form.hidden_tag() }} <div class="form-group">
+                {{ add_form.name.label }}
+                {{ add_form.name(class="form-control") }}
+                {% for error in add_form.name.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ add_form.description.label }}
+                {{ add_form.description(class="form-control") }}
+            </div>
+
+            <div class="form-group">
+                {{ add_form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+
+<div class="card" id="existing-categories-card">
+    <form method="GET" action="{{ url_for('admin_categories') }}#existing-categories-card" class="search-form">
+    <input type="text" name="search" class="form-control" placeholder="Search categories..." value="{{ search_query or '' }}">
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+        <h3>Existing Categories</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in categories %}
+                <tr>
+                    <form method="POST" action="{{ url_for('admin_edit_category', category_id=category.category_id) }}" novalidate>
+                        {{ edit_form.hidden_tag() }}
+                        <td>
+                            {{ edit_form.name(class="form-control", value=category.name) }}
+                        </td>
+                        <td>
+                            <textarea name="description" 
+          class="form-control" 
+          id="description-{{ category.category_id }}"
+>{{ category.description or '' }}</textarea>
+                        </td>
+                        <td class="action-buttons">
+                            {{ edit_form.submit(class="btn btn-secondary", value="Update") }}
+                    </form> <form method="POST" action="{{ url_for('admin_toggle_category_status', category_id=category.category_id) }}" style="display:inline;">
+                        {% if category.is_active %}
+                            <input type="submit" value="Deactivate" class="btn btn-danger">
+                        {% else %}
+                            <input type="submit" value="Activate" class="btn btn-primary" style="background-color: #28a745; border-color: #28a745;">
+                        {% endif %}
+                    </form>
+                        </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">No categories found. Add one above!</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
