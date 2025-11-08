@@ -267,3 +267,104 @@ body {
     font-weight: normal;
     color: #555;
 }
+
+/* --- Cart Page Styles --- */
+.cart-container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.cart-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+}
+
+.cart-table thead {
+    border-bottom: 2px solid #eee;
+}
+
+.cart-table th {
+    text-align: left;
+    padding: 1rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.cart-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.cart-item-details {
+    display: flex;
+    align-items: center;
+}
+
+.cart-item-details img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 1rem;
+}
+
+.cart-item-details a {
+    text-decoration: none;
+    color: #333;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+.cart-item-details a:hover {
+    color: #d9534f;
+}
+
+.cart-totals {
+    text-align: right;
+}
+
+.cart-totals h3 {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.cart-totals .btn-checkout {
+    background-color: #28a745;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: bold;
+}
+.cart-totals .btn-checkout:hover {
+    background-color: #218838;
+}
+
+/* --- Cart Quantity Form Styles --- */
+.quantity-form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.quantity-form .form-control-sm {
+    width: 60px;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    text-align: center;
+}
+
+.quantity-form .btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: normal;
+}

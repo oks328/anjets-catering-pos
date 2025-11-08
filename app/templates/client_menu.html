@@ -31,8 +31,12 @@
                     <div class="product-card-footer">
                         <div class="product-card-price">
                             {% if product.has_variants %}
-                                <span class="price-small">Starts at</span>
-                                ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                                {% if product.variants %}
+                                    <span class="price-small">Starts at</span>
+                                    ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                                {% else %}
+                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                                {% endif %}
                             {% else %}
                                 {% if product.variants %}
                                     ₱{{ "%.2f"|format(product.variants[0].price) }}
@@ -42,7 +46,7 @@
                             {% endif %}
                         </div>
                         
-                        <form action="#" method="POST">
+                        <form action="{{ url_for('add_to_cart') }}" method="POST">
                             <input type="hidden" name="product_id" value="{{ product.product_id }}">
                             <button type="submit" class="btn btn-primary">Add to Cart</button>
                         </form>

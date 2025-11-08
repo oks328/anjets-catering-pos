@@ -92,6 +92,136 @@ def client_menu():
         selected_category=selected_category
     )
 
+# ===============================================
+# CLIENT-SIDE: SHOPPING CART
+# ===============================================
+
+@app.route('/cart/add', methods=['POST'])
+def add_to_cart():
+    """
+    Add a product to the user's session cart.
+    """
+    cart = session.get('cart', {})
+    product_id = request.form.get('product_id')
+    
+    # --- THIS IS THE FIX ---
+    # Get the product object *before* the if/else logic.
+    # This ensures the 'product' variable always exists.
+    product = Product.query.get_or_404(product_id)
+    # -----------------------
+
+    quantity = 1
+    
+    if product_id in cart:
+        # If item is already in cart, increment quantity
+        cart[product_id]['quantity'] += quantity
+    else:
+        # If new, add it to the cart
+        # We already have the 'product' object
+        cart[product_id] = {
+            'name': product.name,
+            'quantity': quantity
+        }
+    
+    session['cart'] = cart
+    
+    print("Updated Cart:", session['cart'])
+    
+    # Now this line will always work
+    flash(f"Added {product.name} to cart!", 'success')
+    return redirect(url_for('client_menu'))
+
+@app.route('/cart')
+def client_cart():
+    """
+    (R)EAD: Display the user's shopping cart.
+    """
+    # Get the cart from the session, default to an empty dict
+    cart_session = session.get('cart', {})
+    
+    cart_items = []
+    total_price = 0.0
+
+    # Loop through items in the session cart to get full details
+    for product_id, item_data in cart_session.items():
+        product = Product.query.get(product_id)
+        
+        if product:
+            # --- This logic gets the price ---
+            price = 0.0
+            if product.has_variants:
+                # If it has variants, grab the cheapest one (for now)
+                if product.variants:
+                    price = min(v.price for v in product.variants)
+            else:
+                # If it's a simple product, grab the 'Regular' price
+                if product.variants:
+                    price = product.variants[0].price
+            # --- End of price logic ---
+            
+            quantity = item_data['quantity']
+            line_total = float(price) * quantity
+            total_price += line_total
+            
+            cart_items.append({
+                'id': product.product_id,
+                'name': product.name,
+                'image': product.image_file,
+                'price': float(price),
+                'quantity': quantity,
+                'line_total': line_total
+            })
+
+    return render_template(
+        'client_cart.html', 
+        cart_items=cart_items, 
+        total_price=total_price
+    )
+
+@app.route('/cart/remove/<string:product_id>')
+def remove_from_cart(product_id):
+    """
+    Remove an item from the shopping cart.
+    """
+    cart = session.get('cart', {})
+    
+    # Use .pop() to remove the item if it exists
+    item_name = cart.pop(product_id, None) 
+    
+    if item_name:
+        flash(f"Removed {item_name['name']} from cart.", 'info')
+    
+    # Save the modified cart back to the session
+    session['cart'] = cart
+    
+    return redirect(url_for('client_cart'))
+
+
+@app.route('/cart/update', methods=['POST'])
+def update_cart_quantity():
+    """
+    Update the quantity of an item in the cart.
+    """
+    cart = session.get('cart', {})
+    product_id = request.form.get('product_id')
+    
+    # Get the new quantity from the form, default to 1
+    try:
+        quantity = int(request.form.get('quantity'))
+        if quantity < 1:
+            quantity = 1 # Minimum quantity is 1
+    except:
+        quantity = 1 # Default to 1 if something goes wrong
+    
+    # Update the cart if the item exists
+    if product_id in cart:
+        cart[product_id]['quantity'] = quantity
+        flash(f"Updated {cart[product_id]['name']} quantity.", 'success')
+        
+    session['cart'] = cart
+    
+    return redirect(url_for('client_cart'))
+
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     """
