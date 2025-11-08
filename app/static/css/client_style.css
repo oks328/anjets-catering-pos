@@ -1,0 +1,174 @@
+/* --- Client-Side Base Styles --- */
+body, h1, h2, h3, p, ul {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f9f9f9;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Header & Navigation */
+.client-header {
+    background-color: white;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #eee;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.client-header .logo a {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #d9534f; /* Main theme color */
+    text-decoration: none;
+}
+
+.client-nav ul {
+    list-style: none;
+    display: flex;
+    gap: 1.5rem;
+}
+
+.client-nav a {
+    text-decoration: none;
+    color: #555;
+    font-weight: 500;
+    font-size: 1rem;
+    transition: color 0.2s ease;
+}
+
+.client-nav a:hover,
+.client-nav a.active {
+    color: #d9534f;
+}
+
+/* Main Content Area */
+.client-main {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 2rem;
+    min-height: 70vh; /* Ensures footer is pushed down */
+}
+
+/* Footer */
+.client-footer {
+    text-align: center;
+    padding: 2rem;
+    background-color: #333;
+    color: white;
+    margin-top: 3rem;
+}
+
+/* Utility Card */
+.card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+/* Button Styles */
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    text-decoration: none;
+    display: inline-block;
+    margin: 0.5rem;
+    font-weight: bold;
+}
+
+.btn-primary {
+    background-color: #d9534f;
+    color: white;
+}
+.btn-primary:hover {
+    background-color: #c9302c;
+}
+
+.btn-secondary {
+    background-color: white;
+    color: #d9534f;
+    border: 2px solid #d9534f;
+}
+.btn-secondary:hover {
+    background-color: #f4f4f4;
+}
+
+/* --- Toast Notification Styles --- */
+#toastContainer {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 350px;
+}
+
+.toast {
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    font-size: 1rem;
+    font-weight: 500;
+    color: white;
+    opacity: 0;
+    transform: translateX(100%);
+    animation: slideIn 0.5s forwards, fadeOut 0.5s 4.5s forwards;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Client-side toast colors */
+.toast-success { background-color: #28a745; }
+.toast-danger  { background-color: #dc3545; }
+.toast-info    { background-color: #17a2b8; }
+.toast-warning { background-color: #ffc107; color: #333; }
+
+.toast-close-btn {
+    margin-left: 1rem;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    opacity: 0.7;
+}
+.toast-close-btn:hover {
+    opacity: 1;
+}
+.toast-warning .toast-close-btn {
+    color: #333;
+}
+
+/* Animations */
+@keyframes slideIn {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+}

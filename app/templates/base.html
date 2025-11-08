@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Anjet's Catering{% endblock %}</title>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
+
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <header class="client-header">
+        <div class="logo">
+            <a href="{{ url_for('client_home') }}">Anjet's Catering</a>
+        </div>
+        <nav class="client-nav">
+            <ul>
+                <li><a href="{{ url_for('client_home') }}">Home</a></li>
+                <li><a href="#">Order Now</a></li> <li><a href="#">Build a Buffet</a></li> <li><a href="#">Cart</a></li> <li><a href="#">Login/Register</a></li> </ul>
+        </nav>
+    </header>
+
+    <main class="client-main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="client-footer">
+        <p>&copy; 2025 Anjet's Catering. All rights reserved.</p>
+    </footer>
+
+    <div id="toastContainer"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toastContainer = document.getElementById('toastContainer');
+
+            function createToast(message, category) {
+                const toast = document.createElement('div');
+                toast.classList.add('toast', `toast-${category}`);
+                
+                const messageNode = document.createElement('span');
+                messageNode.innerText = message;
+                
+                const closeBtn = document.createElement('button');
+                closeBtn.classList.add('toast-close-btn');
+                closeBtn.innerHTML = '&times;';
+                
+                const closeToast = () => {
+                    toast.style.animation = 'fadeOut 0.5s forwards';
+                    toast.addEventListener('animationend', () => toast.remove());
+                }
+                
+                closeBtn.onclick = closeToast;
+                toast.appendChild(messageNode);
+                toast.appendChild(closeBtn);
+                toastContainer.appendChild(toast);
+
+                setTimeout(() => {
+                    if (toast.parentElement) closeToast();
+                }, 5000); // 5 seconds
+            }
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        createToast("{{ message | safe }}", "{{ category }}");
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        });
+    </script>
+</body>
+</html>

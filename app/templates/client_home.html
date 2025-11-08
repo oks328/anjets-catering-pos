@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to Anjet's Catering{% endblock %}
+
+{% block content %}
+
+<div class="hero-section">
+    <h1>Delicious Catering for Every Occasion</h1>
+    <p>Let us make your next event unforgettable.</p>
+
+    <div class="cta-buttons">
+        <a href="#" class="btn btn-primary">Order Now (À la Carte)</a> <a href="#" class="btn btn-secondary">Build a Buffet</a> </div>
+</div>
+
+<div class="card" style="margin-top: 2rem;">
+    <h2>Today's Popular Items</h2>
+    <p>This is where we'll show a list of popular items, pulled from the database! (Coming soon)</p>
+    </div>
+
+{% endblock %}
+
+
+{% block styles %}
+<style>
+    .hero-section {
+        text-align: center;
+        padding: 4rem 2rem;
+        background-color: #d9534f; /* Main theme color */
+        color: white;
+        border-radius: 8px;
+    }
+    .hero-section h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+    .hero-section p {
+        font-size: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    /* Style the buttons in the hero */
+    .hero-section .btn-primary {
+        background-color: white;
+        color: #d9534f;
+    }
+    .hero-section .btn-primary:hover {
+        background-color: #f4f4f4;
+    }
+    .hero-section .btn-secondary {
+        background-color: transparent;
+        color: white;
+        border: 2px solid white;
+    }
+    .hero-section .btn-secondary:hover {
+        background-color: white;
+        color: #d9534f;
+    }
+</style>
+{% endblock %}

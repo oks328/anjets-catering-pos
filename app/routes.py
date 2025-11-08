@@ -52,9 +52,12 @@ def save_picture(form_picture):
     return picture_fn
 
 @app.route('/')
-def home():
-    """Homepage route."""
-    return "Hello, Anjet's Catering Project!"
+def client_home():
+    """
+    Client-facing homepage.
+    """
+    # This tells Flask to render your new HTML file
+    return render_template('client_home.html')
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -832,3 +835,4 @@ def admin_delete_user(user_id):
         flash(f"Error deleting user: {e}", 'danger')
 
     return redirect(url_for('admin_users'))
+
