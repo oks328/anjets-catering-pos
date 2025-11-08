@@ -4,7 +4,7 @@ from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField
-from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError
+from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange
 from flask_wtf.file import FileField, FileAllowed, FileSize
 
 
@@ -116,11 +116,24 @@ class VoucherForm(FlaskForm):
         validators=[DataRequired(), Length(min=3, max=50)],
         description="e.g., 'Kamag-anak' or 'SALE10'"
     )
+
+class VoucherForm(FlaskForm):
+    """
+    Form for adding/editing a voucher.
+    """
+    code = StringField(
+        'Voucher Code',
+        validators=[DataRequired(), Length(min=3, max=50)],
+        description="e.g., 'Kamag-anak' or 'SALE10'"
+    )
     discount_percentage = DecimalField(
         'Discount Percentage',
         places=2,
-        validators=[DataRequired()],
-        description="e.g., Enter 10 for 10%, 15.5 for 15.5%"
+        validators=[
+            DataRequired(),
+            NumberRange(min=0.01, max=20.0, message="Discount must be between 0.01%% and 20%%.")
+        ],
+        description="e.g., Enter 10 for 10%. Max is 20%."
     )
     # This will be a checkbox
     is_active = BooleanField(
@@ -128,8 +141,6 @@ class VoucherForm(FlaskForm):
         default=True
     )
     submit = SubmitField('Save Voucher')
-    # ... VoucherForm is above ...
-
 class UserAddForm(FlaskForm):
     """
     Form for admin to add a new staff user.

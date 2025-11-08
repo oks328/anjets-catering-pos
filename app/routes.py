@@ -18,6 +18,7 @@ from app.forms import VoucherForm, UserAddForm, UserEditForm
 
 
 
+
 def get_category_choices():
     """
     Helper function to get all categories for the product form dropdown.
@@ -593,10 +594,19 @@ def admin_add_voucher():
     (C)REATE: Process the add voucher form.
     """
     add_form = VoucherForm()
-
+    
     if add_form.validate_on_submit():
+        form_code = add_form.code.data
+        
+        # --- NEW: DUPLICATE CHECK ---
+        existing_voucher = Voucher.query.filter_by(code=form_code).first()
+        if existing_voucher:
+            flash(f"Error: A voucher with the code '{form_code}' already exists.", 'danger')
+            return redirect(url_for('admin_vouchers') + '#add-voucher-card')
+        # --- END OF CHECK ---
+
         new_voucher = Voucher(
-            code=add_form.code.data,
+            code=form_code,
             discount_percentage=add_form.discount_percentage.data,
             is_active=add_form.is_active.data
         )
@@ -608,7 +618,11 @@ def admin_add_voucher():
             db.session.rollback()
             flash(f"Error adding voucher: {e}", 'danger')
     else:
-        flash('Error: Could not add voucher. Please check form.', 'danger')
+        # This block catches form validation errors (like > 20%)
+        for field, errors in add_form.errors.items():
+            for error in errors:
+                field_name = getattr(add_form, field).label.text
+                flash(f"Error in '{field_name}': {error}", 'danger')
 
     return redirect(url_for('admin_vouchers') + '#add-voucher-card')
 
@@ -620,11 +634,25 @@ def admin_edit_voucher(voucher_id):
     """
     voucher = Voucher.query.get_or_404(voucher_id)
     edit_form = VoucherForm()
-
+    
     if edit_form.validate_on_submit():
-        voucher.code = edit_form.code.data
-        voucher.discount_percentage = edit_form.discount_percentage.data
+        form_code = edit_form.code.data
 
+        # --- NEW: DUPLICATE CHECK ---
+        # Check if another voucher (but not this one) already has the new code
+        existing_voucher = Voucher.query.filter(
+            Voucher.code == form_code,
+            Voucher.voucher_id != voucher_id
+        ).first()
+        if existing_voucher:
+            flash(f"Error: Cannot rename. The code '{form_code}' is already in use.", 'danger')
+            return redirect(url_for('admin_vouchers') + '#existing-vouchers-card')
+        # --- END OF CHECK ---
+
+        voucher.code = form_code
+        voucher.discount_percentage = edit_form.discount_percentage.data
+        # We don't update is_active here, that's handled by the toggle route
+        
         try:
             db.session.commit()
             flash(f"Voucher '{voucher.code}' updated successfully.", 'success')
@@ -632,7 +660,11 @@ def admin_edit_voucher(voucher_id):
             db.session.rollback()
             flash(f"Error updating voucher: {e}", 'danger')
     else:
-        flash('Error: Could not update voucher. Please check form.', 'danger')
+        # This block catches form validation errors (like > 20%)
+        for field, errors in edit_form.errors.items():
+            for error in errors:
+                field_name = getattr(edit_form, field).label.text
+                flash(f"Error in '{field_name}': {error}", 'danger')
 
     return redirect(url_for('admin_vouchers') + '#existing-vouchers-card')
 
