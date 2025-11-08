@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Order Now{% endblock %}
+
+{% block content %}
+    <h2 style="text-align: center; margin-bottom: 2rem;">Our Menu</h2>
+
+    <ul class="category-tabs">
+        <li><a href="{{ url_for('client_menu') }}" class="{{ 'active' if not selected_category else '' }}">All</a></li>
+        {% for category in categories %}
+            {% set is_active = selected_category and selected_category.category_id == category.category_id %}
+            <li>
+                <a href="{{ url_for('client_menu', category_id=category.category_id) }}" class="{{ 'active' if is_active else '' }}">
+                    {{ category.name }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <div class="product-grid">
+        {% for product in products %}
+            <div class="product-card">
+                <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
+                     alt="{{ product.name }}" 
+                     class="product-card-image">
+
+                <div class="product-card-content">
+                    <h3>{{ product.name }}</h3>
+                    <p>{{ product.description or 'No description available.' }}</p>
+                    
+                    <div class="product-card-footer">
+                        <div class="product-card-price">
+                            {% if product.has_variants %}
+                                <span class="price-small">Starts at</span>
+                                ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                            {% else %}
+                                {% if product.variants %}
+                                    ₱{{ "%.2f"|format(product.variants[0].price) }}
+                                {% else %}
+                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        <form action="#" method="POST">
+                            <input type="hidden" name="product_id" value="{{ product.product_id }}">
+                            <button type="submit" class="btn btn-primary">Add to Cart</button>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p>No products found in this category.</p>
+        {% endfor %}
+    </div>
+
+{% endblock %}

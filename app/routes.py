@@ -2,7 +2,7 @@ import os
 import secrets
 from PIL import Image
 from flask import current_app as app
-from flask import render_template, redirect, url_for, flash, request
+from flask import render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, current_user, login_required
 from app.models import User
 from app.forms import AdminLoginForm
@@ -58,6 +58,39 @@ def client_home():
     """
     # This tells Flask to render your new HTML file
     return render_template('client_home.html')
+
+@app.route('/menu')
+def client_menu():
+    """
+    Client-facing Menu page.
+    Shows ACTIVE categories and products.
+    Can be filtered by category_id.
+    """
+    # Get the category_id from the URL (e.g., /menu?category_id=1)
+    category_id = request.args.get('category_id', type=int)
+
+    # Fetch all ACTIVE categories for the tabs
+    categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
+
+    selected_category = None
+
+    # Base query for products, joining with Category to filter
+    product_query = Product.query.join(Category).filter(Category.is_active==True)
+
+    if category_id:
+        # If a category is selected, filter the product query
+        product_query = product_query.filter(Product.category_id==category_id)
+        selected_category = Category.query.get(category_id)
+
+    # Execute the query
+    products = product_query.order_by(Product.name.asc()).all()
+
+    return render_template(
+        'client_menu.html',
+        categories=categories,
+        products=products,
+        selected_category=selected_category
+    )
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():

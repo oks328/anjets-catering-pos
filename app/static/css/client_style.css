@@ -172,3 +172,98 @@ body {
         transform: scale(0.9);
     }
 }
+
+/* --- Menu Page Styles --- */
+
+/* Category Tabs */
+.category-tabs {
+    display: flex;
+    justify-content: center;
+    list-style: none;
+    padding: 0;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #eee;
+    flex-wrap: wrap; /* Allows tabs to wrap on small screens */
+}
+
+.category-tabs li {
+    margin: 0;
+}
+
+.category-tabs a {
+    display: block;
+    padding: 0.75rem 1.5rem;
+    text-decoration: none;
+    color: #555;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px; /* Aligns with the main border */
+}
+
+.category-tabs a.active,
+.category-tabs a:hover {
+    color: #d9534f;
+    border-bottom-color: #d9534f;
+}
+
+/* Product Grid */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Product Card */
+.product-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    overflow: hidden; /* Ensures image corners are rounded */
+    display: flex;
+    flex-direction: column;
+}
+
+.product-card-image {
+    height: 200px;
+    width: 100%; /* Make sure image fills the width */
+    object-fit: cover; /* This is key: scales and crops the image nicely */
+    display: block;
+}
+
+.product-card-content {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1; /* Makes card content fill the space */
+}
+
+.product-card-content h3 {
+    font-size: 1.25rem;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.product-card-content p {
+    font-size: 0.9rem;
+    color: #666;
+    flex-grow: 1; /* Pushes price/button to the bottom */
+    margin-bottom: 1rem;
+}
+
+.product-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.product-card-price {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.product-card-price .price-small {
+    font-size: 0.85rem;
+    font-weight: normal;
+    color: #555;
+}
