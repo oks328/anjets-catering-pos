@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}My Account{% endblock %}
+
+{% block content %}
+<div class="account-container">
+    <aside class="account-nav">
+        <h3>Hello, {{ session['customer_name'] }}!</h3>
+        <ul>
+            <li><a href="#" class="active">Order History</a></li>
+            <li><a href="#">My Profile</a></li>
+            <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
+        </ul>
+    </aside>
+
+    <section class="account-content">
+        <h2>My Order History</h2>
+        
+        {% if not orders %}
+            <p>You haven't placed any orders yet.</p>
+        {% else %}
+            <table class="order-history-table">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Items</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>#{{ order.order_id }}</td>
+                        <td class="order-items-list">
+                        <ul>
+                            {% for item in order.items %}
+                                <li>
+                                    {{ item.quantity }}x {{ item.product.name }}
+                                    <span class="variant-name">({{ item.variant.size_name }})</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                        <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
+                        <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
+                        <td>
+                            {% if order.status == 'Pending' %}
+                                <span class="status-pending">Pending</span>
+                            {% elif order.status == 'Completed' %}
+                                <span class="status-completed">Completed</span>
+                            {% else %}
+                                <span>{{ order.status }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

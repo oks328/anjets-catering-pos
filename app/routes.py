@@ -12,12 +12,10 @@ from app.forms import AdminLoginForm, CategoryForm
 from app.models import User, Category, Product, ProductVariant # <-- ADD Product, ProductVariant
 from app.forms import AdminLoginForm, CategoryForm, ProductForm # <-- ADD ProductForm
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm # <-- ADD VariantForm
-from app.models import User, Category, Product, ProductVariant, Voucher # <-- ADD Voucher
+from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order,OrderItem # <-- ADD Voucher
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm # <-- ADD VoucherForm
-from app.forms import VoucherForm, UserAddForm, UserEditForm
-
-
-
+from app.forms import VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm
+from functools import wraps
 
 def get_category_choices():
     """
@@ -51,6 +49,18 @@ def save_picture(form_picture):
 
     return picture_fn
 
+def customer_login_required(f):
+    """
+    A decorator to ensure a customer is logged in by checking the session.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'customer_id' not in session:
+            flash("You must be logged in to view that page.", 'danger')
+            return redirect(url_for('client_account_page'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/')
 def client_home():
     """
@@ -60,6 +70,7 @@ def client_home():
     return render_template('client_home.html')
 
 @app.route('/menu')
+@customer_login_required
 def client_menu():
     """
     Client-facing Menu page.
@@ -92,11 +103,32 @@ def client_menu():
         selected_category=selected_category
     )
 
+@app.route('/my-account')
+@customer_login_required
+def client_my_account():
+    """
+    (R)EAD: Display the customer's account page.
+    Shows their profile and order history.
+    """
+    # Get the logged-in customer's ID from the session
+    customer_id = session['customer_id']
+
+    # Fetch all orders for this customer, newest first
+    orders = Order.query.filter_by(customer_id=customer_id).order_by(Order.order_date.desc()).all()
+
+    # We'll add the profile form later
+
+    return render_template(
+        'client_account.html',
+        orders=orders
+    )
+
 # ===============================================
 # CLIENT-SIDE: SHOPPING CART
 # ===============================================
 
 @app.route('/cart/add', methods=['POST'])
+@customer_login_required
 def add_to_cart():
     """
     Add a product to the user's session cart.
@@ -175,6 +207,7 @@ def product_details(product_id):
         })
 
 @app.route('/cart')
+@customer_login_required
 def client_cart():
     """
     (R)EAD: Display the user's shopping cart.
@@ -184,80 +217,219 @@ def client_cart():
     cart_items = []
     total_price = 0.0
 
-    # Loop through items in the session cart
-    # The 'item_id' is the VARIANT_ID
     for item_id, item_data in cart_session.items():
-
-        # --- THIS IS THE FIX ---
-        # We don't need to query the database for price.
-        # We already saved all the info we need in the session.
-
         quantity = item_data['quantity']
-        price = item_data['price'] # Get the exact price from session
+        price = item_data['price']
         line_total = float(price) * quantity
         total_price += line_total
 
         cart_items.append({
             'product_id': item_data['product_id'],
-            'variant_id': item_id, # The key is the variant_id
+            'variant_id': item_id,
             'name': item_data['name'],
-            'variant_name': item_data['variant_name'], # Get variant name
+            'variant_name': item_data['variant_name'],
             'image': item_data['image'],
             'price': float(price),
             'quantity': quantity,
             'line_total': line_total
         })
-        # --- END OF FIX ---
+
+    # --- NEW VOUCHER LOGIC ---
+    discount_percentage = session.get('discount_percentage', 0.0)
+    discount_amount = (total_price * discount_percentage) / 100
+    final_total = total_price - discount_amount
+    # --- END OF NEW LOGIC ---
 
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
-        total_price=total_price
+        total_price=total_price,
+        discount_amount=discount_amount, # Pass new values
+        final_total=final_total          # Pass new values
     )
 
-@app.route('/cart/remove/<string:product_id>')
-def remove_from_cart(product_id):
+@app.route('/cart/remove/<string:variant_id>')
+@customer_login_required
+def remove_from_cart(variant_id):
     """
     Remove an item from the shopping cart.
     """
     cart = session.get('cart', {})
-    
+
     # Use .pop() to remove the item if it exists
-    item_name = cart.pop(product_id, None) 
-    
-    if item_name:
-        flash(f"Removed {item_name['name']} from cart.", 'info')
-    
+    item_data = cart.pop(variant_id, None) 
+
+    if item_data:
+        flash(f"Removed {item_data['name']} ({item_data['variant_name']}) from cart.", 'info')
+
     # Save the modified cart back to the session
     session['cart'] = cart
-    
+
     return redirect(url_for('client_cart'))
 
-
 @app.route('/cart/update', methods=['POST'])
+@customer_login_required
 def update_cart_quantity():
     """
     Update the quantity of an item in the cart.
     """
     cart = session.get('cart', {})
-    product_id = request.form.get('product_id')
-    
-    # Get the new quantity from the form, default to 1
+
+    # Get the new data from the form
+    variant_id = request.form.get('variant_id')
     try:
         quantity = int(request.form.get('quantity'))
         if quantity < 1:
             quantity = 1 # Minimum quantity is 1
     except:
         quantity = 1 # Default to 1 if something goes wrong
-    
+
     # Update the cart if the item exists
-    if product_id in cart:
-        cart[product_id]['quantity'] = quantity
-        flash(f"Updated {cart[product_id]['name']} quantity.", 'success')
-        
+    if variant_id in cart:
+        cart[variant_id]['quantity'] = quantity
+        flash(f"Updated {cart[variant_id]['name']} quantity.", 'success')
+
     session['cart'] = cart
-    
+
     return redirect(url_for('client_cart'))
+
+@app.route('/cart/apply_voucher', methods=['POST'])
+@customer_login_required
+def apply_voucher():
+    """
+    Apply a voucher code to the cart.
+    """
+    code = request.form.get('voucher_code')
+    
+    if not code:
+        flash("Please enter a voucher code.", 'danger')
+        return redirect(url_for('client_cart'))
+
+    # [cite_start]Check the database for the voucher [cite: 123, 211-213]
+    voucher = Voucher.query.filter_by(code=code, is_active=True).first()
+    
+    if voucher:
+        # Found a valid, active voucher! Save it to the session.
+        session['voucher_code'] = voucher.code
+        session['discount_percentage'] = float(voucher.discount_percentage)
+        flash(f"Voucher '{voucher.code}' applied successfully!", 'success')
+    else:
+        # No valid voucher found
+        session.pop('voucher_code', None)
+        session.pop('discount_percentage', None)
+        flash("Invalid or expired voucher code.", 'danger')
+        
+    return redirect(url_for('client_cart'))
+
+@app.route('/checkout')
+@customer_login_required
+def client_checkout():
+    """
+    (R)EAD: Display the final checkout page with order summary.
+    """
+    # --- This is the same logic from client_cart() ---
+    # We recalculate everything to ensure it's 100% accurate
+    cart_session = session.get('cart', {})
+
+    if not cart_session:
+        flash("Your cart is empty.", 'info')
+        return redirect(url_for('client_cart'))
+
+    cart_items = []
+    total_price = 0.0
+
+    for item_id, item_data in cart_session.items():
+        quantity = item_data['quantity']
+        price = item_data['price']
+        line_total = float(price) * quantity
+        total_price += line_total
+
+        cart_items.append({
+            'product_id': item_data['product_id'],
+            'variant_id': item_id,
+            'name': item_data['name'],
+            'variant_name': item_data['variant_name'],
+            'image': item_data['image'],
+            'price': float(price),
+            'quantity': quantity,
+            'line_total': line_total
+        })
+
+    discount_percentage = session.get('discount_percentage', 0.0)
+    discount_amount = (total_price * discount_percentage) / 100
+    final_total = total_price - discount_amount
+    # --- End of cart logic ---
+
+    return render_template(
+        'client_checkout.html',
+        cart_items=cart_items,
+        total_price=total_price,
+        discount_amount=discount_amount,
+        final_total=final_total
+    )
+@app.route('/checkout/place_order', methods=['POST'])
+@customer_login_required
+def place_order():
+    """
+    (C)REATE: Create the order in the database.
+    This is the final step.
+    """
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        flash("Your cart is empty.", 'info')
+        return redirect(url_for('client_cart'))
+
+    # --- 1. Recalculate Totals (again) for security ---
+    total_price = 0.0
+    for item_id, item_data in cart_session.items():
+        total_price += float(item_data['price']) * item_data['quantity']
+
+    discount_percentage = session.get('discount_percentage', 0.0)
+    discount_amount = (total_price * discount_percentage) / 100
+    final_total = total_price - discount_amount
+    
+    # --- 2. Create the main Order ---
+    try:
+        new_order = Order(
+            customer_id=session['customer_id'],
+            total_amount=total_price,
+            discount_amount=discount_amount,
+            final_amount=final_total,
+            status="Pending" # Default status
+        )
+        db.session.add(new_order)
+        db.session.commit() # Commit to get the new_order.order_id
+
+        # --- 3. Create the OrderItems ---
+        for variant_id, item_data in cart_session.items():
+            # Get the product_id from our session data
+            product_id = item_data['product_id']
+            
+            new_item = OrderItem(
+                order_id=new_order.order_id,
+                product_id=product_id,
+                variant_id=variant_id,
+                quantity=item_data['quantity'],
+                price_per_item=item_data['price'] # Price at time of purchase
+            )
+            db.session.add(new_item)
+        
+        # Commit all the new items
+        db.session.commit()
+
+        # --- 4. Clear the cart ---
+        session.pop('cart', None)
+        session.pop('voucher_code', None)
+        session.pop('discount_percentage', None)
+
+        flash("Thank you! Your order has been placed.", 'success')
+        # Redirect to the new "My Account" page to see the order
+        return redirect(url_for('client_my_account'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"An error occurred while placing your order: {e}", 'danger')
+        return redirect(url_for('client_checkout'))
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -291,7 +463,115 @@ def admin_login():
     # If it's a 'GET' request or form validation failed, show the login page
     return render_template('admin_login.html', form=form)
 
+# ===============================================
+# CLIENT-SIDE: CUSTOMER ACCOUNTS
+# ===============================================
 
+@app.route('/account', methods=['GET'])
+def client_account_page():
+    """
+    (R)EAD: Display the login form.
+    """
+    if 'customer_id' in session:
+        return redirect(url_for('client_home'))
+
+    login_form = CustomerLoginForm()
+
+    return render_template(
+        'client_login.html',
+        login_form=login_form
+    )
+
+@app.route('/register', methods=['GET'])
+def client_register_page():
+    """
+    (R)EAD: Display the register form.
+    """
+    if 'customer_id' in session:
+        return redirect(url_for('client_home'))
+
+    register_form = CustomerRegisterForm()
+
+    return render_template(
+        'client_register.html',
+        register_form=register_form
+    )
+
+@app.route('/logout')
+def client_logout():
+    """
+    Log the customer out by clearing their session data.
+    """
+    # Remove customer info from the session
+    session.pop('customer_id', None)
+    session.pop('customer_name', None)
+
+    # We can also clear the whole cart, or leave it. Let's leave it for now.
+
+    flash("You have been logged out.", 'info')
+    return redirect(url_for('client_home'))
+
+@app.route('/register', methods=['POST'])
+def client_register():
+    """
+    (C)REATE: Process the customer registration form.
+    """
+    # We only need the register_form
+    register_form = CustomerRegisterForm()
+
+    if register_form.validate_on_submit():
+        # ... (all the logic to create a user is the same) ...
+        new_customer = Customer(
+            name=register_form.name.data,
+            contact_number=register_form.contact_number.data,
+            email=register_form.email.data
+        )
+        new_customer.set_password(register_form.password.data) 
+
+        db.session.add(new_customer)
+        try:
+            db.session.commit()
+            session['customer_id'] = new_customer.customer_id
+            session['customer_name'] = new_customer.name
+
+            flash(f"Welcome, {new_customer.name}! Your account has been created.", 'success')
+            return redirect(url_for('client_home'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error creating account: {e}", 'danger')
+
+    # --- THIS IS THE FIX ---
+    # If form fails, re-render the REGISTER page with the errors
+    return render_template(
+        'client_register.html',
+        register_form=register_form
+    )
+
+@app.route('/login', methods=['POST'])
+def client_login():
+    """
+    (U)PDATE: Process the customer login form.
+    """
+    login_form = CustomerLoginForm() # To process
+
+    if login_form.validate_on_submit():
+        customer = Customer.query.filter_by(email=login_form.email.data).first()
+
+        if customer and customer.check_password(login_form.password.data):
+            session['customer_id'] = customer.customer_id
+            session['customer_name'] = customer.name
+
+            flash(f"Welcome back, {customer.name}!", 'success')
+            return redirect(url_for('client_home'))
+        else:
+            flash("Invalid email or password. Please try again.", 'danger')
+
+    # --- THIS IS THE FIX ---
+    # If form fails, re-render the LOGIN page with the errors
+    return render_template(
+        'client_login.html',
+        login_form=login_form
+    )
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():

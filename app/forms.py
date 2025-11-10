@@ -4,9 +4,9 @@ from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField
-from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange
+from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email
 from flask_wtf.file import FileField, FileAllowed, FileSize
-
+from app.models import Customer
 
 def password_complexity(form, field):
     """
@@ -20,6 +20,12 @@ def password_complexity(form, field):
         if not (has_letter and has_number):
             raise ValidationError('Password must contain a combination of letters and numbers.')
         
+def email_exists(form, field):
+
+    customer = Customer.query.filter_by(email=field.data).first()
+    if customer:
+        raise ValidationError('That email address is already in use. Please log in.')
+    
 class AdminLoginForm(FlaskForm):
     """
     Form for admin users to log in.
@@ -191,3 +197,46 @@ class UserEditForm(FlaskForm):
         validators=[EqualTo('password', message='Passwords must match.')]
     )
     submit = SubmitField('Update User')
+
+    # ... UserEditForm is above ...
+
+class CustomerRegisterForm(FlaskForm):
+    """
+    Form for new customers to register.
+    """
+    name = StringField(
+        'Full Name',
+        validators=[DataRequired(), Length(min=3, max=255)]
+    )
+    contact_number = StringField(
+        'Contact Number',
+        validators=[DataRequired(), Length(min=7, max=20)]
+    )
+    email = StringField(
+        'Email Address',
+        validators=[DataRequired(), Email(), email_exists] # email_exists checks for duplicates
+    )
+    password = PasswordField(
+        'Password',
+        validators=[DataRequired(), Length(min=6), password_complexity]
+    )
+    confirm_password = PasswordField(
+        'Confirm Password',
+        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
+    )
+    submit = SubmitField('Create Account')
+
+
+class CustomerLoginForm(FlaskForm):
+    """
+    Form for existing customers to log in.
+    """
+    email = StringField(
+        'Email Address',
+        validators=[DataRequired(), Email()]
+    )
+    password = PasswordField(
+        'Password',
+        validators=[DataRequired()]
+    )
+    submit = SubmitField('Log In')

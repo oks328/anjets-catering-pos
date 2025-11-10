@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Create Account{% endblock %}
+
+{% block content %}
+
+<div class="form-container">
+    <div class="form-wrapper">
+        <h2>Create an Account</h2>
+        <p style="text-align: center; margin-bottom: 1rem;">Create an account to track your orders.</p>
+        
+        <form method="POST" action="{{ url_for('client_register') }}" novalidate>
+            {{ register_form.hidden_tag() }}
+            
+            <div class="form-group">
+                {{ register_form.name.label }}
+                {{ register_form.name(class="form-control") }}
+                {% for error in register_form.name.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+            
+            <div class="form-group">
+                {{ register_form.contact_number.label }}
+                {{ register_form.contact_number(class="form-control") }}
+                {% for error in register_form.contact_number.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ register_form.email.label }}
+                {{ register_form.email(class="form-control") }}
+                {% for error in register_form.email.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ register_form.password.label }}
+                {{ register_form.password(class="form-control") }}
+                {% for error in register_form.password.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ register_form.confirm_password.label }}
+                {{ register_form.confirm_password(class="form-control") }}
+                {% for error in register_form.confirm_password.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ register_form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+
+    <div class="form-switch-link">
+        <span>Already have an account?</span>
+        <a href="{{ url_for('client_account_page') }}" class="btn btn-secondary" style="margin-top: 1rem;">Log In</a>
+    </div>
+</div>
+
+{% endblock %}

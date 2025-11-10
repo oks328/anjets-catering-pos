@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Log In{% endblock %}
+
+{% block content %}
+
+<div class="form-container">
+    <div class="form-wrapper">
+        <h2>Log In</h2>
+        <p style="text-align: center; margin-bottom: 1rem;">Welcome back!</p>
+
+        <form method="POST" action="{{ url_for('client_login') }}" novalidate>
+            {{ login_form.hidden_tag() }}
+
+            <div class="form-group">
+                {{ login_form.email.label }}
+                {{ login_form.email(class="form-control") }}
+                {% for error in login_form.email.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ login_form.password.label }}
+                {{ login_form.password(class="form-control") }}
+                {% for error in login_form.password.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ login_form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+
+    <div class="form-switch-link">
+        <span>Don't have an account?</span>
+        <a href="{{ url_for('client_register_page') }}" class="btn btn-secondary" style="margin-top: 1rem;">Create Account</a>
+    </div>
+</div>
+
+{% endblock %}

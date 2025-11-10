@@ -51,7 +51,7 @@ class ProductVariant(db.Model):
     # --- FIX WAS HERE ---
     price = db.Column(db.Numeric(10, 2), nullable=False)
 
-class Customer(db.Model):
+class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
     """
     Model for client-facing website users.
     """
@@ -63,6 +63,35 @@ class Customer(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     
     orders = db.relationship('Order', backref='customer', lazy=True)
+
+    # --- ADD ALL THESE METHODS BELOW ---
+
+    def get_id(self):
+        """Required by flask-login"""
+        return str(self.customer_id)
+    
+    @property
+    def is_active(self):
+        """Required by flask-login"""
+        return True
+
+    @property
+    def is_authenticated(self):
+        """Required by flask-login"""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """Required by flask-login"""
+        return False
+    
+    def set_password(self, password):
+        """Hashes and sets the user's password."""
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+
+    def check_password(self, password):
+        """Checks if the provided password matches the hash."""
+        return bcrypt.check_password_hash(self.password_hash, password)
 
 class User(db.Model, UserMixin): # <-- Note the change here
     """
@@ -130,6 +159,8 @@ class OrderItem(db.Model):
     order_id = db.Column(db.Integer, db.ForeignKey('Orders.order_id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('Products.product_id'), nullable=False)
     variant_id = db.Column(db.Integer, db.ForeignKey('Product_Variants.variant_id'), nullable=True)
+    product = db.relationship('Product')
+    variant = db.relationship('ProductVariant')
     quantity = db.Column(db.Integer, nullable=False)
     # --- FIX WAS HERE ---
     price_per_item = db.Column(db.Numeric(10, 2), nullable=False)

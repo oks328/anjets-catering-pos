@@ -334,17 +334,32 @@ body {
     margin-bottom: 1rem;
 }
 
-.cart-totals .btn-checkout {
+/* --- Universal Checkout Button Style --- */
+
+/* This targets BOTH <a> links and <button> elements */
+.btn-checkout,
+a.btn-checkout {
+    display: inline-block; /* Behave like a proper block */
     background-color: #28a745;
-    color: white;
+    color: white !important; /* !important overrides any default link color */
     padding: 0.75rem 1.5rem;
     font-size: 1.1rem;
-    text-decoration: none;
+    text-decoration: none; /* Remove underline from links */
     border-radius: 5px;
     font-weight: bold;
+    border: none; /* Remove default button border */
+    cursor: pointer;
+    margin-top: 1.5rem; /* This fixes the overlap */
 }
-.cart-totals .btn-checkout:hover {
+
+.btn-checkout:hover {
     background-color: #218838;
+}
+
+/* This applies to the <button> version when it's disabled */
+.btn-checkout:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
 }
 
 /* --- Cart Quantity Form Styles --- */
@@ -437,4 +452,255 @@ body {
     box-sizing: border-box; /* Important */
     border: 1px solid #ccc;
     border-radius: 4px;
+}
+
+/* --- Login/Register Page (Single Form) --- */
+.form-container {
+    max-width: 500px; /* Make it narrower */
+    margin: 2rem auto;
+}
+
+.form-wrapper {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.form-wrapper h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: #333;
+}
+
+.form-wrapper .form-group {
+    margin-bottom: 1rem;
+}
+
+.form-wrapper .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.form-wrapper .form-group .form-control {
+    width: 100%;
+    padding: 0.75rem;
+    box-sizing: border-box; /* Important */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.form-wrapper .error-message {
+    color: #dc3545;
+    font-size: 0.875em;
+    display: block;
+    margin-top: 5px;
+}
+
+/* Make buttons full-width */
+.form-wrapper .btn {
+    width: 100%;
+}
+
+/* Helper text for the "Create Account" link */
+.form-switch-link {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+}
+/* --- My Account Page Styles --- */
+.account-container {
+    display: grid;
+    grid-template-columns: 1fr 2fr; /* Sidebar and main content */
+    gap: 2rem;
+}
+
+.account-nav {
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    align-self: start; /* Sticks to the top */
+}
+
+.account-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.account-nav li a {
+    display: block;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: #555;
+    font-weight: 500;
+    border-radius: 4px;
+}
+
+.account-nav li a:hover,
+.account-nav li a.active {
+    background-color: #f4f4f4;
+    color: #d9534f;
+}
+
+.account-content {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.order-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.order-history-table th,
+.order-history-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+.order-history-table th {
+    background-color: #f9f9f9;
+}
+
+.order-history-table .status-pending {
+    font-weight: bold;
+    color: #ffc107;
+}
+.order-history-table .status-completed {
+    font-weight: bold;
+    color: #28a745;
+}
+
+
+
+/* Clear float from voucher form */
+.totals-grid h3:first-of-type {
+    margin-top: 1rem;
+}
+
+/* --- Cart Summary & Totals --- */
+
+.cart-summary-container {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap; /* Stacks columns on small screens */
+    margin-top: 2rem;
+    gap: 2rem;
+}
+
+.voucher-container {
+    flex: 1; /* Takes up 1 part */
+    min-width: 250px;
+}
+
+.cart-totals {
+    flex: 1; /* Takes up 1 part */
+    min-width: 250px;
+    text-align: right;
+}
+
+/* Voucher Form Styles */
+.voucher-form label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    text-align: left; /* Align label left */
+}
+
+.voucher-input-group {
+    display: flex;
+    gap: 5px;
+}
+
+.voucher-input-group .form-control {
+    width: 100%;
+    padding: 0.5rem;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.voucher-input-group .btn-secondary {
+    flex-shrink: 0;
+    padding: 0.5rem 1rem;
+    font-weight: normal;
+}
+
+/* Totals Grid Styles */
+.totals-grid {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: end; /* Aligns grid to the right */
+    gap: 0.5rem 1rem;
+}
+
+.totals-grid span {
+    font-size: 1.1rem;
+}
+
+.totals-grid span {
+    font-size: 1.1rem;
+    padding-top: 0.5rem; /* Add some spacing */
+}
+
+/* New styles for the Total line */
+.totals-grid .total-label {
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-top: 2px solid #eee;
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+.totals-grid .total-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    border-top: 2px solid #eee;
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+/* This is the final, correct button style */
+.btn-checkout,
+a.btn-checkout {
+    display: inline-block; 
+    background-color: #28a745;
+    color: white !important; 
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+    text-decoration: none; 
+    border-radius: 5px;
+    font-weight: bold;
+    border: none; 
+    cursor: pointer;
+    margin-top: 1.5rem;
+}
+
+.btn-checkout:hover {
+    background-color: #218838;
+}
+
+.btn-checkout:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+/* --- Order History Item List Styles --- */
+.order-items-list ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.order-items-list li {
+    padding: 2px 0;
 }

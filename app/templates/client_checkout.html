@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm Your Order{% endblock %}
+
+{% block content %}
+<div class="cart-container">
+    <h2 style="margin-bottom: 2rem;">Confirm Your Order</h2>
+    
+    <div class="card" style="margin-bottom: 2rem;">
+        <h3>Order Summary</h3>
+        <table class="cart-table">
+            <thead>
+                <tr>
+                    <th colspan="2">Product</th>
+                    <th>Price</th>
+                    <th>Quantity</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in cart_items %}
+                <tr>
+                    <td colspan="2">
+                        <div class="cart-item-details">
+                            <img src="{{ url_for('static', filename='uploads/products/' + item.image) }}" alt="{{ item.name }}">
+                            <div>
+                                <a href="#">{{ item.name }}</a>
+                                <span class="variant-name">{{ item.variant_name }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>₱{{ "%.2f"|format(item.price) }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>₱{{ "%.2f"|format(item.line_total) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="cart-totals">
+            <div class="totals-grid">
+                <span>Subtotal:</span>
+                <span>₱{{ "%.2f"|format(total_price) }}</span>
+
+                {% if session.get('discount_percentage') %}
+                    <span style="color: #28a745; font-weight: bold;">Discount ({{ session.get('voucher_code') }}):</span>
+                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(discount_amount) }}</span>
+                {% endif %}
+
+                <h3 style="font-size: 1.2rem; margin-top: 1rem;">Total:</h3>
+                <h3 style="font-size: 1.5rem; margin-top: 1rem;">₱{{ "%.2f"|format(final_total) }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Customer Details</h3>
+        <p>Your order will be placed under this account:</p>
+        <p><strong>Name:</strong> {{ session['customer_name'] }}</p>
+        <p style="margin-top: 2rem;">By clicking "Confirm Order", you agree to pay the total amount.</p>
+        
+        <form id="checkout-form" action="{{ url_for('place_order') }}" method="POST" style="text-align: right; margin-top: 1rem;">
+        <button type="submit" class="btn-checkout">Confirm Order</button>
+    </form>        </form>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkoutForm = document.getElementById('checkout-form');
+
+        checkoutForm.addEventListener('submit', function(e) {
+            // Find the button inside this form
+            const submitButton = checkoutForm.querySelector('button[type="submit"]');
+
+            // Disable the button
+            submitButton.disabled = true;
+
+            // Change the text
+            submitButton.innerText = 'Processing...';
+        });
+    });
+</script>
+{% endblock %}
