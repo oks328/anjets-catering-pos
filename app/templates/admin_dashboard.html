@@ -43,8 +43,7 @@
                     <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
                     <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
                     <td class="action-buttons">
-                        <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-secondary btn-sm">View Order</a>
-                    </td>
+            <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-secondary btn-sm">Manage</a>                    </td>
                 </tr>
                 {% else %}
                 <tr>

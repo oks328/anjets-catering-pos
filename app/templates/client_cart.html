@@ -61,17 +61,22 @@
             </form>
         </div>
 
-        <div class="cart-totals">
-            <div class="totals-grid">
+       <div class="totals-grid">
                 <span>Subtotal:</span>
                 <span>₱{{ "%.2f"|format(total_price) }}</span>
 
-                {% if session.get('discount_percentage') %}
-                    <span style="color: #28a745; font-weight: bold;">Discount ({{ session.get('voucher_code') }}):</span>
-                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(discount_amount) }}</span>
+                {% if session.get('voucher_code') %}
+                    <span style="color: #28a745; font-weight: bold;">Voucher ({{ session.get('voucher_code') }}):</span>
+                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(voucher_discount_amt) }}</span>
                 {% endif %}
-            <span class="total-label">Total:</span>
-            <span class="total-value">₱{{ "%.2f"|format(final_total) }}</span>
+
+                {% if session.get('buffet_discount_percentage') %}
+                    <span style="color: #007bff; font-weight: bold;">Buffet Discount ({{ session.get('buffet_discount_percentage') }}%):</span>
+                    <span style="color: #007bff; font-weight: bold;">- ₱{{ "%.2f"|format(buffet_discount_amt) }}</span>
+                {% endif %}
+
+                <span class="total-label">Total:</span>
+                <span class="total-value">₱{{ "%.2f"|format(final_total) }}</span>
             </div>
 
             <a href="{{ url_for('client_checkout') }}" class="btn-checkout">Proceed to Checkout</a>

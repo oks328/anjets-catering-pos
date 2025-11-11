@@ -25,7 +25,7 @@
             </ul>
             <hr>
             <p><strong>Total Items:</strong> <span id="track-Total" class="count">0</span></p>
-            <a href="#" class="btn-checkout">Review & Add to Cart</a>
+            <a href="{{ url_for('buffet_review_and_add') }}" class="btn-checkout">Review & Add to Cart</a>
         </aside>
 
         <section class="menu-content">
@@ -58,17 +58,189 @@
                                 {% endif %}
                             </div>
                             
-                            <button class="btn btn-primary" data-product-id="{{ product.product_id }}" data-category="{{ product.category.name }}">
+                            <button class="btn btn-secondary" data-product-id="{{ product.product_id }}" data-category="{{ product.category.name }}">
                                 Add
                             </button>
                         </div>
                     </div>
                 </div>
-                {% else %}
-                <p>No products found.</p>
                 {% endfor %}
             </div>
         </section>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Get ALL Modal Elements ---
+        const modal = document.getElementById('productModal');
+        const closeModalBtn = document.querySelector('.modal-close-btn');
+        const modalProductName = document.getElementById('modalProductName');
+        const modalProductId = document.getElementById('modalProductId');
+        const modalVariantSelector = document.getElementById('modalVariantSelector');
+        const modalVariantLabel = document.getElementById('modalVariantLabel');
+        const modalVariantSelect = document.getElementById('modalVariantId');
+        const modalCartForm = document.getElementById('modalCartForm');
+        
+        // --- Get Stepper & Counter Elements ---
+        const modalQuantityInput = document.getElementById('modalQuantity');
+        const modalBtnMinus = document.getElementById('modal-btn-minus');
+        const modalBtnPlus = document.getElementById('modal-btn-plus');
+        const modalCurrentCount = document.getElementById('modalCurrentCount');
+        
+        // --- Get Warning Modal Elements ---
+        const warningModal = document.getElementById('warningModal');
+        const warningModalCloseBtn = document.getElementById('warningModalCloseBtn');
+        const warningModalCancelBtn = document.getElementById('warningModalCancel');
+        const warningModalConfirmBtn = document.getElementById('warningModalConfirm');
+        const warningModalMessage = document.getElementById('warningModalMessage');
+        
+        let allVariantsData = []; 
+
+        // --- Stepper Button Logic ---
+        modalBtnMinus.addEventListener('click', () => {
+            let currentVal = parseInt(modalQuantityInput.value);
+            if (currentVal > 1) {
+                modalQuantityInput.value = currentVal - 1;
+            }
+        });
+        modalBtnPlus.addEventListener('click', () => {
+            let currentVal = parseInt(modalQuantityInput.value);
+            modalQuantityInput.value = currentVal + 1;
+        });
+
+        // --- Function to update the counter text ---
+        function updateCounter() {
+            const selectedVariantId = modalVariantSelect.value;
+            const variantData = allVariantsData.find(v => v.id == selectedVariantId);
+            
+            if (variantData && variantData.current_quantity > 0) {
+                modalCurrentCount.innerText = `You have ${variantData.current_quantity} of this item in your buffet.`;
+                modalCurrentCount.style.display = 'block';
+            } else {
+                modalCurrentCount.style.display = 'none';
+            }
+        }
+        
+        modalVariantSelect.addEventListener('change', updateCounter);
+
+        // --- Function to close the PRODUCT modal ---
+        const closeProductModal = () => {
+            modal.style.display = 'none';
+        }
+        closeModalBtn.onclick = closeProductModal;
+        
+        // --- Function to close the WARNING modal ---
+        const closeWarningModal = () => {
+            warningModal.style.display = 'none';
+        }
+        warningModalCloseBtn.onclick = closeWarningModal;
+        warningModalCancelBtn.onclick = closeWarningModal;
+
+        // --- Close modals on outside click ---
+        window.onclick = (event) => {
+            if (event.target == modal) closeProductModal();
+            if (event.target == warningModal) closeWarningModal();
+        }
+
+        // --- Find all "Add" buttons ON THIS PAGE ---
+        // (This selector finds the gray 'btn-secondary')
+        document.querySelectorAll('.btn-secondary[data-product-id]').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const productId = this.dataset.productId;
+                
+                fetch(`/product_details/${productId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        modalProductName.innerText = data.name;
+                        modalProductId.value = data.id;
+                        modalQuantityInput.value = 1; 
+                        
+                        allVariantsData = data.variants; 
+                        modalVariantSelect.innerHTML = ''; 
+                        
+                        if (data.has_variants) {
+                            modalVariantSelector.style.display = 'block';
+                            modalVariantLabel.style.display = 'block';
+                            data.variants.forEach(variant => {
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            });
+                        } else {
+                            modalVariantSelector.style.display = 'block';
+                            modalVariantLabel.style.display = 'none';
+                            if (data.variants.length > 0) {
+                                const variant = data.variants[0];
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            }
+                        }
+
+                        updateCounter(); 
+                        modal.style.display = 'block';
+                    });
+            });
+        });
+
+        // --- Hijack the modal's submit button ---
+        modalCartForm.onsubmit = function(e) {
+            e.preventDefault(); 
+            const formData = new FormData(modalCartForm);
+            handleFetch(formData); // Call the fetch function
+        };
+
+        // --- Main Fetch Logic ---
+        function handleFetch(dataToPost) {
+            fetch("{{ url_for('buffet_add_item') }}", {
+                method: 'POST',
+                body: dataToPost
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateTracker(data.new_counts, data.total_items);
+                    createToast(data.message, 'success');
+                    closeProductModal(); // This will work now
+                    
+                } else if (data.status === 'warning') {
+                    // This now shows our custom modal
+                    warningModalMessage.innerText = data.message;
+                    warningModal.style.display = 'block';
+
+                    // When user clicks "Add Anyway"
+                    warningModalConfirmBtn.onclick = () => {
+                        dataToPost.append('force', 'true');
+                        handleFetch(dataToPost);
+                        closeWarningModal();
+                    }
+                    
+                } else {
+                    createToast(data.message, 'danger');
+                }
+            })
+            .catch(err => {
+                console.error('Error adding to buffet cart:', err);
+                createToast('An error occurred. Please try again.', 'danger');
+            });
+        }
+
+        // Helper function to update the tracker
+        function updateTracker(counts, total) {
+            for (const category in counts) {
+                const el = document.getElementById(`track-${category}`);
+                if (el) {
+                    el.innerText = counts[category];
+                }
+            }
+            document.getElementById('track-Total').innerText = total;
+        }
+    });
+</script>
 {% endblock %}

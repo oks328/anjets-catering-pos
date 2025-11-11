@@ -14,14 +14,16 @@
         <div class="logo">
             <a href="{{ url_for('client_home') }}">Anjet's Catering</a>
         </div>
-   <nav class="client-nav">
+        <nav class="client-nav">
             <ul>
                 <li><a href="{{ url_for('client_home') }}">Home</a></li>
-
+                
                 {% if 'customer_id' in session %}
                     <li><a href="{{ url_for('client_menu') }}">Order Now</a></li>
-                    <li><a href="{{ url_for('buffet_wizard_start') }}">Build a Buffet</a></li> <li><a href="{{ url_for('client_cart') }}">Cart</a></li>
-                    <li><a href="{{ url_for('client_my_account') }}">My Account</a></li> <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
+                    <li><a href="{{ url_for('buffet_wizard_start') }}">Build a Buffet</a></li>
+                    <li><a href="{{ url_for('client_cart') }}">Cart</a></li>
+                    <li><a href="{{ url_for('client_my_account') }}">My Account</a></li>
+                    <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
                 {% else %}
                     <li><a href="{{ url_for('client_account_page') }}">Login/Register</a></li>
                 {% endif %}
@@ -54,10 +56,18 @@
                             </select>
                     </div>
                     
+                    <div id="modalCurrentCount" class="modal-current-count" style="display: none;">
+                        </div>
+
                     <div class="form-group">
-                        <label for="modalQuantity">Quantity</label>
-                        <input type="number" id="modalQuantity" name="quantity" class="form-control" value="1" min="1">
+                        <label for="modalQuantity">Quantity to Add</label>
+                        <div class="quantity-stepper">
+                            <button type="button" class="btn-qty" id="modal-btn-minus">-</button>
+                            <input type="number" id="modalQuantity" name="quantity" class="form-control-qty" value="1" min="1">
+                            <button type="button" class="btn-qty" id="modal-btn-plus">+</button>
+                        </div>
                     </div>
+
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">Add to Cart</button>
@@ -65,38 +75,52 @@
             </form>
         </div>
     </div>
+    <div id="warningModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-btn" id="warningModalCloseBtn">&times;</span>
+            <h4>Are you sure?</h4>
+            <p id="warningModalMessage">This is a warning message.</p>
+            <div class="modal-actions">
+                <button type="button" id="warningModalCancel" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="warningModalConfirm" class="btn btn-primary">Add Anyway</button>
+            </div>
+        </div>
+    </div>
     <div id="toastContainer"></div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        // --- This function is now global ---
+        function createToast(message, category) {
             const toastContainer = document.getElementById('toastContainer');
-
-            function createToast(message, category) {
-                const toast = document.createElement('div');
-                toast.classList.add('toast', `toast-${category}`);
-                
-                const messageNode = document.createElement('span');
-                messageNode.innerText = message;
-                
-                const closeBtn = document.createElement('button');
-                closeBtn.classList.add('toast-close-btn');
-                closeBtn.innerHTML = '&times;';
-                
-                const closeToast = () => {
-                    toast.style.animation = 'fadeOut 0.5s forwards';
-                    toast.addEventListener('animationend', () => toast.remove());
-                }
-                
-                closeBtn.onclick = closeToast;
-                toast.appendChild(messageNode);
-                toast.appendChild(closeBtn);
-                toastContainer.appendChild(toast);
-
-                setTimeout(() => {
-                    if (toast.parentElement) closeToast();
-                }, 5000); // 5 seconds
+            if (!toastContainer) return; // Fail gracefully if no container
+            
+            const toast = document.createElement('div');
+            toast.classList.add('toast', `toast-${category}`);
+            
+            const messageNode = document.createElement('span');
+            messageNode.innerText = message;
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.classList.add('toast-close-btn');
+            closeBtn.innerHTML = '&times;';
+            
+            const closeToast = () => {
+                toast.style.animation = 'fadeOut 0.5s forwards';
+                toast.addEventListener('animationend', () => toast.remove());
             }
+            
+            closeBtn.onclick = closeToast;
+            toast.appendChild(messageNode);
+            toast.appendChild(closeBtn);
+            toastContainer.appendChild(toast);
 
+            setTimeout(() => {
+                if (toast.parentElement) closeToast();
+            }, 5000); // 5 seconds
+        }
+
+        // This listener just handles the messages on page load
+        document.addEventListener('DOMContentLoaded', () => {
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
@@ -105,7 +129,7 @@
                 {% endif %}
             {% endwith %}
         });
-    </SCRIpt>
+    </script>
 
     {% block scripts %}{% endblock %}
     

@@ -225,25 +225,33 @@ def add_to_cart():
 
 @app.route('/product_details/<int:product_id>')
 def product_details(product_id):
-        """
-        API endpoint to get product details (especially variants) as JSON.
-        """
-        product = Product.query.get_or_404(product_id)
-        
-        variants_data = []
-        for variant in product.variants:
-            variants_data.append({
-                'id': variant.variant_id,
-                'size': variant.size_name,
-                'price': float(variant.price) # Convert Decimal to float for JSON
-            })
-            
-        return jsonify({
-            'id': product.product_id,
-            'name': product.name,
-            'has_variants': product.has_variants,
-            'variants': variants_data
+    """
+    API endpoint to get product details (especially variants) as JSON.
+    NOW INCLUDES current quantity in the buffet cart.
+    """
+    product = Product.query.get_or_404(product_id)
+
+    # Get the buffet cart from the session
+    buffet_cart = session.get('buffet_cart', {})
+
+    variants_data = []
+    for variant in product.variants:
+        # Check if this variant is in the cart and get its quantity
+        current_quantity = buffet_cart.get(str(variant.variant_id), {}).get('quantity', 0)
+
+        variants_data.append({
+            'id': variant.variant_id,
+            'size': variant.size_name,
+            'price': float(variant.price),
+            'current_quantity': current_quantity # Add the count
         })
+
+    return jsonify({
+        'id': product.product_id,
+        'name': product.name,
+        'has_variants': product.has_variants,
+        'variants': variants_data
+    })
 
 @app.route('/cart')
 @customer_login_required
@@ -273,20 +281,31 @@ def client_cart():
             'line_total': line_total
         })
 
-    # --- NEW VOUCHER LOGIC ---
-    discount_percentage = session.get('discount_percentage', 0.0)
-    discount_amount = (total_price * discount_percentage) / 100
-    final_total = total_price - discount_amount
+    # --- NEW: Combined Discount Logic ---
+
+    # 1. Get Voucher Discount
+    voucher_discount_perc = session.get('discount_percentage', 0.0)
+    voucher_discount_amt = (total_price * voucher_discount_perc) / 100
+
+    # 2. Get Buffet Discount
+    buffet_discount_perc = session.get('buffet_discount_percentage', 0.0)
+    buffet_discount_amt = (total_price * buffet_discount_perc) / 100
+
+    # 3. Calculate Totals
+    total_discount_amount = voucher_discount_amt + buffet_discount_amt
+    final_total = total_price - total_discount_amount
     # --- END OF NEW LOGIC ---
 
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
         total_price=total_price,
-        discount_amount=discount_amount, # Pass new values
-        final_total=final_total          # Pass new values
+        # Pass all discount values to the template
+        voucher_discount_amt=voucher_discount_amt,
+        buffet_discount_amt=buffet_discount_amt,
+        total_discount_amount=total_discount_amount,
+        final_total=final_total
     )
-
 @app.route('/cart/remove/<string:variant_id>')
 @customer_login_required
 def remove_from_cart(variant_id):
@@ -672,6 +691,144 @@ def buffet_wizard_step2():
         categories=categories,
         products=recommended_products
     )
+
+@app.route('/buffet/add_item', methods=['POST'])
+@customer_login_required
+def buffet_add_item():
+    """
+    (C)REATE: Add an item to the temporary 'buffet_cart' in the session.
+    Now includes a check for exceeding recommendations.
+    """
+    # 1. Get data from the form
+    variant_id = request.form.get('variant_id')
+    force_add = request.form.get('force', 'false').lower() == 'true'
+    try:
+        quantity = int(request.form.get('quantity', 1))
+    except:
+        quantity = 1
+
+    # 2. Get the temporary cart and recommendations
+    buffet_cart = session.get('buffet_cart', {})
+    recommendations = session.get('buffet_recommendations', {})
+
+    if not variant_id:
+        return jsonify({'status': 'error', 'message': 'No variant selected.'}), 400
+
+    # 3. Get item details
+    variant = ProductVariant.query.get(variant_id)
+    if not variant:
+        return jsonify({'status': 'error', 'message': 'Item not found.'}), 404
+        
+    product = variant.product
+    category_name = product.category.name
+
+    # 4. Check if we are over the limit AND not forcing it
+    current_category_count = 0
+    for item in buffet_cart.values():
+        if item['category'] == category_name:
+            current_category_count += item['quantity']
+    
+    potential_new_count = current_category_count + quantity
+    recommended_count = recommendations.get(category_name, 0)
+
+    if potential_new_count > recommended_count and not force_add:
+        return jsonify({
+            'status': 'warning',
+            'message': f"You've selected {potential_new_count} {category_name} items, but we only recommend {recommended_count}. Add anyway?"
+        })
+
+    # 5. Add the item to the buffet_cart
+    if variant_id in buffet_cart:
+        buffet_cart[variant_id]['quantity'] += quantity
+    else:
+        # If new, add it to the buffet_cart
+        buffet_cart[variant_id] = {
+            'product_id': product.product_id,  # <-- ADD THIS LINE
+            'product_name': product.name,
+            'variant_name': variant.size_name,
+            'quantity': quantity,
+            'category': category_name,
+            'price': float(variant.price),
+            'image': product.image_file
+        }
+    
+    session['buffet_cart'] = buffet_cart
+    
+    # 6. Calculate the new counts for the tracker
+    new_counts = {}
+    total_items = 0
+    for cat in recommendations.keys():
+        new_counts[cat] = 0
+    
+    for item in buffet_cart.values():
+        item_cat = item['category']
+        if item_cat in new_counts:
+            new_counts[item_cat] += item['quantity']
+        total_items += item['quantity']
+        
+    # 7. Send the new counts back to the JavaScript
+    return jsonify({
+        'status': 'success',
+        'message': f"Added {product.name} ({variant.size_name})",
+        'new_counts': new_counts,
+        'total_items': total_items
+    })
+
+@app.route('/buffet/review')
+@customer_login_required
+def buffet_review_and_add():
+    """
+    (U)PDATE: Move all items from the 'buffet_cart' to the main 'cart'.
+    Also applies a 10% buffet discount.
+    """
+    buffet_cart = session.get('buffet_cart', {})
+    if not buffet_cart:
+        flash("Your buffet is empty. Please add some items.", 'danger')
+        return redirect(url_for('buffet_wizard_start'))
+
+    main_cart = session.get('cart', {})
+    items_added_count = 0
+
+    # Loop through the buffet cart and add each item to the main cart
+    for variant_id, item_data in buffet_cart.items():
+        
+        # --- FIX: Skip any corrupted items that are missing the product_id key ---
+        if 'product_id' not in item_data:
+            print(f"Skipping corrupted buffet item with variant_id: {variant_id}")
+            continue 
+        
+        if variant_id in main_cart:
+            # If item is already in main cart, just add the quantity
+            main_cart[variant_id]['quantity'] += item_data['quantity']
+        else:
+            # If new, add the full item data
+            main_cart[variant_id] = {
+                'product_id': item_data['product_id'],
+                'name': item_data['product_name'],
+                'variant_name': item_data['variant_name'],
+                'price': item_data['price'],
+                'image': item_data['image'],
+                'quantity': item_data['quantity']
+            }
+        items_added_count += item_data['quantity']
+            
+    # --- Apply the Buffet Discount ---
+    session['buffet_discount_percentage'] = 10.0
+    
+    # Save the updated main cart
+    session['cart'] = main_cart
+    
+    # Clear the temporary buffet data
+    session.pop('buffet_cart', None)
+    session.pop('buffet_recommendations', None)
+    
+    if items_added_count > 0:
+        flash("Success! Your buffet has been added to the cart with a 10% discount!", 'success')
+    else:
+        # If the cart was just full of corrupted items, let the user know
+        flash("No valid items were added. Please try rebuilding your buffet.", 'warning')
+
+    return redirect(url_for('client_cart'))
 
 @app.route('/admin/dashboard')
 @login_required
