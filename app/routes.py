@@ -12,7 +12,7 @@ from app.forms import AdminLoginForm, CategoryForm
 from app.models import User, Category, Product, ProductVariant # <-- ADD Product, ProductVariant
 from app.forms import AdminLoginForm, CategoryForm, ProductForm # <-- ADD ProductForm
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm # <-- ADD VariantForm
-from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order,OrderItem # <-- ADD Voucher
+from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem # <-- ADD Voucher
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm # <-- ADD VoucherForm
 from app.forms import VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm
 from functools import wraps
@@ -591,6 +591,85 @@ def admin_logout():
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('admin_login'))
+
+# ===============================================
+# MODULE 1: ORDER MANAGEMENT (CRUD)
+# ===============================================
+
+@app.route('/admin/orders')
+@login_required
+def admin_orders():
+    """
+    (R)EAD: Display all customer orders.
+    """
+    # Get the filter status from the URL (e.g., /admin/orders?status=Pending)
+    status_filter = request.args.get('status')
+
+    # Start the base query
+    order_query = Order.query.join(Customer).order_by(Order.order_date.desc())
+
+    if status_filter:
+        # Apply the filter if one is provided
+        order_query = order_query.filter(Order.status == status_filter)
+
+    # Execute the query
+    orders = order_query.all()
+
+    return render_template('admin_orders.html', orders=orders, current_filter=status_filter)
+
+@app.route('/admin/orders/update_status/<int:order_id>', methods=['POST'])
+@login_required
+def admin_update_order_status(order_id):
+    """
+    (U)PDATE: Update an order's status.
+    """
+    order = Order.query.get_or_404(order_id)
+    new_status = request.form.get('status')
+    
+    # Check if the status is valid
+    if new_status in ['Pending', 'In Progress', 'Completed']:
+        order.status = new_status
+        try:
+            db.session.commit()
+            flash(f"Order #{order.order_id} status updated to '{new_status}'.", 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating order status: {e}", 'danger')
+    else:
+        flash("Invalid status selected.", 'danger')
+        
+    # Redirect back to the orders page, preserving any filter
+    current_filter = request.args.get('status')
+    if current_filter:
+        return redirect(url_for('admin_orders', status=current_filter))
+    return redirect(url_for('admin_orders'))
+
+
+@app.route('/admin/orders/delete/<int:order_id>', methods=['POST'])
+@login_required
+def admin_delete_order(order_id):
+    """
+    (D)ELETE: Delete an order.
+    """
+    order = Order.query.get_or_404(order_id)
+    
+    try:
+        # First, delete all associated OrderItems
+        OrderItem.query.filter_by(order_id=order.order_id).delete()
+        
+        # Now delete the main Order
+        db.session.delete(order)
+        db.session.commit()
+        flash(f"Order #{order.order_id} has been deleted.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting order: {e}", 'danger')
+
+    current_filter = request.args.get('status')
+    if current_filter:
+        return redirect(url_for('admin_orders', status=current_filter))
+    return redirect(url_for('admin_orders'))
+
 
 # ===============================================
 # MODULE 3: CATEGORY MANAGEMENT (CRUD)
