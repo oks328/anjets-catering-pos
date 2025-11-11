@@ -704,3 +704,100 @@ a.btn-checkout {
 .order-items-list li {
     padding: 2px 0;
 }
+
+/* --- Buffet Wizard Styles --- */
+.wizard-container {
+    max-width: 800px;
+    margin: 2rem auto;
+}
+
+.wizard-step-card {
+    background: #fff;
+    padding: 2.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    text-align: center;
+}
+
+.wizard-step-card h2 {
+    font-size: 1.8rem;
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.wizard-step-card p {
+    font-size: 1.1rem;
+    color: #666;
+    margin-bottom: 2rem;
+}
+
+.wizard-step-card .form-group label {
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.wizard-step-card .form-control-lg {
+    width: 150px;
+    padding: 1rem;
+    font-size: 1.5rem;
+    text-align: center;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+/* --- Buffet Wizard Step 2 Styles --- */
+.buffet-recommendation {
+    background: #fff3cd;
+    color: #856404;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #ffeeba;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.buffet-recommendation h3 {
+    margin-top: 0;
+}
+
+.buffet-tracker {
+    position: sticky;
+    top: 20px;
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.buffet-tracker h4 {
+    margin-top: 0;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+}
+
+.buffet-tracker-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem 0;
+}
+
+.buffet-tracker-list li {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.buffet-tracker-list .count {
+    font-weight: bold;
+    color: #d9534f;
+}
+
+/* --- Fix for Product Grid Layout --- */
+
+.product-grid {
+    display: grid;
+    /* This creates the responsive grid */
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}

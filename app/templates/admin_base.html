@@ -23,6 +23,8 @@
         <li><a href="{{ url_for('admin_orders') }}">Orders</a></li>
         <li><a href="{{ url_for('admin_vouchers') }}">Vouchers</a></li>
         <li><a href="{{ url_for('admin_users') }}">Staff Management</a></li>
+        <li><a href="{{ url_for('admin_customers') }}">Customers</a></li>
+        <li><a href="{{ url_for('admin_sales_reports') }}">Sales Reports</a></li>
         <li><a href="{{ url_for('admin_logout') }}">Logout</a></li>
       </ul>
     </nav>
@@ -31,6 +33,8 @@
     <main>{% block content %}{% endblock %}</main>
 
     <footer>&copy; 2025 Anjet's Catering</footer>
+
+
     <div id="deleteModal" class="modal">
       <div class="modal-content">
         <span class="modal-close-btn">&times;</span>
@@ -46,6 +50,27 @@
       </div>
     </div>
     <form id="modalDeleteForm" method="POST" style="display: none"></form>
+
+    <div id="csvImportModal" class="modal">
+    <div class="modal-content">
+        <span class="modal-close-btn" id="csvModalCloseBtn">&times;</span>
+        <h4>Import Products from CSV</h4>
+        <p>Upload a CSV file with the required columns. <br>
+           <strong>Required columns:</strong> `name`, `description`, `category_name`, `has_variants`, `price`, `size_name`
+        </p>
+
+        <form id="csvImportForm" method="POST" action="{{ url_for('admin_import_products_csv') }}" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="csv_file">CSV File</label>
+                <input type="file" id="csv_file" name="csv_file" class="form-control" accept=".csv" required>
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button type="button" id="csvModalCancel" class="btn btn-secondary">Cancel</button>
+                <button type="submit" id="csvImportSubmit" class="btn btn-primary">Upload and Import</button>
+            </div>
+        </form>
+    </div>
+</div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
@@ -148,6 +173,39 @@
           {% endif %}
       {% endwith %}
       // --- End of Toast Script ---
+
+      // --- CSV Import Modal Script ---
+const importModal = document.getElementById('csvImportModal');
+const openImportModalBtn = document.getElementById('openCsvImportModal');
+const closeImportModalBtn = document.getElementById('csvModalCloseBtn');
+const cancelImportModalBtn = document.getElementById('csvModalCancel');
+const importForm = document.getElementById('csvImportForm');
+const importSubmitBtn = document.getElementById('csvImportSubmit');
+
+const openImportModal = () => {
+    if (importModal) importModal.style.display = 'block';
+}
+const closeImportModal = () => {
+    if (importModal) {
+        importModal.style.display = 'none';
+        importForm.reset(); // Clear the file input
+        importSubmitBtn.disabled = false;
+        importSubmitBtn.innerText = 'Upload and Import';
+    }
+}
+
+// Clicks to open/close
+if (openImportModalBtn) openImportModalBtn.onclick = openImportModal;
+if (closeImportModalBtn) closeImportModalBtn.onclick = closeImportModal;
+if (cancelImportModalBtn) cancelImportModalBtn.onclick = closeImportModal;
+
+// Show "Processing..." on submit
+if (importForm) {
+    importForm.addEventListener('submit', () => {
+        importSubmitBtn.disabled = true;
+        importSubmitBtn.innerText = 'Processing...';
+    });
+}
 
         });
     </script>

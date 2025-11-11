@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Build a Buffet - Step 2{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="buffet-recommendation">
+        <h3>Our Recommendation for {{ guest_count }} Guests:</h3>
+        <p>
+            We suggest selecting:
+            <strong>{{ recommendations['Ulam'] }} Ulam</strong>, 
+            <strong>{{ recommendations['Noodles'] }} Noodles</strong>, and 
+            <strong>{{ recommendations['Dessert'] }} Dessert(s)</strong>.
+        </p>
+    </div>
+
+    <div class="account-container">
+        
+        <aside class="buffet-tracker">
+            <h4>Your Buffet Tracker</h4>
+            <ul class="buffet-tracker-list">
+                <li>Ulam: <span id="track-Ulam" class="count">0</span> of {{ recommendations['Ulam'] }}</li>
+                <li>Noodles: <span id="track-Noodles" class="count">0</span> of {{ recommendations['Noodles'] }}</li>
+                <li>Dessert: <span id="track-Dessert" class="count">0</span> of {{ recommendations['Dessert'] }}</li>
+            </ul>
+            <hr>
+            <p><strong>Total Items:</strong> <span id="track-Total" class="count">0</span></p>
+            <a href="#" class="btn-checkout">Review & Add to Cart</a>
+        </aside>
+
+        <section class="menu-content">
+            <div class="product-grid">
+                {% for product in products %}
+                <div class="product-card">
+                    <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
+                         alt="{{ product.name }}" 
+                         class="product-card-image">
+    
+                    <div class="product-card-content">
+                        <h3>{{ product.name }}</h3>
+                        <p>{{ product.description or 'No description available.' }}</p>
+                        
+                        <div class="product-card-footer">
+                            <div class="product-card-price">
+                                {% if product.has_variants %}
+                                    {% if product.variants %}
+                                        <span class="price-small">Starts at</span>
+                                        ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                                    {% else %}
+                                        <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                                    {% endif %}
+                                {% else %}
+                                    {% if product.variants %}
+                                        ₱{{ "%.2f"|format(product.variants[0].price) }}
+                                    {% else %}
+                                        <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            
+                            <button class="btn btn-primary" data-product-id="{{ product.product_id }}" data-category="{{ product.category.name }}">
+                                Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p>No products found.</p>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

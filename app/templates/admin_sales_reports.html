@@ -1,0 +1,67 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Sales Reports{% endblock %}
+
+{% block content %}
+    <h2>Sales Reports & Analytics</h2>
+
+    <div style="margin-bottom: 1.5rem; text-align: right;">
+    <a href="{{ url_for('admin_export_sales_csv') }}" class="btn btn-primary" style="background-color: #17a2b8;">
+        Export Sales to CSV
+    </a>
+</div>
+
+    <div class="account-container"> <section class="card">
+            <h3>Top Selling Items</h3>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Item Name</th>
+                        <th>Variant</th>
+                        <th>Total Units Sold</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in top_selling_items %}
+                    <tr>
+                        <td><strong>#{{ loop.index }}</strong></td>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.size_name }}</td>
+                        <td>{{ item.total_sold }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4">No sales data found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h3>Total Sales Per Day (Last 30 Days)</h3>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Total Sales</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day in sales_by_day %}
+                    <tr>
+                        <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
+                        <td>₱{{ "%.2f"|format(day.total_sales) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="2">No sales data found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+    </div>
+{% endblock %}

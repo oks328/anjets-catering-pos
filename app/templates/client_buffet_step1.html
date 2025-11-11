@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Build a Buffet - Step 1{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-step-card">
+        <h2>Build Your Own Buffet</h2>
+        <p>Let's get started! First, tell us how many guests you're expecting.</p>
+
+        <form action="{{ url_for('buffet_wizard_step2') }}" method="POST">
+            <div class="form-group">
+                <label for="guest_count">Number of Guests</label>
+                <br>
+                <input type="number" id="guest_count" name="guest_count" class="form-control-lg" value="30" min="1" required>
+            </div>
+            
+            <div class="form-group" style="margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1.2rem;">Next: See Recommendations</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

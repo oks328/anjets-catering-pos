@@ -1,12 +1,21 @@
+from app import db
 import os
+import io
 import secrets
+import csv
+import pandas as pd
+import xml.etree.ElementTree as ET
+from werkzeug.utils import secure_filename
+from datetime import datetime, timedelta
+from sqlalchemy import func
 from PIL import Image
+from xml.dom import minidom
+from flask import make_response, jsonify
 from flask import current_app as app
 from flask import render_template, redirect, url_for, flash, request, session, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 from app.models import User
 from app.forms import AdminLoginForm
-from app import db 
 from app.models import User, Category 
 from app.forms import AdminLoginForm, CategoryForm 
 from app.models import User, Category, Product, ProductVariant # <-- ADD Product, ProductVariant
@@ -14,7 +23,7 @@ from app.forms import AdminLoginForm, CategoryForm, ProductForm # <-- ADD Produc
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm # <-- ADD VariantForm
 from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem # <-- ADD Voucher
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm # <-- ADD VoucherForm
-from app.forms import VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm
+from app.forms import VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm
 from functools import wraps
 
 def get_category_choices():
@@ -121,6 +130,36 @@ def client_my_account():
     return render_template(
         'client_account.html',
         orders=orders
+    )
+
+@app.route('/my-account/profile', methods=['GET', 'POST'])
+@customer_login_required
+def client_profile():
+    """
+    (R)EAD and (U)PDATE the customer's own profile.
+    """
+    customer = Customer.query.get_or_404(session['customer_id'])
+    form = CustomerProfileForm(obj=customer) # Pre-fill form
+
+    if form.validate_on_submit():
+        # Update the customer's details
+        customer.name = form.name.data
+        customer.contact_number = form.contact_number.data
+
+        try:
+            db.session.commit()
+            # Update the session name in case they changed it
+            session['customer_name'] = customer.name
+            flash('Your profile has been updated.', 'success')
+            return redirect(url_for('client_profile'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating profile: {e}", 'danger')
+
+    # Show the pre-filled form on a GET request
+    return render_template(
+        'client_profile.html',
+        form=form
     )
 
 # ===============================================
@@ -572,14 +611,99 @@ def client_login():
         'client_login.html',
         login_form=login_form
     )
+
+# ===============================================
+# CLIENT-SIDE: BUFFET WIZARD
+# ===============================================
+
+@app.route('/buffet-builder', methods=['GET'])
+@customer_login_required
+def buffet_wizard_start():
+    """
+    (R)EAD: Show Step 1 of the buffet wizard: How many guests?
+    """
+    return render_template('client_buffet_step1.html')
+
+@app.route('/buffet-builder/step2', methods=['POST'])
+@customer_login_required
+def buffet_wizard_step2():
+    """
+    (C)REATE: Process guest count and show recommendations/menu.
+    """
+    try:
+        guest_count = int(request.form.get('guest_count'))
+        if guest_count < 1:
+            guest_count = 1
+    except:
+        guest_count = 30 # Default if something goes wrong
+        
+    # --- This is our smart recommendation logic ---
+    # You can make this logic as complex as you want.
+    # For now, let's use a simple rule:
+    # 1 dish type per 10 guests, rounded up.
+    # Example: 30 guests = 3 Ulam, 3 Noodles, 3 Desserts
+    
+    num_ulam = (guest_count + 9) // 10
+    num_noodles = (guest_count + 14) // 15 # Noodles serve more
+    num_dessert = (guest_count + 14) // 15
+    
+    recommendations = {
+        'Ulam': num_ulam,
+        'Noodles': num_noodles,
+        'Dessert': num_dessert
+        # We can add more categories here later
+    }
+    
+    # Store recommendations in the session
+    session['buffet_recommendations'] = recommendations
+    session['buffet_cart'] = {} # Create an empty buffet cart
+    
+    # --- Fetch all products for the menu ---
+    categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
+    products = Product.query.join(Category).filter(Category.is_active==True).order_by(Product.name.asc()).all()
+    
+    # Filter products to only those in our recommended categories
+    recommended_products = [p for p in products if p.category.name in recommendations]
+
+    return render_template(
+        'client_buffet_step2.html',
+        guest_count=guest_count,
+        recommendations=recommendations,
+        categories=categories,
+        products=recommended_products
+    )
+
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
     """
-    The main admin dashboard page.
+    (R)EAD: The main admin dashboard page with business stats.
     """
-    # This route now renders our new HTML page
-    return render_template('admin_dashboard.html')
+    # --- Stats Calculation ---
+
+    # 1. Get "New Orders Today"
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    orders_today_count = Order.query.filter(Order.order_date >= today_start).count()
+
+    # 2. Get "Total Sales this Month"
+    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # func.sum(Order.final_amount) adds up the 'final_amount' column
+    total_sales_month_query = db.session.query(func.sum(Order.final_amount)).filter(Order.order_date >= month_start).scalar()
+    total_sales_month = total_sales_month_query or 0.0 # Set to 0 if no sales
+
+    # 3. Get "New Customer Registrations" this month
+    new_customers_month_count = Customer.query.filter(Customer.registration_date >= month_start).count() # Assumes a registration_date, let's add that
+
+    # 4. Get recent 5 pending orders
+    recent_pending_orders = Order.query.filter_by(status='Pending').order_by(Order.order_date.asc()).limit(5).all()
+
+    return render_template(
+        'admin_dashboard.html',
+        orders_today_count=orders_today_count,
+        total_sales_month=total_sales_month,
+        new_customers_month_count=new_customers_month_count,
+        recent_pending_orders=recent_pending_orders
+    )
 
 
 @app.route('/admin/logout')
@@ -669,6 +793,58 @@ def admin_delete_order(order_id):
     if current_filter:
         return redirect(url_for('admin_orders', status=current_filter))
     return redirect(url_for('admin_orders'))
+
+@app.route('/admin/export/orders_json')
+@login_required
+def admin_export_orders_json():
+    """
+    (R)EAD: Generate and download a JSON file of all orders.
+    """
+    try:
+        # 1. Fetch all orders with their customer and items
+        orders = Order.query.options(
+            db.joinedload(Order.customer),
+            db.joinedload(Order.items).joinedload(OrderItem.product),
+            db.joinedload(Order.items).joinedload(OrderItem.variant)
+        ).order_by(Order.order_date.desc()).all()
+
+        all_orders_data = []
+
+        # 2. Manually build a list of dictionaries
+        for order in orders:
+            order_data = {
+                'order_id': order.order_id,
+                'customer_name': order.customer.name,
+                'customer_email': order.customer.email,
+                'order_date': order.order_date.isoformat(),
+                'total_amount': float(order.total_amount),
+                'discount_amount': float(order.discount_amount),
+                'final_amount': float(order.final_amount),
+                'status': order.status,
+                'items': []
+            }
+
+            for item in order.items:
+                item_data = {
+                    'product_name': item.product.name,
+                    'variant': item.variant.size_name,
+                    'quantity': item.quantity,
+                    'price_per_item': float(item.price_per_item)
+                }
+                order_data['items'].append(item_data)
+
+            all_orders_data.append(order_data)
+
+        # 3. Create the JSON file download response
+        response = make_response(jsonify(all_orders_data))
+        response.headers["Content-Disposition"] = "attachment; filename=orders_export.json"
+        response.headers["Content-type"] = "application/json"
+
+        return response
+
+    except Exception as e:
+        flash(f"An error occurred while generating the JSON: {e}", 'danger')
+        return redirect(url_for('admin_orders'))
 
 
 # ===============================================
@@ -984,6 +1160,56 @@ def admin_delete_product(product_id):
 
     return redirect(url_for('admin_products'))
 
+@app.route('/admin/export/products_xml')
+@login_required
+def admin_export_products_xml():
+    """
+    (R)EAD: Generate and download an XML file of the full menu.
+    """
+    try:
+        # 1. Fetch all products with their categories and variants
+        products = Product.query.options(
+            db.joinedload(Product.category),
+            db.joinedload(Product.variants)
+        ).all()
+
+        # 2. Build the XML structure
+        root = ET.Element('Menu')
+
+        for product in products:
+            # Create a <Product> tag
+            product_elem = ET.SubElement(root, 'Product')
+            product_elem.set('id', str(product.product_id))
+
+            # Add child tags for product data
+            ET.SubElement(product_elem, 'Name').text = product.name
+            ET.SubElement(product_elem, 'Description').text = product.description
+            ET.SubElement(product_elem, 'Category').text = product.category.name
+            ET.SubElement(product_elem, 'HasVariants').text = str(product.has_variants)
+
+            # Add a <Variants> parent tag
+            variants_elem = ET.SubElement(product_elem, 'Variants')
+            for variant in product.variants:
+                variant_elem = ET.SubElement(variants_elem, 'Variant')
+                ET.SubElement(variant_elem, 'Size').text = variant.size_name
+                ET.SubElement(variant_elem, 'Price').text = str(variant.price)
+
+        # 3. Convert the XML tree to a string
+        # We use 'minidom' to "pretty-print" the XML with indentation
+        xml_str = minidom.parseString(ET.tostring(root))\
+                         .toprettyxml(indent="   ")
+
+        # 4. Create the file download response
+        response = make_response(xml_str)
+        response.headers["Content-Disposition"] = "attachment; filename=menu_export.xml"
+        response.headers["Content-type"] = "application/xml"
+
+        return response
+
+    except Exception as e:
+        flash(f"An error occurred while generating the XML: {e}", 'danger')
+        return redirect(url_for('admin_products'))
+
 # ===============================================
 # MODULE 2b: PRODUCT VARIANT MANAGEMENT (CRUD)
 # ===============================================
@@ -1127,6 +1353,85 @@ def admin_edit_variant(variant_id):
 
     return redirect(url_for('admin_product_variants', product_id=product_id) + '#existing-variants-card')
 
+@app.route('/admin/import/products_csv', methods=['POST'])
+@login_required
+def admin_import_products_csv():
+    """
+    (C)REATE: Import products from an uploaded CSV file.
+    """
+    if 'csv_file' not in request.files:
+        flash('No file part in the request.', 'danger')
+        return redirect(url_for('admin_products'))
+
+    file = request.files['csv_file']
+
+    if file.filename == '':
+        flash('No selected file.', 'danger')
+        return redirect(url_for('admin_products'))
+
+    if file and file.filename.endswith('.csv'):
+        try:
+            # Read the file in-memory
+            stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
+            csv_reader = csv.DictReader(stream)
+
+            products_added = 0
+            errors = []
+
+            for row in csv_reader:
+                # 1. Find the Category
+                category = Category.query.filter_by(name=row['category_name']).first()
+                if not category:
+                    errors.append(f"Category '{row['category_name']}' for product '{row['name']}' not found. Skipping.")
+                    continue # Skip this row
+
+                # 2. Check if product already exists
+                existing_product = Product.query.filter_by(name=row['name']).first()
+                if existing_product:
+                    errors.append(f"Product '{row['name']}' already exists. Skipping.")
+                    continue # Skip this row
+
+                # 3. Create the Product
+                has_variants = row['has_variants'].lower() == 'true'
+                new_product = Product(
+                    name=row['name'],
+                    description=row['description'],
+                    category_id=category.category_id,
+                    has_variants=has_variants
+                )
+                db.session.add(new_product)
+
+                # 4. If it's a simple product, add its one variant
+                if not has_variants:
+                    if not row['price'] or not row['size_name']:
+                        errors.append(f"Product '{row['name']}' is simple but missing price/size. Skipping variant.")
+                        continue
+
+                    simple_variant = ProductVariant(
+                        product=new_product,
+                        size_name=row['size_name'],
+                        price=row['price']
+                    )
+                    db.session.add(simple_variant)
+
+                products_added += 1
+
+            # Commit all new products and variants to the database
+            db.session.commit()
+
+            # Report results
+            if products_added > 0:
+                flash(f"Successfully imported {products_added} new products!", 'success')
+            if errors:
+                flash(f"Completed with {len(errors)} errors: " + " | ".join(errors), 'warning')
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f"An error occurred during import: {e}", 'danger')
+    else:
+        flash('Invalid file type. Please upload a .csv file.', 'danger')
+
+    return redirect(url_for('admin_products'))
 
 # ===============================================
 # MODULE 4: VOUCHER MANAGEMENT (CRUD)
@@ -1271,6 +1576,208 @@ def admin_toggle_voucher_status(voucher_id):
 
     # Redirect back to the correct anchor
     return redirect(url_for('admin_vouchers') + '#existing-vouchers-card')
+
+# ===============================================
+# MODULE 5: CUSTOMER MANAGEMENT (CRUD)
+# ===============================================
+
+@app.route('/admin/customers')
+@login_required
+def admin_customers():
+    """
+    (R)EAD: Display all registered customers.
+    """
+    search_query = request.args.get('search')
+    
+    customer_query = Customer.query
+    
+    if search_query:
+        # Search by name or email
+        search_term = f'%{search_query}%'
+        customer_query = customer_query.filter(
+            db.or_(
+                Customer.name.ilike(search_term),
+                Customer.email.ilike(search_term)
+            )
+        )
+        
+    customers = customer_query.order_by(Customer.registration_date.desc()).all()
+    
+    return render_template(
+        'admin_customers.html', 
+        customers=customers, 
+        search_query=search_query
+    )
+
+@app.route('/admin/customers/delete/<int:customer_id>', methods=['POST'])
+@login_required
+def admin_delete_customer(customer_id):
+    """
+    (D)ELETE: Delete a customer account.
+    """
+    customer = Customer.query.get_or_404(customer_id)
+    
+    # We must delete their orders first, or the database will complain.
+    try:
+        # 1. Delete all associated OrderItems
+        order_ids = [order.order_id for order in customer.orders]
+        if order_ids:
+            OrderItem.query.filter(OrderItem.order_id.in_(order_ids)).delete(synchronize_session=False)
+        
+        # 2. Delete all their Orders
+        Order.query.filter_by(customer_id=customer_id).delete(synchronize_session=False)
+        
+        # 3. Now delete the Customer
+        db.session.delete(customer)
+        
+        db.session.commit()
+        flash(f"Customer '{customer.name}' and all their associated orders have been deleted.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting customer: {e}", 'danger')
+
+    return redirect(url_for('admin_customers'))
+
+@app.route('/admin/customers/edit/<int:customer_id>', methods=['GET'])
+@login_required
+def admin_edit_customer_page(customer_id):
+    """
+    (R)EAD: Show the form to edit a customer.
+    """
+    customer = Customer.query.get_or_404(customer_id)
+    # Pre-fill the form with the customer's existing data
+    form = CustomerEditForm(obj=customer)
+
+    return render_template(
+        'admin_customer_form.html',
+        form=form,
+        customer=customer
+    )
+
+@app.route('/admin/customers/edit/<int:customer_id>', methods=['POST'])
+@login_required
+def admin_edit_customer(customer_id):
+    """
+    (U)PDATE: Process the edit customer form.
+    """
+    customer = Customer.query.get_or_404(customer_id)
+    form = CustomerEditForm()
+
+    if form.validate_on_submit():
+        # Check if email is being changed to one that already exists
+        new_email = form.email.data
+        if new_email != customer.email:
+            existing_customer = Customer.query.filter_by(email=new_email).first()
+            if existing_customer:
+                flash('That email is already in use by another customer.', 'danger')
+                return render_template('admin_customer_form.html', form=form, customer=customer)
+
+        # Update the customer's details
+        customer.name = form.name.data
+        customer.contact_number = form.contact_number.data
+        customer.email = new_email
+
+        # Check if a new password was entered
+        if form.password.data:
+            customer.set_password(form.password.data)
+            flash(f"Customer '{customer.name}' updated successfully (password changed).", 'success')
+        else:
+            flash(f"Customer '{customer.name}' updated successfully (password unchanged).", 'success')
+
+        try:
+            db.session.commit()
+            return redirect(url_for('admin_customers'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating customer: {e}", 'danger')
+
+    # If form validation fails, show the form again with errors
+    return render_template(
+        'admin_customer_form.html',
+        form=form,
+        customer=customer
+    )
+
+# ===============================================
+# MODULE 6: SALES REPORTING
+# ===============================================
+
+@app.route('/admin/sales_reports')
+@login_required
+def admin_sales_reports():
+    """
+    (R)EAD: Display sales reports and analytics.
+    """
+
+    # --- 1. Top Selling Items Report ---
+    # This query groups items by their variant_id,
+    # joins with Product and ProductVariant to get their names,
+    # and sums up the total quantity sold for each.
+    top_selling_items = db.session.query(
+        Product.name,
+        ProductVariant.size_name,
+        func.sum(OrderItem.quantity).label('total_sold')
+    ).join(Product, Product.product_id == OrderItem.product_id)\
+     .join(ProductVariant, ProductVariant.variant_id == OrderItem.variant_id)\
+     .group_by(OrderItem.variant_id)\
+     .order_by(func.sum(OrderItem.quantity).desc())\
+     .all()
+
+    # --- 2. Sales Per Day Report (Example) ---
+    # This query groups orders by the date they were created
+    # and sums up the final_amount for each day.
+    sales_by_day = db.session.query(
+        func.date(Order.order_date).label('date'),
+        func.sum(Order.final_amount).label('total_sales')
+    ).group_by(func.date(Order.order_date))\
+     .order_by(func.date(Order.order_date).desc())\
+     .limit(30).all() # Get last 30 days
+
+    return render_template(
+        'admin_sales_reports.html',
+        top_selling_items=top_selling_items,
+        sales_by_day=sales_by_day
+    )
+
+@app.route('/admin/export/sales_csv')
+@login_required
+def admin_export_sales_csv():
+    """
+    (R)EAD: Generate and download a CSV file of daily sales.
+    """
+    try:
+        # 1. Run the same query as the sales report page
+        sales_by_day_query = db.session.query(
+            func.date(Order.order_date).label('date'),
+            func.sum(Order.final_amount).label('total_sales')
+        ).group_by(func.date(Order.order_date))\
+         .order_by(func.date(Order.order_date).desc())
+
+        # 2. Use Pandas to read the query directly
+        # This is a bit advanced, but it's the most efficient way
+        df = pd.read_sql(sales_by_day_query.statement, db.engine)
+
+        # 3. Rename columns for a user-friendly CSV
+        df = df.rename(columns={
+            'date': 'Date',
+            'total_sales': 'Total Sales (PHP)'
+        })
+
+        # 4. Create an in-memory file to hold the CSV
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        output.seek(0) # Go to the start of the file
+
+        # 5. Create the file download response
+        response = make_response(output.getvalue())
+        response.headers["Content-Disposition"] = "attachment; filename=sales_report.csv"
+        response.headers["Content-type"] = "text/csv"
+
+        return response
+
+    except Exception as e:
+        flash(f"An error occurred while generating the CSV: {e}", 'danger')
+        return redirect(url_for('admin_sales_reports'))
 
 # ===============================================
 # MODULE 7: USER (STAFF) MANAGEMENT (CRUD)

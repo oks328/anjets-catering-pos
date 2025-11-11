@@ -20,7 +20,7 @@
 
                 {% if 'customer_id' in session %}
                     <li><a href="{{ url_for('client_menu') }}">Order Now</a></li>
-                    <li><a href="#">Build a Buffet</a></li> <li><a href="{{ url_for('client_cart') }}">Cart</a></li>
+                    <li><a href="{{ url_for('buffet_wizard_start') }}">Build a Buffet</a></li> <li><a href="{{ url_for('client_cart') }}">Cart</a></li>
                     <li><a href="{{ url_for('client_my_account') }}">My Account</a></li> <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
                 {% else %}
                     <li><a href="{{ url_for('client_account_page') }}">Login/Register</a></li>

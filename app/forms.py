@@ -147,6 +147,7 @@ class VoucherForm(FlaskForm):
         default=True
     )
     submit = SubmitField('Save Voucher')
+
 class UserAddForm(FlaskForm):
     """
     Form for admin to add a new staff user.
@@ -240,3 +241,44 @@ class CustomerLoginForm(FlaskForm):
         validators=[DataRequired()]
     )
     submit = SubmitField('Log In')
+
+class CustomerEditForm(FlaskForm):
+    """
+    Form for admin to edit a customer's details.
+    """
+    name = StringField(
+        'Full Name',
+        validators=[DataRequired(), Length(min=3, max=255)]
+    )
+    contact_number = StringField(
+        'Contact Number',
+        validators=[DataRequired(), Length(min=7, max=20)]
+    )
+    email = StringField(
+        'Email Address',
+        validators=[DataRequired(), Email()]
+    )
+    # Password is optional. If left blank, it won't be changed.
+    password = PasswordField(
+        'New Password (Optional)',
+        validators=[Optional(), Length(min=6), password_complexity]
+    )
+    confirm_password = PasswordField(
+        'Confirm New Password',
+        validators=[EqualTo('password', message='Passwords must match.')]
+    )
+    submit = SubmitField('Update Customer')
+
+class CustomerProfileForm(FlaskForm):
+    """
+    Form for customers to edit their own profile.
+    """
+    name = StringField(
+        'Full Name',
+        validators=[DataRequired(), Length(min=3, max=255)]
+    )
+    contact_number = StringField(
+        'Contact Number',
+        validators=[DataRequired(), Length(min=7, max=20)]
+    )
+    submit = SubmitField('Update Profile')

@@ -61,6 +61,7 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
     contact_number = db.Column(db.String(50), nullable=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
     orders = db.relationship('Order', backref='customer', lazy=True)
 

@@ -1,10 +1,57 @@
-{% extends "admin_base.html" %} {% block title %}Admin Dashboard{% endblock %}
-{% block content %}
-<h2>Main Dashboard</h2>
-<p>Welcome, {{ current_user.username }}!</p>
+{% extends "admin_base.html" %}
 
-<p>
-  This is your main control panel. From here you can manage products,
-  categories, and orders.
-</p>
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+    <h2>Main Dashboard</h2>
+    <p>Welcome back, {{ current_user.username }}!</p>
+
+    <div class="stat-card-row">
+        <div class="stat-card">
+            <h4>New Orders Today</h4>
+            <div class="stat-value">{{ orders_today_count }}</div>
+        </div>
+        
+        <div class="stat-card">
+            <h4>Total Sales (This Month)</h4>
+            <div class="stat-value stat-value-small">₱{{ "%.2f"|format(total_sales_month) }}</div>
+        </div>
+        
+        <div class="stat-card">
+            <h4>New Customers (This Month)</h4>
+            <div class="stat-value">{{ new_customers_month_count }}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Pending Orders</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Date Placed</th>
+                    <th>Total</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in recent_pending_orders %}
+                <tr>
+                    <td><strong>#{{ order.order_id }}</strong></td>
+                    <td>{{ order.customer.name }}</td>
+                    <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
+                    <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
+                    <td class="action-buttons">
+                        <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-secondary btn-sm">View Order</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">No pending orders.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 {% endblock %}

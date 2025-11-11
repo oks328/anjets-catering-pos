@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="account-container">
+    <aside class="account-nav">
+        <h3>Hello, {{ session['customer_name'] }}!</h3>
+        <ul>
+            <li><a href="{{ url_for('client_my_account') }}">Order History</a></li>
+            <li><a href="{{ url_for('client_profile') }}" class="active">My Profile</a></li>
+            <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
+        </ul>
+    </aside>
+
+    <section class="account-content">
+        <h2>My Profile</h2>
+        
+        <div class="form-wrapper" style="box-shadow: none; padding: 0;">
+            <form method="POST" action="{{ url_for('client_profile') }}" novalidate>
+                {{ form.hidden_tag() }} <div class="form-group">
+                    {{ form.name.label }}
+                    {{ form.name(class="form-control") }}
+                    {% for error in form.name.errors %}
+                        <span class="error-message">{{ error }}</span>
+                    {% endfor %}
+                </div>
+                
+                <div class="form-group">
+                    {{ form.contact_number.label }}
+                    {{ form.contact_number(class="form-control") }}
+                    {% for error in form.contact_number.errors %}
+                        <span class="error-message">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+
+    </section>
+</div>
+{% endblock %}

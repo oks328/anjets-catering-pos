@@ -7,8 +7,8 @@
     <aside class="account-nav">
         <h3>Hello, {{ session['customer_name'] }}!</h3>
         <ul>
-            <li><a href="#" class="active">Order History</a></li>
-            <li><a href="#">My Profile</a></li>
+            <li><a href="{{ url_for('client_my_account') }}" class="active">Order History</a></li>
+            <li><a href="{{ url_for('client_profile') }}">My Profile</a></li>
             <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
         </ul>
     </aside>

@@ -470,3 +470,35 @@ footer {
 .order-items-list .variant-name {
     color: #666;
 }
+
+/* --- Admin Dashboard Styles --- */
+.stat-card-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.stat-card h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.stat-card .stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.stat-card .stat-value-small {
+    font-size: 2rem; /* Smaller for currency */
+}

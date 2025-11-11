@@ -5,6 +5,12 @@
 {% block content %}
     <h2>Manage Customer Orders</h2>
 
+    <div style="margin-bottom: 1.5rem; text-align: right;">
+    <a href="{{ url_for('admin_export_orders_json') }}" class="btn btn-primary" style="background-color: #007bff;">
+        Export All Orders to JSON
+    </a>
+</div>
+
     <div class="filter-tabs">
         <a href="{{ url_for('admin_orders') }}" class="btn {{ 'btn-primary' if not current_filter else 'btn-secondary' }}">All</a>
         <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn {{ 'btn-primary' if current_filter == 'Pending' else 'btn-secondary' }}">Pending</a>

@@ -18,7 +18,15 @@
             <input type="text" name="search" class="form-control" placeholder="Search products..." value="{{ search_query or '' }}">
             <button type="submit" class="btn btn-primary">Search</button>
         </form>
+
+        <button type="button" id="openCsvImportModal" class="btn btn-secondary" style="background-color: #28a745; border-color: #28a745; color: white;">
+        Import from CSV
+    </button>
         
+        <a href="{{ url_for('admin_export_products_xml') }}" class="btn btn-secondary" style="background-color: #5bc0de; border-color: #5bc0de; color: white;">
+            Export to XML
+        </a>
+
         <a href="{{ url_for('admin_add_product') }}" class="btn btn-primary">
             Add New Product
         </a>

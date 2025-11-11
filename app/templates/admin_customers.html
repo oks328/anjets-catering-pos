@@ -1,0 +1,49 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Manage Customers{% endblock %}
+
+{% block content %}
+    <h2>Manage Customers</h2>
+
+    <div class="card">
+        <form method="GET" action="{{ url_for('admin_customers') }}" class="search-form" style="margin-bottom: 1.5rem;">
+            <input type="text" name="search" class="form-control" placeholder="Search by name or email..." value="{{ search_query or '' }}">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Customer ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Contact #</th>
+                    <th>Registered On</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers %}
+                <tr>
+                    <td>#{{ customer.customer_id }}</td>
+                    <td><strong>{{ customer.name }}</strong></td>
+                    <td>{{ customer.email }}</td>
+                    <td>{{ customer.contact_number }}</td>
+                    <td>{{ customer.registration_date.strftime('%Y-%m-%d') }}</td>
+                    <td class="action-buttons">
+                        <a href="{{ url_for('admin_edit_customer_page', customer_id=customer.customer_id) }}" class="btn btn-secondary btn-sm">Edit</a>
+                        
+                        <form action="{{ url_for('admin_delete_customer', customer_id=customer.customer_id) }}" method="POST" class="delete-form-modal" style="display:inline;">
+                            <input type="submit" value="Delete" class="btn btn-danger btn-sm">
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">No customers found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
