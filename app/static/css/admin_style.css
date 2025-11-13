@@ -123,7 +123,8 @@ footer {
   font-weight: bold;
 }
 
-.admin-nav a:hover {
+.admin-nav a:hover,
+.admin-nav a.active {
   background-color: #555;
 }
 

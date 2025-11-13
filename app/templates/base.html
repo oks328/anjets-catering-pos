@@ -14,18 +14,19 @@
         <div class="logo">
             <a href="{{ url_for('client_home') }}">Anjet's Catering</a>
         </div>
+{% set active_page = request.endpoint %}
+        
         <nav class="client-nav">
             <ul>
-                <li><a href="{{ url_for('client_home') }}">Home</a></li>
+                <li><a href="{{ url_for('client_home') }}" class="{{ 'active' if active_page == 'client_home' else '' }}">Home</a></li>
                 
                 {% if 'customer_id' in session %}
-                    <li><a href="{{ url_for('client_menu') }}">Order Now</a></li>
-                    <li><a href="{{ url_for('buffet_wizard_start') }}">Build a Buffet</a></li>
-                    <li><a href="{{ url_for('client_cart') }}">Cart</a></li>
-                    <li><a href="{{ url_for('client_my_account') }}">My Account</a></li>
+                    <li><a href="{{ url_for('client_menu') }}" class="{{ 'active' if active_page == 'client_menu' else '' }}">Menu</a></li>                    <li><a href="{{ url_for('buffet_wizard_start') }}" class="{{ 'active' if active_page == 'buffet_wizard_start' else '' }}">Build a Buffet</a></li>
+                    <li><a href="{{ url_for('client_cart') }}" class="{{ 'active' if active_page in ['client_cart', 'client_checkout'] else '' }}">Cart</a></li>
+                    <li><a href="{{ url_for('client_my_account') }}" class="{{ 'active' if active_page in ['client_my_account', 'client_profile'] else '' }}">My Account</a></li>
                     <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
                 {% else %}
-                    <li><a href="{{ url_for('client_account_page') }}">Login/Register</a></li>
+                    <li><a href="{{ url_for('client_account_page') }}" class="{{ 'active' if active_page in ['client_account_page', 'client_register_page'] else '' }}">Login/Register</a></li>
                 {% endif %}
             </ul>
         </nav>
@@ -75,6 +76,7 @@
             </form>
         </div>
     </div>
+    
     <div id="warningModal" class="modal">
         <div class="modal-content">
             <span class="modal-close-btn" id="warningModalCloseBtn">&times;</span>
@@ -86,13 +88,14 @@
             </div>
         </div>
     </div>
+    
     <div id="toastContainer"></div>
 
     <script>
-        // --- This function is now global ---
+        // --- Global Toast Function ---
         function createToast(message, category) {
             const toastContainer = document.getElementById('toastContainer');
-            if (!toastContainer) return; // Fail gracefully if no container
+            if (!toastContainer) return; 
             
             const toast = document.createElement('div');
             toast.classList.add('toast', `toast-${category}`);
@@ -116,11 +119,21 @@
 
             setTimeout(() => {
                 if (toast.parentElement) closeToast();
-            }, 5000); // 5 seconds
+            }, 5000); 
         }
 
-        // This listener just handles the messages on page load
+        // --- Global Modal Close Function ---
+        function closeProductModal() {
+            const modal = document.getElementById('productModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // --- Global Page Load & Modal Logic ---
         document.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. Show flashed messages
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
@@ -128,6 +141,117 @@
                     {% endfor %}
                 {% endif %}
             {% endwith %}
+
+            // 2. Global Modal Stepper Logic
+            const modalQuantityInput = document.getElementById('modalQuantity');
+            const modalBtnMinus = document.getElementById('modal-btn-minus');
+            const modalBtnPlus = document.getElementById('modal-btn-plus');
+
+            if (modalBtnMinus && modalBtnPlus && modalQuantityInput) {
+                modalBtnMinus.addEventListener('click', () => {
+                    let currentVal = parseInt(modalQuantityInput.value);
+                    if (currentVal > 1) {
+                        modalQuantityInput.value = currentVal - 1;
+                    }
+                });
+                modalBtnPlus.addEventListener('click', () => {
+                    let currentVal = parseInt(modalQuantityInput.value);
+                    modalQuantityInput.value = currentVal + 1;
+                });
+            }
+
+            // 3. Global Modal Opening Logic
+            const modal = document.getElementById('productModal');
+            
+            if (modal) {
+                // Get all modal elements
+                const closeModalBtn = modal.querySelector('.modal-close-btn');
+                const modalProductName = document.getElementById('modalProductName');
+                const modalProductId = document.getElementById('modalProductId');
+                const modalVariantLabel = document.getElementById('modalVariantLabel');
+                const modalVariantSelect = document.getElementById('modalVariantId');
+                const modalCurrentCount = document.getElementById('modalCurrentCount');
+                
+                // Get warning modal elements (for buffet page)
+                const warningModal = document.getElementById('warningModal');
+                const warningModalCloseBtn = document.getElementById('warningModalCloseBtn');
+                const warningModalCancelBtn = document.getElementById('warningModalCancel');
+
+                let allVariantsData = []; 
+
+                // --- Function to update the counter text (for buffet) ---
+                function updateCounter() {
+                    const selectedVariantId = modalVariantSelect.value;
+                    const variantData = allVariantsData.find(v => v.id == selectedVariantId);
+                    
+                    if (modalCurrentCount) {
+                        if (variantData && variantData.current_quantity > 0) {
+                            modalCurrentCount.innerText = `You have ${variantData.current_quantity} of this item in your buffet.`;
+                            modalCurrentCount.style.display = 'block';
+                        } else {
+                            modalCurrentCount.style.display = 'none';
+                        }
+                    }
+                }
+                
+                modalVariantSelect.addEventListener('change', updateCounter);
+
+                // --- Function to close the WARNING modal ---
+                const closeWarningModal = () => {
+                    if (warningModal) warningModal.style.display = 'none';
+                }
+                if (warningModalCloseBtn) warningModalCloseBtn.onclick = closeWarningModal;
+                if (warningModalCancelBtn) warningModalCancelBtn.onclick = closeWarningModal;
+
+                // --- Close modals on outside click / close button ---
+                closeModalBtn.onclick = closeProductModal; // Calls global function
+                window.onclick = (event) => {
+                    if (event.target == modal) closeProductModal(); // Calls global function
+                    if (event.target == warningModal) closeWarningModal();
+                }
+
+                // --- Find all buttons with our standard class ---
+                document.querySelectorAll('.btn-open-product-modal').forEach(button => {
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const productId = this.dataset.productId;
+                        
+                        // Fetch details from the API
+                        fetch(`/product_details/${productId}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                modalProductName.innerText = data.name;
+                                modalProductId.value = data.id;
+                                if(modalQuantityInput) modalQuantityInput.value = 1; 
+                                
+                                allVariantsData = data.variants; 
+                                modalVariantSelect.innerHTML = ''; 
+                                
+                                if (data.has_variants) {
+                                    modalVariantLabel.style.display = 'block';
+                                    data.variants.forEach(variant => {
+                                        const option = document.createElement('option');
+                                        option.value = variant.id;
+                                        option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                        modalVariantSelect.appendChild(option);
+                                    });
+                                } else {
+                                    modalVariantLabel.style.display = 'none';
+                                    if (data.variants.length > 0) {
+                                        const variant = data.variants[0];
+                                        const option = document.createElement('option');
+                                        option.value = variant.id;
+                                        option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                        modalVariantSelect.appendChild(option);
+                                    }
+                                }
+
+                                updateCounter(); // Update the buffet counter
+                                modal.style.display = 'block';
+                            });
+                    });
+                });
+            } // end if(modal)
         });
     </script>
 

@@ -15,22 +15,47 @@
     </header>
 
     {% if current_user.is_authenticated %}
+    
+    {% set active_page = request.endpoint %}
     <nav class="admin-nav">
       <ul>
-        <li><a href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
-        <li><a href="{{ url_for('admin_categories') }}">Categories</a></li>
-        <li><a href="{{ url_for('admin_products') }}">Products</a></li>
-        <li><a href="{{ url_for('admin_orders') }}">Orders</a></li>
-        <li><a href="{{ url_for('admin_vouchers') }}">Vouchers</a></li>
-        <li><a href="{{ url_for('admin_users') }}">Staff Management</a></li>
-        <li><a href="{{ url_for('admin_customers') }}">Customers</a></li>
-        <li><a href="{{ url_for('admin_sales_reports') }}">Sales Reports</a></li>
-        <li><a href="{{ url_for('admin_logout') }}">Logout</a></li>
+        <li><a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if active_page == 'admin_dashboard' else '' }}">Dashboard</a></li>
+        
+        <li><a href="{{ url_for('admin_categories') }}" class="{{ 'active' if active_page == 'admin_categories' else '' }}">Categories</a></li>
+        
+        {% set product_pages = ['admin_products', 'admin_add_product', 'admin_edit_product', 'admin_product_variants', 'admin_import_products_csv'] %}
+        <li><a href="{{ url_for('admin_products') }}" class="{{ 'active' if active_page in product_pages else '' }}">Products</a></li>
+        
+        <li><a href="{{ url_for('admin_orders') }}" class="{{ 'active' if active_page == 'admin_orders' else '' }}">Orders</a></li>
+        
+        <li><a href="{{ url_for('admin_vouchers') }}" class="{{ 'active' if active_page == 'admin_vouchers' else '' }}">Vouchers</a></li>
+
+        {% set user_pages = ['admin_users', 'admin_add_user', 'admin_edit_user'] %}
+        <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_pages else '' }}">Staff Management</a></li>
+        
+        {% set customer_pages = ['admin_customers', 'admin_edit_customer_page', 'admin_edit_customer'] %}
+        <li><a href="{{ url_for('admin_customers') }}" class="{{ 'active' if active_page in customer_pages else '' }}">Customers</a></li>
+        
+        <li><a href="{{ url_for('admin_sales_reports') }}" class="{{ 'active' if active_page == 'admin_sales_reports' else '' }}">Sales Reports</a></li>
+        
+        <li><a href="{{ url_for('admin_logout') }}" style="color: #ffc107;">Logout ({{ current_user.username }})</a></li>
       </ul>
     </nav>
     {% endif %}
 
-    <main>{% block content %}{% endblock %}</main>
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div id="flashedMessages" style="display: none;">
+                    {% for category, message in messages %}
+                        <span data-category="{{ category }}">{{ message | safe }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+    
+        {% block content %}{% endblock %}
+    </main>
 
     <footer>&copy; 2025 Anjet's Catering</footer>
 
@@ -56,7 +81,7 @@
         <span class="modal-close-btn" id="csvModalCloseBtn">&times;</span>
         <h4>Import Products from CSV</h4>
         <p>Upload a CSV file with the required columns. <br>
-           <strong>Required columns:</strong> `name`, `description`, `category_name`, `has_variants`, `price`, `size_name`
+            <strong>Required columns:</strong> `name`, `description`, `category_name`, `has_variants`, `price`, `size_name`
         </p>
 
         <form id="csvImportForm" method="POST" action="{{ url_for('admin_import_products_csv') }}" enctype="multipart/form-data">
@@ -71,6 +96,8 @@
         </form>
     </div>
 </div>
+
+    <div id="toastContainer"></div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
@@ -153,7 +180,9 @@
           toast.appendChild(closeBtn);
 
           // Add toast to the container
-          toastContainer.appendChild(toast);
+          if (toastContainer) {
+            toastContainer.appendChild(toast);
+          }
 
           // Set timeout to automatically remove the toast
           setTimeout(() => {
@@ -164,51 +193,56 @@
           }, 5000); // 5 seconds
       }
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-              {% for category, message in messages %}
-                  // Call our function for each message
-            createToast("{{ message | safe }}", "{{ category }}");
-              {% endfor %}
-          {% endif %}
-      {% endwith %}
-      // --- End of Toast Script ---
+       {% with messages = get_flashed_messages(with_categories=true) %}
+           {% if messages %}
+               {% for category, message in messages %}
+                   // Call our function for each message
+           createToast("{{ message | safe }}", "{{ category }}");
+               {% endfor %}
+           {% endif %}
+       {% endwith %}
+       // --- End of Toast Script ---
 
-      // --- CSV Import Modal Script ---
-const importModal = document.getElementById('csvImportModal');
-const openImportModalBtn = document.getElementById('openCsvImportModal');
-const closeImportModalBtn = document.getElementById('csvModalCloseBtn');
-const cancelImportModalBtn = document.getElementById('csvModalCancel');
-const importForm = document.getElementById('csvImportForm');
-const importSubmitBtn = document.getElementById('csvImportSubmit');
+       // --- CSV Import Modal Script ---
+    const importModal = document.getElementById('csvImportModal');
+    const openImportModalBtn = document.getElementById('openCsvImportModal');
+    const closeImportModalBtn = document.getElementById('csvModalCloseBtn');
+    const cancelImportModalBtn = document.getElementById('csvModalCancel');
+    const importForm = document.getElementById('csvImportForm');
+    const importSubmitBtn = document.getElementById('csvImportSubmit');
 
-const openImportModal = () => {
-    if (importModal) importModal.style.display = 'block';
-}
-const closeImportModal = () => {
-    if (importModal) {
-        importModal.style.display = 'none';
-        importForm.reset(); // Clear the file input
-        importSubmitBtn.disabled = false;
-        importSubmitBtn.innerText = 'Upload and Import';
+    const openImportModal = () => {
+        if (importModal) importModal.style.display = 'block';
     }
-}
+    const closeImportModal = () => {
+        if (importModal) {
+            importModal.style.display = 'none';
+            if (importForm) importForm.reset(); // Clear the file input
+            if (importSubmitBtn) {
+                importSubmitBtn.disabled = false;
+                importSubmitBtn.innerText = 'Upload and Import';
+            }
+        }
+    }
 
-// Clicks to open/close
-if (openImportModalBtn) openImportModalBtn.onclick = openImportModal;
-if (closeImportModalBtn) closeImportModalBtn.onclick = closeImportModal;
-if (cancelImportModalBtn) cancelImportModalBtn.onclick = closeImportModal;
+    // Clicks to open/close
+    if (openImportModalBtn) openImportModalBtn.onclick = openImportModal;
+    if (closeImportModalBtn) closeImportModalBtn.onclick = closeImportModal;
+    if (cancelImportModalBtn) cancelImportModalBtn.onclick = closeImportModal;
 
-// Show "Processing..." on submit
-if (importForm) {
-    importForm.addEventListener('submit', () => {
-        importSubmitBtn.disabled = true;
-        importSubmitBtn.innerText = 'Processing...';
-    });
-}
+    // Show "Processing..." on submit
+    if (importForm) {
+        importForm.addEventListener('submit', () => {
+            if (importSubmitBtn) {
+                importSubmitBtn.disabled = true;
+                importSubmitBtn.innerText = 'Processing...';
+            }
+        });
+    }
 
         });
-    </script>
-    <div id="toastContainer"></div>
+      </script>
+      
+      {% block scripts %}{% endblock %}
   </body>
 </html>

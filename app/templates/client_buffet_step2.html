@@ -58,9 +58,9 @@
                                 {% endif %}
                             </div>
                             
-                            <button class="btn btn-secondary" data-product-id="{{ product.product_id }}" data-category="{{ product.category.name }}">
-                                Add
-                            </button>
+                           <button class="btn btn-secondary btn-open-product-modal" data-product-id="{{ product.product_id }}" data-category="{{ product.category.name }}">
+    Add
+</button>
                         </div>
                     </div>
                 </div>
@@ -75,129 +75,29 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- Get ALL Modal Elements ---
-        const modal = document.getElementById('productModal');
-        const closeModalBtn = document.querySelector('.modal-close-btn');
-        const modalProductName = document.getElementById('modalProductName');
-        const modalProductId = document.getElementById('modalProductId');
-        const modalVariantSelector = document.getElementById('modalVariantSelector');
-        const modalVariantLabel = document.getElementById('modalVariantLabel');
-        const modalVariantSelect = document.getElementById('modalVariantId');
         const modalCartForm = document.getElementById('modalCartForm');
-        
-        // --- Get Stepper & Counter Elements ---
-        const modalQuantityInput = document.getElementById('modalQuantity');
-        const modalBtnMinus = document.getElementById('modal-btn-minus');
-        const modalBtnPlus = document.getElementById('modal-btn-plus');
-        const modalCurrentCount = document.getElementById('modalCurrentCount');
         
         // --- Get Warning Modal Elements ---
         const warningModal = document.getElementById('warningModal');
-        const warningModalCloseBtn = document.getElementById('warningModalCloseBtn');
-        const warningModalCancelBtn = document.getElementById('warningModalCancel');
         const warningModalConfirmBtn = document.getElementById('warningModalConfirm');
         const warningModalMessage = document.getElementById('warningModalMessage');
         
-        let allVariantsData = []; 
-
-        // --- Stepper Button Logic ---
-        modalBtnMinus.addEventListener('click', () => {
-            let currentVal = parseInt(modalQuantityInput.value);
-            if (currentVal > 1) {
-                modalQuantityInput.value = currentVal - 1;
-            }
-        });
-        modalBtnPlus.addEventListener('click', () => {
-            let currentVal = parseInt(modalQuantityInput.value);
-            modalQuantityInput.value = currentVal + 1;
-        });
-
-        // --- Function to update the counter text ---
-        function updateCounter() {
-            const selectedVariantId = modalVariantSelect.value;
-            const variantData = allVariantsData.find(v => v.id == selectedVariantId);
-            
-            if (variantData && variantData.current_quantity > 0) {
-                modalCurrentCount.innerText = `You have ${variantData.current_quantity} of this item in your buffet.`;
-                modalCurrentCount.style.display = 'block';
-            } else {
-                modalCurrentCount.style.display = 'none';
-            }
-        }
-        
-        modalVariantSelect.addEventListener('change', updateCounter);
-
-        // --- Function to close the PRODUCT modal ---
-        const closeProductModal = () => {
-            modal.style.display = 'none';
-        }
-        closeModalBtn.onclick = closeProductModal;
-        
-        // --- Function to close the WARNING modal ---
-        const closeWarningModal = () => {
-            warningModal.style.display = 'none';
-        }
-        warningModalCloseBtn.onclick = closeWarningModal;
-        warningModalCancelBtn.onclick = closeWarningModal;
-
-        // --- Close modals on outside click ---
-        window.onclick = (event) => {
-            if (event.target == modal) closeProductModal();
-            if (event.target == warningModal) closeWarningModal();
-        }
-
-        // --- Find all "Add" buttons ON THIS PAGE ---
-        // (This selector finds the gray 'btn-secondary')
-        document.querySelectorAll('.btn-secondary[data-product-id]').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                const productId = this.dataset.productId;
-                
-                fetch(`/product_details/${productId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        modalProductName.innerText = data.name;
-                        modalProductId.value = data.id;
-                        modalQuantityInput.value = 1; 
-                        
-                        allVariantsData = data.variants; 
-                        modalVariantSelect.innerHTML = ''; 
-                        
-                        if (data.has_variants) {
-                            modalVariantSelector.style.display = 'block';
-                            modalVariantLabel.style.display = 'block';
-                            data.variants.forEach(variant => {
-                                const option = document.createElement('option');
-                                option.value = variant.id;
-                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
-                                modalVariantSelect.appendChild(option);
-                            });
-                        } else {
-                            modalVariantSelector.style.display = 'block';
-                            modalVariantLabel.style.display = 'none';
-                            if (data.variants.length > 0) {
-                                const variant = data.variants[0];
-                                const option = document.createElement('option');
-                                option.value = variant.id;
-                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
-                                modalVariantSelect.appendChild(option);
-                            }
-                        }
-
-                        updateCounter(); 
-                        modal.style.display = 'block';
-                    });
-            });
-        });
-
         // --- Hijack the modal's submit button ---
         modalCartForm.onsubmit = function(e) {
             e.preventDefault(); 
             const formData = new FormData(modalCartForm);
-            handleFetch(formData); // Call the fetch function
+            
+            // --- This needs to find the modal differently since we are outside ---
+            const productModal = document.getElementById('productModal');
+            const closeProductModal = () => {
+                if (productModal) productModal.style.display = 'none';
+            }
+            
+            handleFetch(formData, closeProductModal); // Call the fetch function
         };
 
         // --- Main Fetch Logic ---
-        function handleFetch(dataToPost) {
+        function handleFetch(dataToPost, closeProductModal) {
             fetch("{{ url_for('buffet_add_item') }}", {
                 method: 'POST',
                 body: dataToPost
@@ -217,7 +117,11 @@
                     // When user clicks "Add Anyway"
                     warningModalConfirmBtn.onclick = () => {
                         dataToPost.append('force', 'true');
-                        handleFetch(dataToPost);
+                        
+                        // We also need the warning modal closer
+                        const closeWarningModal = () => warningModal.style.display = 'none';
+                        
+                        handleFetch(dataToPost, closeProductModal);
                         closeWarningModal();
                     }
                     

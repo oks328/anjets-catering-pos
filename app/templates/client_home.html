@@ -14,8 +14,47 @@
 
 <div class="card" style="margin-top: 2rem;">
     <h2>Today's Popular Items</h2>
-    <p>This is where we'll show a list of popular items, pulled from the database! (Coming soon)</p>
+
+    <div class="product-grid" style="margin-top: 1.5rem;">
+        {% for product in popular_products %}
+            <div class="product-card">
+                <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
+                     alt="{{ product.name }}" 
+                     class="product-card-image">
+
+                <div class="product-card-content">
+                    <h3>{{ product.name }}</h3>
+                    <p>{{ product.description or 'No description available.' }}</p>
+                    
+                    <div class="product-card-footer">
+                        <div class="product-card-price">
+                            {% if product.has_variants %}
+                                {% if product.variants %}
+                                    <span class="price-small">Starts at</span>
+                                    ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                                {% else %}
+                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                                {% endif %}
+                            {% else %}
+                                {% if product.variants %}
+                                    ₱{{ "%.2f"|format(product.variants[0].price) }}
+                                {% else %}
+                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
+                            Add to Cart
+                        </button>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p>No popular items just yet. Be the first to order!</p>
+        {% endfor %}
     </div>
+</div>
 
 {% endblock %}
 

@@ -22,10 +22,15 @@
 
             <div class="form-group">
                 {{ login_form.password.label }}
-                {{ login_form.password(class="form-control") }}
+                {{ login_form.password(class="form-control", id="password_field") }}
                 {% for error in login_form.password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
+            </div>
+            
+            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem; text-align: left;">
+                <input type="checkbox" id="toggle_password" style="width: auto;">
+                <label for="toggle_password" style="font-weight: normal; display: inline;">Show Password</label>
             </div>
 
             <div class="form-group">
@@ -40,4 +45,21 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const togglePassword = document.getElementById('toggle_password');
+        const passwordField = document.getElementById('password_field');
+
+        if (togglePassword && passwordField) {
+            togglePassword.addEventListener('click', function() {
+                // Toggle the type attribute
+                const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordField.setAttribute('type', type);
+            });
+        }
+    });
+</script>
 {% endblock %}

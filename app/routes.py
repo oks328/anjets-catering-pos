@@ -14,16 +14,9 @@ from flask import make_response, jsonify
 from flask import current_app as app
 from flask import render_template, redirect, url_for, flash, request, session, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
-from app.models import User
-from app.forms import AdminLoginForm
-from app.models import User, Category 
-from app.forms import AdminLoginForm, CategoryForm 
-from app.models import User, Category, Product, ProductVariant # <-- ADD Product, ProductVariant
-from app.forms import AdminLoginForm, CategoryForm, ProductForm # <-- ADD ProductForm
-from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm # <-- ADD VariantForm
-from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem # <-- ADD Voucher
-from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm # <-- ADD VoucherForm
-from app.forms import VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm
+# We only need to import the models once
+from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem
+from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm
 from functools import wraps
 
 def get_category_choices():
@@ -70,14 +63,39 @@ def customer_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# THIS FUNCTION HAD INDENTATION AND LOGIC ERRORS
 @app.route('/')
 def client_home():
     """
     Client-facing homepage.
+    NOW SHOWS top 5 popular items.
     """
-    # This tells Flask to render your new HTML file
-    return render_template('client_home.html')
+    
+    # This query finds the top 5 products based on
+    # total quantity sold from all orders.
+    top_product_ids = db.session.query(
+            OrderItem.product_id,
+            func.sum(OrderItem.quantity).label('total_sold')
+        ).group_by(OrderItem.product_id)\
+         .order_by(func.sum(OrderItem.quantity).desc())\
+         .limit(5)\
+         .subquery() # <-- We make this a subquery
 
+    # Now we fetch the actual Product objects that match these IDs
+    # and also join with Category to ensure they are active.
+    popular_products = db.session.query(Product)\
+        .join(top_product_ids, Product.product_id == top_product_ids.c.product_id)\
+        .join(Category, Product.category_id == Category.category_id)\
+        .filter(Category.is_active == True)\
+        .order_by(top_product_ids.c.total_sold.desc())\
+        .all()
+
+    return render_template(
+        'client_home.html',
+        popular_products=popular_products
+    )
+
+# THIS FUNCTION WAS MISSING
 @app.route('/menu')
 @customer_login_required
 def client_menu():
@@ -172,6 +190,7 @@ def add_to_cart():
     """
     Add a product to the user's session cart.
     Now handles variant_id and quantity.
+    NOW RETURNS JSON for a fetch() request.
     """
     cart = session.get('cart', {})
     
@@ -186,18 +205,15 @@ def add_to_cart():
     except:
         quantity = 1
         
-    # --- We now use the VARIANT_ID as the unique key in our cart ---
-    # This lets us add "Small Spaghetti" AND "Large Spaghetti" as separate items
-    
     if not variant_id:
-        flash("Could not add item. No product size selected.", 'danger')
-        return redirect(url_for('client_menu'))
+        # Return JSON error
+        return jsonify({'status': 'error', 'message': 'No product size selected.'}), 400
         
     # Get the specific variant to get its name and price
     variant = ProductVariant.query.get(variant_id)
     if not variant:
-        flash("Could not find that product option.", 'danger')
-        return redirect(url_for('client_menu'))
+        # Return JSON error
+        return jsonify({'status': 'error', 'message': 'Could not find that product option.'}), 404
 
     product = variant.product # Get the parent product
     
@@ -220,8 +236,9 @@ def add_to_cart():
     
     print("Updated Cart:", session['cart'])
     
-    flash(f"Added {quantity} x {product.name} ({variant.size_name}) to cart!", 'success')
-    return redirect(url_for('client_menu'))
+    # Return JSON success
+    message = f"Added {quantity} x {product.name} ({variant.size_name}) to cart!"
+    return jsonify({'status': 'success', 'message': message})
 
 @app.route('/product_details/<int:product_id>')
 def product_details(product_id):
@@ -363,7 +380,7 @@ def apply_voucher():
         flash("Please enter a voucher code.", 'danger')
         return redirect(url_for('client_cart'))
 
-    # [cite_start]Check the database for the voucher [cite: 123, 211-213]
+    # Check the database for the voucher
     voucher = Voucher.query.filter_by(code=code, is_active=True).first()
     
     if voucher:
@@ -488,6 +505,34 @@ def place_order():
         db.session.rollback()
         flash(f"An error occurred while placing your order: {e}", 'danger')
         return redirect(url_for('client_checkout'))
+
+@app.route('/admin/categories/add', methods=['POST'])
+@login_required
+def admin_add_category():
+    """
+    (C)REATE: Process the add category form.
+    """
+    add_form = CategoryForm()
+    
+    if add_form.validate_on_submit():
+        # Create new category object
+        new_category = Category(
+            name=add_form.name.data,
+            description=add_form.description.data 
+        )
+        # Add to database
+        db.session.add(new_category)
+        try:
+            db.session.commit()
+            flash(f"Category '{new_category.name}' added successfully.", 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error adding category: {e}", 'danger')
+    else:
+        # Form had validation errors
+        flash('Error: Could not add category. Please check form.', 'danger')
+
+    return redirect(url_for('admin_categories') + '#add-category-card')
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -1037,34 +1082,28 @@ def admin_categories():
         search_query=search_query  # Pass the query back to the template
     )
 
-@app.route('/admin/categories/add', methods=['POST'])
+@app.route('/admin/products/toggle/<int:product_id>', methods=['POST'])
 @login_required
-def admin_add_category():
+def admin_toggle_product_status(product_id):
     """
-    (C)REATE: Process the add category form.
+    (U)PDATE: Toggle the is_active status of a product.
     """
-    add_form = CategoryForm()
-    
-    if add_form.validate_on_submit():
-        # Create new category object
-        new_category = Category(
-            name=add_form.name.data,
-            # THIS IS THE CRITICAL LINE FOR "CREATE"
-            description=add_form.description.data 
-        )
-        # Add to database
-        db.session.add(new_category)
-        try:
-            db.session.commit()
-            flash(f"Category '{new_category.name}' added successfully.", 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error adding category: {e}", 'danger')
-    else:
-        # Form had validation errors
-        flash('Error: Could not add category. Please check form.', 'danger')
+    product = Product.query.get_or_404(product_id)
 
-    return redirect(url_for('admin_categories') + '#add-category-card')
+    # This is the "soft delete" logic
+    product.is_active = not product.is_active
+
+    try:
+        db.session.commit()
+        if product.is_active:
+            flash(f"Product '{product.name}' has been Activated.", 'success')
+        else:
+            flash(f"Product '{product.name}' has been Deactivated.", 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error changing product status: {e}", 'danger')
+
+    return redirect(url_for('admin_products'))
 
 @app.route('/admin/categories/edit/<int:category_id>', methods=['POST'])
 @login_required
@@ -1724,7 +1763,7 @@ def admin_toggle_voucher_status(voucher_id):
     try:
         db.session.commit()
         if voucher.is_active:
-            flash(f"Voucher '{voucher.code}' has been Activated.", 'success')
+            flash(f"VVoucher '{voucher.code}' has been Activated.", 'success')
         else:
             flash(f"Voucher '{voucher.code}' has been Deactivated.", 'info')
     except Exception as e:
@@ -2058,4 +2097,3 @@ def admin_delete_user(user_id):
         flash(f"Error deleting user: {e}", 'danger')
 
     return redirect(url_for('admin_users'))
-

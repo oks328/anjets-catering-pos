@@ -38,18 +38,28 @@
 
             <div class="form-group">
                 {{ register_form.password.label }}
-                {{ register_form.password(class="form-control") }}
+                {{ register_form.password(class="form-control", id="password_field") }}
                 {% for error in register_form.password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
+            
+            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem; text-align: left;">
+                <input type="checkbox" id="toggle_password" style="width: auto;">
+                <label for="toggle_password" style="font-weight: normal; display: inline;">Show Password</label>
+            </div>
 
             <div class="form-group">
                 {{ register_form.confirm_password.label }}
-                {{ register_form.confirm_password(class="form-control") }}
+                {{ register_form.confirm_password(class="form-control", id="confirm_password_field") }}
                 {% for error in register_form.confirm_password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
+            </div>
+
+            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem; text-align: left;">
+                <input type="checkbox" id="toggle_confirm_password" style="width: auto;">
+                <label for="toggle_confirm_password" style="font-weight: normal; display: inline;">Show Password</label>
             </div>
 
             <div class="form-group">
@@ -64,4 +74,35 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- Logic for the first password field ---
+        const togglePassword = document.getElementById('toggle_password');
+        const passwordField = document.getElementById('password_field');
+
+        if (togglePassword && passwordField) {
+            togglePassword.addEventListener('click', function() {
+                // Toggle the type attribute
+                const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordField.setAttribute('type', type);
+            });
+        }
+
+        // --- Logic for the confirm password field ---
+        const toggleConfirmPassword = document.getElementById('toggle_confirm_password');
+        const confirmPasswordField = document.getElementById('confirm_password_field');
+
+        if (toggleConfirmPassword && confirmPasswordField) {
+            toggleConfirmPassword.addEventListener('click', function() {
+                // Toggle the type attribute
+                const type = confirmPasswordField.getAttribute('type') === 'password' ? 'text' : 'password';
+                confirmPasswordField.setAttribute('type', type);
+            });
+        }
+    });
+</script>
 {% endblock %}

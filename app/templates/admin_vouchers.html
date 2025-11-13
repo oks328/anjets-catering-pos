@@ -60,15 +60,21 @@
                             <span style="color: #6c757d; font-weight: bold;">Inactive</span>
                         {% endif %}
                     </td>
-                        <td class="action-buttons">
+                       <td class="action-buttons">
                             {{ edit_form.submit(class="btn btn-secondary", value="Update") }}
-                    </form> <form method="POST" action="{{ url_for('admin_toggle_voucher_status', voucher_id=voucher.voucher_id) }}" style="display:inline;">
-                    {% if voucher.is_active %}
-                        <input type="submit" value="Deactivate" class="btn btn-danger">
-                    {% else %}
-                        <input type="submit" value="Activate" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
-                    {% endif %}
-                </form>
+                    </form> 
+                    
+                    <form method="POST" action="{{ url_for('admin_toggle_voucher_status', voucher_id=voucher.voucher_id) }}" style="display:inline;">
+                        {% if voucher.is_active %}
+                            <input type="submit" value="Deactivate" class="btn btn-danger">
+                        {% else %}
+                            <input type="submit" value="Activate" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
+                        {% endif %}
+                    </form>
+
+                    <form method="POST" action="{{ url_for('admin_delete_voucher', voucher_id=voucher.voucher_id) }}" style="display:inline;" class="delete-form-modal">
+                        <input type="submit" value="Delete" class="btn btn-danger">
+                    </form>
                         </td>
                 </tr>
                 {% else %}
