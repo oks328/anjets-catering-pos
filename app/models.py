@@ -62,10 +62,8 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    
+    address = db.Column(db.Text, nullable=True)
     orders = db.relationship('Order', backref='customer', lazy=True)
-
-    # --- ADD ALL THESE METHODS BELOW ---
 
     def get_id(self):
         """Required by flask-login"""
@@ -148,7 +146,9 @@ class Order(db.Model):
     # --- FIX WAS HERE ---
     final_amount = db.Column(db.Numeric(10, 2), nullable=False)
     status = db.Column(db.String(50), nullable=False, default='Pending')
-    
+    order_type = db.Column(db.String(50), nullable=False, default='Pickup')
+    delivery_address = db.Column(db.Text, nullable=True)
+    delivery_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
 
 class OrderItem(db.Model):

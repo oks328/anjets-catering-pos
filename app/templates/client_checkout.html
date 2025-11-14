@@ -42,13 +42,26 @@
                 <span>Subtotal:</span>
                 <span>₱{{ "%.2f"|format(total_price) }}</span>
 
-                {% if session.get('discount_percentage') %}
-                    <span style="color: #28a745; font-weight: bold;">Discount ({{ session.get('voucher_code') }}):</span>
-                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(discount_amount) }}</span>
+                {% if voucher_discount_amt > 0 %}
+                    <span style="color: #28a745; font-weight: bold;">Voucher ({{ session.get('voucher_code') }}):</span>
+                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(voucher_discount_amt) }}</span>
+                {% endif %}
+                
+                {% if buffet_discount_amt > 0 %}
+                    <span style="color: #007bff; font-weight: bold;">Buffet Discount (10%):</span>
+                    <span style="color: #007bff; font-weight: bold;">- ₱{{ "%.2f"|format(buffet_discount_amt) }}</span>
+                {% endif %}
+                
+                {% if delivery_fee > 0 %}
+                    <span>Delivery Fee:</span>
+                    <span>₱{{ "%.2f"|format(delivery_fee) }}</span>
+                {% else %}
+                    <span>Delivery Fee:</span>
+                    <span>₱0.00</span>
                 {% endif %}
 
-                <h3 style="font-size: 1.2rem; margin-top: 1rem;">Total:</h3>
-                <h3 style="font-size: 1.5rem; margin-top: 1rem;">₱{{ "%.2f"|format(final_total) }}</h3>
+                <span class="total-label">Total:</span>
+                <span class="total-value">₱{{ "%.2f"|format(final_total) }}</span>
             </div>
         </div>
     </div>
@@ -57,6 +70,13 @@
         <h3>Customer Details</h3>
         <p>Your order will be placed under this account:</p>
         <p><strong>Name:</strong> {{ session['customer_name'] }}</p>
+        <div style="margin-top: 1rem;">
+            <p><strong>Order Type:</strong> {{ session.get('order_type') }}</p>
+            {% if session.get('order_type') == 'Delivery' %}
+                <p><strong>Delivering To:</strong> {{ session.get('delivery_address') }}</p>
+            {% endif %}
+        </div>
+
         <p style="margin-top: 2rem;">By clicking "Confirm Order", you agree to pay the total amount.</p>
         
         <form id="checkout-form" action="{{ url_for('place_order') }}" method="POST" style="text-align: right; margin-top: 1rem;">
@@ -71,16 +91,43 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const checkoutForm = document.getElementById('checkout-form');
+        const submitButton = checkoutForm.querySelector('button[type="submit"]');
 
         checkoutForm.addEventListener('submit', function(e) {
-            // Find the button inside this form
-            const submitButton = checkoutForm.querySelector('button[type="submit"]');
+            e.preventDefault(); // Stop the standard browser submission
 
-            // Disable the button
+            // Disable the button and show processing message
             submitButton.disabled = true;
-
-            // Change the text
             submitButton.innerText = 'Processing...';
+
+            const formData = new FormData(checkoutForm);
+
+            // Send the data via AJAX fetch
+            fetch(checkoutForm.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Order successfully placed!
+                    createToast(data.message, 'success');
+
+                    // Force a redirect to the My Account page
+                    window.location.href = data.redirect_url; 
+                } else {
+                    // Error handling
+                    createToast('Could not place order. ' + data.message, 'danger');
+                    submitButton.disabled = false;
+                    submitButton.innerText = 'Confirm Order';
+                }
+            })
+            .catch(err => {
+                console.error('Fetch error:', err);
+                createToast('A network error occurred. Please try again.', 'danger');
+                submitButton.disabled = false;
+                submitButton.innerText = 'Confirm Order';
+            });
         });
     });
 </script>

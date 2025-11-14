@@ -8,10 +8,18 @@
     <h1>Delicious Catering for Every Occasion</h1>
     <p>Let us make your next event unforgettable.</p>
 
-    <div class="cta-buttons">
-        <a href="#" class="btn btn-primary">Order Now (À la Carte)</a> <a href="#" class="btn btn-secondary">Build a Buffet</a> </div>
+    <div class="cta-buttons" style="margin-top: 2rem;">
+        {% if 'customer_id' in session %}
+            <a href="{{ url_for('client_menu') }}" class="btn btn-primary">Order Now (À la Carte)</a>
+        {% else %}
+            <a href="{{ url_for('client_account_page') }}" class="btn btn-primary">Order Now (À la Carte)</a>
+        {% endif %}
+        
+        <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-secondary">Build a Buffet</a>
+    </div>
 </div>
 
+{% if 'customer_id' in session %}
 <div class="card" style="margin-top: 2rem;">
     <h2>Today's Popular Items</h2>
 
@@ -55,7 +63,7 @@
         {% endfor %}
     </div>
 </div>
-
+{% endif %}
 {% endblock %}
 
 
@@ -68,6 +76,10 @@
         color: white;
         border-radius: 8px;
     }
+    .hero-section h1, 
+    .hero-section p {
+        color: white;
+    }
     .hero-section h1 {
         font-size: 2.5rem;
         margin-bottom: 1rem;
@@ -76,7 +88,7 @@
         font-size: 1.25rem;
         margin-bottom: 2rem;
     }
-
+    
     /* Style the buttons in the hero */
     .hero-section .btn-primary {
         background-color: white;
@@ -95,4 +107,131 @@
         color: #d9534f;
     }
 </style>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    // Set a flag that this is NOT the buffet page
+    window.isBuffetPage = false; 
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Get Modal Elements ---
+        const modal = document.getElementById('productModal');
+        const closeModalBtn = document.querySelector('.modal-close-btn');
+        const modalProductName = document.getElementById('modalProductName');
+        const modalProductId = document.getElementById('modalProductId');
+        const modalVariantSelector = document.getElementById('modalVariantSelector');
+        const modalVariantLabel = document.getElementById('modalVariantLabel');
+        const modalVariantSelect = document.getElementById('modalVariantId');
+        const modalCartForm = document.getElementById('modalCartForm');
+        
+        // --- Get Stepper & Counter Elements ---
+        const modalQuantityInput = document.getElementById('modalQuantity');
+        const modalBtnMinus = document.getElementById('modal-btn-minus');
+        const modalBtnPlus = document.getElementById('modal-btn-plus');
+        const modalCurrentCount = document.getElementById('modalCurrentCount');
+
+        // --- Stepper Button Logic (This makes +/- work) ---
+        if (modalBtnMinus && modalBtnPlus) {
+            modalBtnMinus.addEventListener('click', () => {
+                let currentVal = parseInt(modalQuantityInput.value);
+                if (currentVal > 1) {
+                    modalQuantityInput.value = currentVal - 1;
+                }
+            });
+            modalBtnPlus.addEventListener('click', () => {
+                let currentVal = parseInt(modalQuantityInput.value);
+                modalQuantityInput.value = currentVal + 1;
+            });
+        }
+
+        // --- Function to close the modal ---
+        const closeModal = () => {
+            if (modal) modal.style.display = 'none';
+        }
+        if (closeModalBtn) closeModalBtn.onclick = closeModal;
+        window.onclick = (event) => {
+            if (event.target == modal) closeModal();
+        }
+
+        // --- Find all "Add to Cart" buttons ---
+        document.querySelectorAll('.btn-open-product-modal').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const productId = this.dataset.productId;
+                
+                fetch(`/product_details/${productId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        modalProductName.innerText = data.name;
+                        modalProductId.value = data.id;
+                        modalQuantityInput.value = 1; 
+                        
+                        modalVariantSelect.innerHTML = ''; 
+                        
+                        if (data.has_variants) {
+                            modalVariantSelector.style.display = 'block';
+                            modalVariantLabel.style.display = 'block';
+                            data.variants.forEach(variant => {
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            });
+                        } else {
+                            modalVariantSelector.style.display = 'block';
+                            modalVariantLabel.style.display = 'none';
+                            if (data.variants.length > 0) {
+                                const variant = data.variants[0];
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            }
+                        }
+
+                        // Hide the buffet counter on this page
+                        if (modalCurrentCount) modalCurrentCount.style.display = 'none';
+                        
+                        // Set the form to submit to the main cart
+                        modalCartForm.action = "{{ url_for('add_to_cart') }}";
+                        modal.style.display = 'block';
+                    });
+            });
+        });
+
+        // --- Hijack the modal's submit button ---
+        if (modalCartForm) {
+            modalCartForm.onsubmit = function(e) {
+                // If this is the buffet page, let the buffet script handle it
+                if (window.isBuffetPage === true) {
+                    return; 
+                }
+                
+                // This is the HOME page, so we submit via AJAX
+                e.preventDefault(); 
+                const formData = new FormData(modalCartForm);
+
+                fetch("{{ url_for('add_to_cart') }}", {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        createToast(data.message, 'success');
+                        closeModal(); 
+                    } else {
+                        createToast(data.message, 'danger');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error adding to cart:', err);
+                    createToast('An error occurred. Please try again.', 'danger');
+                });
+            }
+        }
+    });
+</script>
 {% endblock %}

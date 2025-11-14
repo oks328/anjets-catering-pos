@@ -63,32 +63,25 @@ def customer_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# THIS FUNCTION HAD INDENTATION AND LOGIC ERRORS
 @app.route('/')
 def client_home():
     """
     Client-facing homepage.
-    NOW SHOWS top 5 popular items.
+    Now fetches top 3 popular products.
     """
-    
-    # This query finds the top 5 products based on
-    # total quantity sold from all orders.
+
+    # This query finds the top 3 selling product_ids
     top_product_ids = db.session.query(
             OrderItem.product_id,
             func.sum(OrderItem.quantity).label('total_sold')
         ).group_by(OrderItem.product_id)\
          .order_by(func.sum(OrderItem.quantity).desc())\
-         .limit(5)\
-         .subquery() # <-- We make this a subquery
+         .limit(3)\
+         .all()
 
-    # Now we fetch the actual Product objects that match these IDs
-    # and also join with Category to ensure they are active.
-    popular_products = db.session.query(Product)\
-        .join(top_product_ids, Product.product_id == top_product_ids.c.product_id)\
-        .join(Category, Product.category_id == Category.category_id)\
-        .filter(Category.is_active == True)\
-        .order_by(top_product_ids.c.total_sold.desc())\
-        .all()
+    # Get the full product objects for those IDs
+    product_ids = [pid for pid, total in top_product_ids]
+    popular_products = Product.query.filter(Product.product_id.in_(product_ids)).all()
 
     return render_template(
         'client_home.html',
@@ -249,7 +242,7 @@ def product_details(product_id):
     product = Product.query.get_or_404(product_id)
 
     # Get the buffet cart from the session
-    buffet_cart = session.get('buffet_cart', {})
+    buffet_cart = session.get('buffet_package', {})
 
     variants_data = []
     for variant in product.variants:
@@ -274,19 +267,30 @@ def product_details(product_id):
 @customer_login_required
 def client_cart():
     """
-    (R)EAD: Display the user's shopping cart.
+    (R)EAD: Display the user's shopping cart with smart totals.
     """
     cart_session = session.get('cart', {})
-
     cart_items = []
-    total_price = 0.0
+    
+    # --- NEW: Separate Subtotals ---
+    ala_carte_subtotal = 0.0
+    buffet_subtotal = 0.0
 
     for item_id, item_data in cart_session.items():
+        # Skip any corrupted items
+        if 'name' not in item_data or 'price' not in item_data:
+            continue
+            
         quantity = item_data['quantity']
         price = item_data['price']
         line_total = float(price) * quantity
-        total_price += line_total
-
+        
+        # --- NEW: Check the tag ---
+        if item_data.get('is_buffet_item', False):
+            buffet_subtotal += line_total
+        else:
+            ala_carte_subtotal += line_total
+            
         cart_items.append({
             'product_id': item_data['product_id'],
             'variant_id': item_id,
@@ -295,34 +299,49 @@ def client_cart():
             'image': item_data['image'],
             'price': float(price),
             'quantity': quantity,
-            'line_total': line_total
+            'line_total': line_total,
+            'is_buffet_item': item_data.get('is_buffet_item', False) # Pass tag to template
         })
 
-    # --- NEW: Combined Discount Logic ---
-
-    # 1. Get Voucher Discount
+    # --- NEW: Smart Discount Calculation ---
+    
+    # 1. Buffet Discount (10% on buffet items only)
+    buffet_discount_amt = buffet_subtotal * 0.10
+    
+    # 2. Voucher Discount (on à la carte items only)
     voucher_discount_perc = session.get('discount_percentage', 0.0)
-    voucher_discount_amt = (total_price * voucher_discount_perc) / 100
-
-    # 2. Get Buffet Discount
-    buffet_discount_perc = session.get('buffet_discount_percentage', 0.0)
-    buffet_discount_amt = (total_price * buffet_discount_perc) / 100
-
-    # 3. Calculate Totals
-    total_discount_amount = voucher_discount_amt + buffet_discount_amt
+    voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    
+    # 3. Final Totals
+    total_price = ala_carte_subtotal + buffet_subtotal
+    total_discount_amount = buffet_discount_amt + voucher_discount_amt
     final_total = total_price - total_discount_amount
-    # --- END OF NEW LOGIC ---
 
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
         total_price=total_price,
-        # Pass all discount values to the template
+        ala_carte_subtotal=ala_carte_subtotal,
+        buffet_subtotal=buffet_subtotal,
         voucher_discount_amt=voucher_discount_amt,
         buffet_discount_amt=buffet_discount_amt,
         total_discount_amount=total_discount_amount,
         final_total=final_total
     )
+
+@app.route('/cart/clear')
+@customer_login_required
+def clear_cart():
+    """
+    Clear the entire shopping cart and all discounts.
+    """
+    session.pop('cart', None)
+    session.pop('voucher_code', None)
+    session.pop('discount_percentage', None)
+    session.pop('buffet_discount_percentage', None)
+    flash("Cart has been cleared.", 'info')
+    return redirect(url_for('client_cart'))
+
 @app.route('/cart/remove/<string:variant_id>')
 @customer_login_required
 def remove_from_cart(variant_id):
@@ -400,24 +419,35 @@ def apply_voucher():
 @customer_login_required
 def client_checkout():
     """
-    (R)EAD: Display the final checkout page with order summary.
+    (R)EAD: Display the FINAL checkout page with ALL totals.
     """
-    # --- This is the same logic from client_cart() ---
-    # We recalculate everything to ensure it's 100% accurate
     cart_session = session.get('cart', {})
-
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
+    # Check if they've completed the options step
+    if 'order_type' not in session:
+        flash("Please select your delivery or pickup option first.", 'info')
+        return redirect(url_for('client_checkout_options'))
+
+    # --- This is the same logic from client_cart() ---
     cart_items = []
-    total_price = 0.0
+    ala_carte_subtotal = 0.0
+    buffet_subtotal = 0.0
 
     for item_id, item_data in cart_session.items():
+        if 'name' not in item_data or 'price' not in item_data:
+            continue
+
         quantity = item_data['quantity']
         price = item_data['price']
         line_total = float(price) * quantity
-        total_price += line_total
+
+        if item_data.get('is_buffet_item', False):
+            buffet_subtotal += line_total
+        else:
+            ala_carte_subtotal += line_total
 
         cart_items.append({
             'product_id': item_data['product_id'],
@@ -427,84 +457,197 @@ def client_checkout():
             'image': item_data['image'],
             'price': float(price),
             'quantity': quantity,
-            'line_total': line_total
+            'line_total': line_total,
+            'is_buffet_item': item_data.get('is_buffet_item', False)
         })
 
-    discount_percentage = session.get('discount_percentage', 0.0)
-    discount_amount = (total_price * discount_percentage) / 100
-    final_total = total_price - discount_amount
-    # --- End of cart logic ---
+    # --- NEW: Smart Discount + Delivery Fee ---
+    total_price = ala_carte_subtotal + buffet_subtotal
+
+    buffet_discount_amt = buffet_subtotal * 0.10
+    voucher_discount_perc = session.get('discount_percentage', 0.0)
+    voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+
+    # Get the new delivery fee
+    delivery_fee = session.get('delivery_fee', 0.0)
+
+    total_discount_amount = buffet_discount_amt + voucher_discount_amt
+    final_total = (total_price - total_discount_amount) + delivery_fee
+    # --- END OF NEW LOGIC ---
 
     return render_template(
         'client_checkout.html',
         cart_items=cart_items,
         total_price=total_price,
-        discount_amount=discount_amount,
+        ala_carte_subtotal=ala_carte_subtotal,
+        buffet_subtotal=buffet_subtotal,
+        voucher_discount_amt=voucher_discount_amt,
+        buffet_discount_amt=buffet_discount_amt,
+        delivery_fee=delivery_fee, # Pass new fee
+        total_discount_amount=total_discount_amount,
         final_total=final_total
     )
-@app.route('/checkout/place_order', methods=['POST'])
+
+@app.route('/checkout/options', methods=['GET'])
 @customer_login_required
-def place_order():
+def client_checkout_options():
     """
-    (C)REATE: Create the order in the database.
-    This is the final step.
+    (R)EAD: Show the page for selecting Delivery or Pickup.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
-    # --- 1. Recalculate Totals (again) for security ---
-    total_price = 0.0
-    for item_id, item_data in cart_session.items():
-        total_price += float(item_data['price']) * item_data['quantity']
+    # Get the customer's default address to pre-fill the form
+    customer = Customer.query.get(session['customer_id'])
+    default_address = customer.address
 
-    discount_percentage = session.get('discount_percentage', 0.0)
-    discount_amount = (total_price * discount_percentage) / 100
-    final_total = total_price - discount_amount
-    
+    return render_template(
+        'client_checkout_options.html',
+        default_address=default_address
+    )
+
+@app.route('/checkout/save_options', methods=['POST'])
+@customer_login_required
+def save_checkout_options():
+    """
+    (C)REATE: Save the chosen delivery options to the session.
+    """
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        flash("Your cart is empty.", 'info')
+        return redirect(url_for('client_cart'))
+
+    order_type = request.form.get('order_type')
+    delivery_address = request.form.get('delivery_address')
+
+    if order_type == 'Delivery':
+        if not delivery_address:
+            # If they chose delivery but left the address blank
+            flash("Please provide a delivery address.", 'danger')
+            return redirect(url_for('client_checkout_options'))
+        
+        session['delivery_fee'] = 100.00
+        session['order_type'] = 'Delivery'
+        session['delivery_address'] = delivery_address
+    else:
+        # It's a Pickup
+        session['delivery_fee'] = 0.00
+        session['order_type'] = 'Pickup'
+        session['delivery_address'] = 'Store Pickup'
+
+    # Send them to the final review page
+    return redirect(url_for('client_checkout'))
+
+@app.route('/checkout/place_order', methods=['POST'])
+@customer_login_required
+def place_order():
+    """
+    (C)REATE: Create the order in the database.
+    Returns JSON status for AJAX submission.
+    """
+    # --- (Existing Totals Recalculation Logic is Here) ---
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        return jsonify({'status': 'error', 'message': "Your cart is empty. Please try again."}), 400
+
+    # Create a copy of the cart for validation and processing
+    valid_cart_items = {} 
+    ala_carte_subtotal = 0.0
+    buffet_subtotal = 0.0
+    total_price = 0.0
+
+    for item_id, item_data in cart_session.items():
+        if 'product_id' not in item_data or 'price' not in item_data:
+            continue
+
+        valid_cart_items[item_id] = item_data
+        line_total = float(item_data['price']) * item_data['quantity']
+        total_price += line_total
+
+        if item_data.get('is_buffet_item', False):
+            buffet_subtotal += line_total
+        else:
+            ala_carte_subtotal += line_total
+
+    if not valid_cart_items:
+        return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
+
+    # Calculate Discounts and Fee
+    buffet_discount_amt = buffet_subtotal * 0.10
+    voucher_discount_perc = session.get('discount_percentage', 0.0)
+    voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    delivery_fee = session.get('delivery_fee', 0.0)
+
+    total_discount_amount = buffet_discount_amt + voucher_discount_amt
+    final_total = (total_price - total_discount_amount) + delivery_fee
+
     # --- 2. Create the main Order ---
     try:
         new_order = Order(
             customer_id=session['customer_id'],
             total_amount=total_price,
-            discount_amount=discount_amount,
+            discount_amount=total_discount_amount,
             final_amount=final_total,
-            status="Pending" # Default status
+            status="Pending",
+            order_type=session.get('order_type', 'Pickup'),
+            delivery_address=session.get('delivery_address', 'Store Pickup'),
+            delivery_fee=delivery_fee
         )
         db.session.add(new_order)
-        db.session.commit() # Commit to get the new_order.order_id
-
-        # --- 3. Create the OrderItems ---
-        for variant_id, item_data in cart_session.items():
-            # Get the product_id from our session data
-            product_id = item_data['product_id']
-            
-            new_item = OrderItem(
-                order_id=new_order.order_id,
-                product_id=product_id,
-                variant_id=variant_id,
-                quantity=item_data['quantity'],
-                price_per_item=item_data['price'] # Price at time of purchase
-            )
-            db.session.add(new_item)
-        
-        # Commit all the new items
         db.session.commit()
 
-        # --- 4. Clear the cart ---
+        # --- 3. Create the OrderItems (using the VALID list) ---
+        for item_key, item_data in valid_cart_items.items():
+
+            # Determine the REAL variant ID: 
+            # For a simple item, the key IS the variant_id. For a smart buffet key (e.g., 'buffet_2'), the ID is stored inside the data.
+            real_variant_id = item_data.get('variant_id', item_key)
+
+            # Now, check if the key is a string (meaning it's a buffet collision key like 'buffet_2')
+            # We only want to save the integer part to the database.
+            if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
+                # The real ID is the part after 'buffet_'
+                final_variant_id = int(real_variant_id.split('_')[1])
+            else:
+                # Otherwise, it's the correct integer variant ID
+                final_variant_id = int(real_variant_id)
+
+            # --- Now create the OrderItem ---
+            new_item = OrderItem(
+                order_id=new_order.order_id,
+                product_id=item_data['product_id'],
+                variant_id=final_variant_id, # <-- FIX: Use the cleaned integer ID
+                quantity=item_data['quantity'],
+                price_per_item=item_data['price'] 
+            )
+            db.session.add(new_item)
+
+        db.session.commit()
+
+        # --- 4. Clear the cart AND ALL checkout session data ---
         session.pop('cart', None)
         session.pop('voucher_code', None)
         session.pop('discount_percentage', None)
+        session.pop('buffet_discount_percentage', None)
+        session.pop('delivery_fee', None)
+        session.pop('order_type', None)
+        session.pop('delivery_address', None)
+        session.pop('buffet_package', None)
+        session.pop('buffet_recommendations', None)
+        session.pop('buffet_sequence', None)
 
-        flash("Thank you! Your order has been placed.", 'success')
-        # Redirect to the new "My Account" page to see the order
-        return redirect(url_for('client_my_account'))
+        # --- SUCCESS RETURN: Return JSON status and the URL to redirect to ---
+        return jsonify({
+            'status': 'success',
+            'message': f"Order #{new_order.order_id} has been placed successfully!",
+            'redirect_url': url_for('client_my_account')
+        })
 
     except Exception as e:
         db.session.rollback()
-        flash(f"An error occurred while placing your order: {e}", 'danger')
-        return redirect(url_for('client_checkout'))
+        return jsonify({'status': 'error', 'message': f"DB Error: {e}"}), 500
 
 @app.route('/admin/categories/add', methods=['POST'])
 @login_required
@@ -627,6 +770,7 @@ def client_register():
         new_customer = Customer(
             name=register_form.name.data,
             contact_number=register_form.contact_number.data,
+            address=register_form.address.data,
             email=register_form.email.data
         )
         new_customer.set_password(register_form.password.data) 
@@ -688,11 +832,12 @@ def buffet_wizard_start():
     """
     return render_template('client_buffet_step1.html')
 
-@app.route('/buffet-builder/step2', methods=['POST'])
+@app.route('/buffet-builder/reco', methods=['POST'])
 @customer_login_required
-def buffet_wizard_step2():
+def buffet_wizard_reco():
     """
-    (C)REATE: Process guest count and show recommendations/menu.
+    (C)REATE: Processes guest count, calculates recommendations, 
+    and redirects user to the first selection page (Ulam).
     """
     try:
         guest_count = int(request.form.get('guest_count'))
@@ -701,41 +846,233 @@ def buffet_wizard_step2():
     except:
         guest_count = 30 # Default if something goes wrong
         
-    # --- This is our smart recommendation logic ---
-    # You can make this logic as complex as you want.
-    # For now, let's use a simple rule:
-    # 1 dish type per 10 guests, rounded up.
-    # Example: 30 guests = 3 Ulam, 3 Noodles, 3 Desserts
-    
+    # --- Smart Recommendation Logic ---
+    # 1 dish type per 10 guests, rounded up. Noodles serve more (1 per 15).
     num_ulam = (guest_count + 9) // 10
-    num_noodles = (guest_count + 14) // 15 # Noodles serve more
+    num_noodles = (guest_count + 14) // 15 
     num_dessert = (guest_count + 14) // 15
     
     recommendations = {
         'Ulam': num_ulam,
         'Noodles': num_noodles,
         'Dessert': num_dessert
-        # We can add more categories here later
     }
-    
-    # Store recommendations in the session
+
+    # --- Initialize Session State ---
     session['buffet_recommendations'] = recommendations
-    session['buffet_cart'] = {} # Create an empty buffet cart
+    session['buffet_guest_count'] = guest_count
+    session['buffet_package'] = {} # This will store the final selected items
+
+    # --- Define the sequence of pages/categories for the wizard ---
+    # The wizard must step through these categories in this exact order.
+    wizard_sequence = ['Ulam', 'Noodles', 'Dessert'] 
+    session['buffet_sequence'] = wizard_sequence
     
-    # --- Fetch all products for the menu ---
-    categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
-    products = Product.query.join(Category).filter(Category.is_active==True).order_by(Product.name.asc()).all()
-    
-    # Filter products to only those in our recommended categories
-    recommended_products = [p for p in products if p.category.name in recommendations]
+    # --- Redirect to the first selection page ---
+    return redirect(url_for('buffet_wizard_select', category_name='Ulam'))
+
+@app.route('/buffet-builder/select/<string:category_name>', methods=['GET', 'POST'])
+@customer_login_required
+def buffet_wizard_select(category_name):
+    """
+    (R)EAD: Show the selection page for a specific category (Step 3).
+    NOW INCLUDES "Back" button logic and "Final Step" detection.
+    """
+    # 1. Check Session State
+    recommendations = session.get('buffet_recommendations')
+    wizard_sequence = session.get('buffet_sequence')
+
+    if not recommendations or not wizard_sequence:
+        flash("Your buffet session has expired. Please start over.", 'danger')
+        return redirect(url_for('buffet_wizard_start'))
+
+    # 2. Get the current category object
+    category_obj = Category.query.filter_by(name=category_name, is_active=True).first_or_404()
+
+    # 3. Get the required count for this page
+    required_count = recommendations.get(category_name, 0)
+
+    # 4. Get all active products in this category
+    products = Product.query.filter_by(category_id=category_obj.category_id)\
+                            .order_by(Product.name.asc()).all()
+
+    # 5. Get current selections for the tracker (and display list)
+    buffet_package = session.get('buffet_package', {})
+        
+        # NEW: Filter the items that belong to THIS page's category
+    current_selections = []
+    current_count = 0
+    for variant_id, item_data in buffet_package.items():
+        if item_data['category'] == category_name:
+            item_data['variant_id'] = variant_id # Add the ID for the remove button
+            current_selections.append(item_data)
+            current_count += item_data['quantity']
+
+    # 6. --- NEW LOGIC for Back/Next buttons ---
+    current_index = wizard_sequence.index(category_name)
+
+    # Check for PREVIOUS step
+    if current_index > 0:
+        previous_category = wizard_sequence[current_index - 1]
+        previous_url = url_for('buffet_wizard_select', category_name=previous_category)
+    else:
+        previous_url = url_for('buffet_wizard_start') # Go back to Step 1
+
+    # Check for NEXT step
+    is_final_category = (current_index == len(wizard_sequence) - 1)
+    if is_final_category:
+        next_url = url_for('buffet_wizard_checkout') # Go to Review Page
+    else:
+        next_category = wizard_sequence[current_index + 1]
+        next_url = url_for('buffet_wizard_select', category_name=next_category)
+    # --- END OF NEW LOGIC ---
 
     return render_template(
-        'client_buffet_step2.html',
-        guest_count=guest_count,
-        recommendations=recommendations,
-        categories=categories,
-        products=recommended_products
+        'client_buffet_select.html',
+        category_name=category_name,
+        products=products,
+        required_count=required_count,
+        current_count=current_count,
+        current_selections=current_selections,
+        next_url=next_url,
+        previous_url=previous_url,         # <-- Pass Back button URL
+        is_final_category=is_final_category # <-- Pass final step check
     )
+
+@app.route('/buffet-builder/checkout', methods=['GET'])
+@customer_login_required
+def buffet_wizard_checkout():
+    """
+    (R)EAD: Show final summary with an editable cart.
+    Now includes total price calculation.
+    """
+    buffet_package = session.get('buffet_package', {})
+    
+    # --- NEW: Calculate Total Price ---
+    total_price = 0.0
+    for item_data in buffet_package.values():
+        total_price += float(item_data['price']) * item_data['quantity']
+    # --- END OF NEW LOGIC ---
+    
+    return render_template(
+        'client_buffet_checkout.html',
+        buffet_package=buffet_package,
+        total_price=total_price  # <-- Pass the new total
+    )
+
+
+@app.route('/buffet/commit_package', methods=['POST'])
+@customer_login_required
+def buffet_commit_package():
+    """
+    (C)REATE: Commits the final selected buffet package to the main cart.
+    """
+    buffet_package = session.get('buffet_package', {})
+    if not buffet_package:
+        flash("Buffet package is empty. Please start over.", 'danger')
+        return redirect(url_for('buffet_wizard_start'))
+
+    main_cart = session.get('cart', {})
+
+    # Loop through the temporary package and add to the main cart
+    for variant_id, item_data in buffet_package.items():
+
+        # --- THIS IS THE NEW LOGIC ---
+        if variant_id in main_cart and not main_cart[variant_id].get('is_buffet_item', False):
+            # COLLISION! The main cart has this item as À LA CARTE.
+            # We must create a new, unique key for the BUFFET version.
+            new_key = f"buffet_{variant_id}"
+
+            if new_key in main_cart:
+                main_cart[new_key]['quantity'] += item_data['quantity']
+            else:
+                main_cart[new_key] = {
+                    'product_id': item_data['product_id'],
+                    'name': item_data['product_name'], # <-- This is the fix
+                    'variant_id': variant_id,
+                    'variant_name': item_data['variant_name'],
+                    'price': item_data['price'],
+                    'image': item_data['image'],
+                    'quantity': item_data['quantity'],
+                    'is_buffet_item': True # Tag as a buffet item
+                }
+        else:
+            # No collision. Add/stack normally using the variant_id as the key.
+            if variant_id in main_cart:
+                main_cart[variant_id]['quantity'] += item_data['quantity']
+            else:
+                main_cart[variant_id] = {
+                    'product_id': item_data['product_id'],
+                    'name': item_data['product_name'], # <-- This is the fix
+                    'variant_id': variant_id,
+                    'variant_name': item_data['variant_name'],
+                    'price': item_data['price'],
+                    'image': item_data['image'],
+                    'quantity': item_data['quantity'],
+                    'is_buffet_item': True # Tag as a buffet item
+                }
+        # --- END OF NEW LOGIC ---
+
+    # Apply the Buffet Discount
+    session['buffet_discount_percentage'] = 10.0
+
+    # Save the updated main cart
+    session['cart'] = main_cart
+
+    # Clear the temporary buffet data
+    session.pop('buffet_package', None)
+    session.pop('buffet_recommendations', None)
+    session.pop('buffet_sequence', None)
+
+    flash("Success! Your custom buffet package has been added to the cart.", 'success')
+    return redirect(url_for('client_cart'))
+
+
+@app.route('/buffet/remove/<string:variant_id>')
+@customer_login_required
+def buffet_remove_item(variant_id):
+    """
+    (D)ELETE: Remove an item from the temporary 'buffet_package'.
+    """
+    buffet_package = session.get('buffet_package', {})
+    
+    # Use .pop() to remove the item if it exists
+    item_data = buffet_package.pop(variant_id, None) 
+    
+    if item_data:
+        flash(f"Removed {item_data['product_name']} from your buffet.", 'info')
+    
+    # Save the modified package back to the session
+    session['buffet_package'] = buffet_package
+    
+    # Redirect back to the review page
+    return redirect(url_for('buffet_wizard_checkout'))
+
+
+@app.route('/buffet/update', methods=['POST'])
+@customer_login_required
+def buffet_update_quantity():
+    """
+    (U)PDATE: Update the quantity of an item in the 'buffet_package'.
+    """
+    buffet_package = session.get('buffet_package', {})
+    variant_id = request.form.get('variant_id')
+    
+    try:
+        quantity = int(request.form.get('quantity'))
+        if quantity < 1:
+            quantity = 1 # Minimum quantity is 1
+    except:
+        quantity = 1 # Default to 1
+    
+    # Update the package if the item exists
+    if variant_id in buffet_package:
+        buffet_package[variant_id]['quantity'] = quantity
+        flash(f"Updated {buffet_package[variant_id]['product_name']} quantity.", 'success')
+        
+    session['buffet_package'] = buffet_package
+    
+    return redirect(url_for('buffet_wizard_checkout'))
 
 @app.route('/buffet/add_item', methods=['POST'])
 @customer_login_required
@@ -753,7 +1090,7 @@ def buffet_add_item():
         quantity = 1
 
     # 2. Get the temporary cart and recommendations
-    buffet_cart = session.get('buffet_cart', {})
+    buffet_cart = session.get('buffet_package', {})
     recommendations = session.get('buffet_recommendations', {})
 
     if not variant_id:
@@ -797,7 +1134,7 @@ def buffet_add_item():
             'image': product.image_file
         }
     
-    session['buffet_cart'] = buffet_cart
+    session['buffet_package'] = buffet_cart
     
     # 6. Calculate the new counts for the tracker
     new_counts = {}
@@ -818,6 +1155,23 @@ def buffet_add_item():
         'new_counts': new_counts,
         'total_items': total_items
     })
+
+@app.route('/buffet/remove_item/<string:variant_id>/<string:category_name>')
+@customer_login_required
+def buffet_remove_item_from_package(variant_id, category_name):
+    """
+    (D)ELETE: Remove a specific item (variant_id) from the current buffet package.
+    """
+    buffet_package = session.get('buffet_package', {})
+    
+    if variant_id in buffet_package:
+        item_name = buffet_package.pop(variant_id)['product_name']
+        flash(f"Removed {item_name} from your selections.", 'info')
+    
+    session['buffet_package'] = buffet_package
+    
+    # Redirect back to the current category selection page
+    return redirect(url_for('buffet_wizard_select', category_name=category_name))
 
 @app.route('/buffet/review')
 @customer_login_required

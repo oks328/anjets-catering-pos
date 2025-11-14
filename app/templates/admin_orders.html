@@ -24,6 +24,7 @@
                 <tr>
                     <th>Order ID</th>
                     <th>Customer</th>
+                    <th>Delivery Info</th>
                     <th>Date</th>
                     <th>Items</th>
                     <th>Total</th>
@@ -36,6 +37,12 @@
                 <tr>
                     <td><strong>#{{ order.order_id }}</strong></td>
                     <td>{{ order.customer.name }}</td>
+                    <td>
+                        <strong>{{ order.order_type }}</strong>
+                        {% if order.order_type == 'Delivery' %}
+                            <p style="font-size: 0.9em; color: #555;">{{ order.delivery_address }}</p>
+                        {% endif %}
+                    </td>
                     <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
                     <td class="order-items-list">
                         <ul>
@@ -66,7 +73,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7">No orders found.</td>
+                    <td colspan="8">No orders found.</td>
                 </tr>
                 {% endfor %}
             </tbody>

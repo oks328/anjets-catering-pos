@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}Choose {{ category_name }} Dishes{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="buffet-recommendation" style="margin-bottom: 3rem;">
+
+    <h3>Choose {{ category_name }} Dishes</h3>
+
+    <p>
+        You must select {{ required_count }} items from this category to proceed.
+        <br>
+        <span style="color: #d9534f; font-weight: bold;">(Selected: {{ current_count }} / Required: {{ required_count }})</span>
+    </p>
+
+    <div class="wizard-nav-buttons" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+
+        <a href="{{ previous_url }}" class="btn btn-secondary">
+            &larr; Go Back
+        </a>
+
+        <a href="{{ next_url }}" 
+           id="btn-continue" 
+           class="btn btn-primary"
+           {% if current_count < required_count %}disabled{% endif %}>
+
+            {% if is_final_category %}
+                Review Your Buffet &rarr;
+            {% else %}
+                Continue to Next Category &rarr;
+            {% endif %}
+        </a>
+
+    </div>
+</div>
+
+{% if current_selections %}
+    <div class="card" style="margin-bottom: 2rem;">
+        <h4>Your Current {{ category_name }} Selections:</h4>
+        <table class="order-history-table">
+            <tbody>
+                {% for item in current_selections %}
+                <tr>
+                    <td>{{ item.quantity }}x</td>
+                    <td style="width: 80%;"><strong>{{ item.product_name }}</strong> ({{ item.variant_name }})</td>
+                    <td class="action-buttons">
+                        <a href="{{ url_for('buffet_remove_item_from_package', variant_id=item.variant_id, category_name=category_name) }}" 
+                           style="color: #d9534f; font-weight: bold;">
+                            Remove
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="product-grid">
+        {% for product in products %}
+        <div class="product-card">
+            <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
+                 alt="{{ product.name }}" 
+                 class="product-card-image">
+
+            <div class="product-card-content">
+                <h3>{{ product.name }}</h3>
+                <p>{{ product.description or 'No description available.' }}</p>
+
+                <div class="product-card-footer">
+                    <div class="product-card-price">
+                        {% if product.has_variants %}
+                            {% if product.variants %}
+                                <span class="price-small">Starts at</span>
+                                ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                            {% else %}
+                                <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                            {% endif %}
+                        {% else %}
+                            {% if product.variants %}
+                                ₱{{ "%.2f"|format(product.variants[0].price) }}
+                            {% else %}
+                                <span style="color:red; font-size: 0.9rem;">Price not set</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <button class="btn btn-secondary btn-add-to-cart" data-product-id="{{ product.product_id }}">
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p>No products found in this category.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Get ALL Modal Elements ---
+        const modal = document.getElementById('productModal');
+        const closeModalBtn = document.querySelector('.modal-close-btn');
+        const modalProductName = document.getElementById('modalProductName');
+        const modalProductId = document.getElementById('modalProductId');
+        const modalVariantSelector = document.getElementById('modalVariantSelector');
+        const modalVariantLabel = document.getElementById('modalVariantLabel');
+        const modalVariantSelect = document.getElementById('modalVariantId');
+        const modalCartForm = document.getElementById('modalCartForm');
+
+        // --- Get Stepper & Counter Elements ---
+        const modalQuantityInput = document.getElementById('modalQuantity');
+        const modalBtnMinus = document.getElementById('modal-btn-minus');
+        const modalBtnPlus = document.getElementById('modal-btn-plus');
+        const modalCurrentCount = document.getElementById('modalCurrentCount');
+
+        // --- Get Warning Modal Elements ---
+        const warningModal = document.getElementById('warningModal');
+        const warningModalCloseBtn = document.getElementById('warningModalCloseBtn');
+        const warningModalCancelBtn = document.getElementById('warningModalCancel');
+        const warningModalConfirmBtn = document.getElementById('warningModalConfirm');
+        const warningModalMessage = document.getElementById('warningModalMessage');
+
+        let allVariantsData = []; 
+
+        const continueBtn = document.getElementById('btn-continue');
+        if (continueBtn) {
+            continueBtn.addEventListener('click', function(e) {
+                // Check if the button has the 'disabled' attribute
+                if (this.hasAttribute('disabled')) {
+                    // If it's disabled, stop the link from working
+                    e.preventDefault();
+                    
+                    // Show the custom warning modal
+                    warningModalMessage.innerText = 'You must select the required number of items to continue.';
+                    warningModal.style.display = 'block';
+                    // We don't need the 'Add Anyway' button, so we hide it.
+                    document.getElementById('warningModalConfirm').style.display = 'none';
+                }
+            });
+        }
+
+        // --- Stepper Button Logic ---
+        if (modalBtnMinus && modalBtnPlus) {
+            modalBtnMinus.addEventListener('click', () => {
+                let currentVal = parseInt(modalQuantityInput.value);
+                if (currentVal > 1) {
+                    modalQuantityInput.value = currentVal - 1;
+                }
+            });
+            modalBtnPlus.addEventListener('click', () => {
+                let currentVal = parseInt(modalQuantityInput.value);
+                modalQuantityInput.value = currentVal + 1;
+            });
+        }
+
+        // --- Function to update the counter text ---
+        function updateCounter() {
+            const selectedVariantId = modalVariantSelect.value;
+            const variantData = allVariantsData.find(v => v.id == selectedVariantId);
+
+            if (variantData && variantData.current_quantity > 0) {
+                modalCurrentCount.innerText = `You have ${variantData.current_quantity} of this item in your buffet.`;
+                modalCurrentCount.style.display = 'block';
+            } else {
+                modalCurrentCount.style.display = 'none';
+            }
+        }
+
+        if (modalVariantSelect) {
+            modalVariantSelect.addEventListener('change', updateCounter);
+        }
+
+        // --- Function to close the PRODUCT modal ---
+        const closeProductModal = () => {
+            if (modal) modal.style.display = 'none';
+        }
+        if (closeModalBtn) closeModalBtn.onclick = closeProductModal;
+
+        // --- Function to close the WARNING modal ---
+        const closeWarningModal = () => {
+            if (warningModal) warningModal.style.display = 'none';
+        }
+        if (warningModalCloseBtn) warningModalCloseBtn.onclick = closeWarningModal;
+        if (warningModalCancelBtn) warningModalCancelBtn.onclick = closeWarningModal;
+
+        // --- Close modals on outside click ---
+        window.onclick = (event) => {
+            if (event.target == modal) closeProductModal();
+            if (event.target == warningModal) closeWarningModal();
+        }
+
+        // --- Find all "Add" buttons ON THIS PAGE ---
+        document.querySelectorAll('.btn-add-to-cart[data-product-id]').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const productId = this.dataset.productId;
+
+                fetch(`/product_details/${productId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        modalProductName.innerText = data.name;
+                        modalProductId.value = data.id;
+                        modalQuantityInput.value = 1; 
+
+                        allVariantsData = data.variants; 
+                        modalVariantSelect.innerHTML = ''; 
+
+                        if (data.has_variants) {
+                            modalVariantSelector.style.display = 'block';
+                            modalVariantLabel.style.display = 'block';
+                            data.variants.forEach(variant => {
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            });
+                        } else {
+                            modalVariantSelector.style.display = 'block';
+                            modalVariantLabel.style.display = 'none';
+                            if (data.variants.length > 0) {
+                                const variant = data.variants[0];
+                                const option = document.createElement('option');
+                                option.value = variant.id;
+                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                modalVariantSelect.appendChild(option);
+                            }
+                        }
+
+                        updateCounter(); 
+                        modal.style.display = 'block';
+                    });
+            });
+        });
+
+        // --- Hijack the modal's submit button ---
+        if (modalCartForm) {
+            modalCartForm.onsubmit = function(e) {
+                e.preventDefault(); 
+                const formData = new FormData(modalCartForm);
+                handleFetch(formData);
+            };
+        }
+
+        // --- Main Fetch Logic ---
+        function handleFetch(dataToPost) {
+            fetch("{{ url_for('buffet_add_item') }}", {
+                method: 'POST',
+                body: dataToPost
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Reload the page to update the count
+                    location.reload(); 
+
+                } else if (data.status === 'warning') {
+                    warningModalMessage.innerText = data.message;
+                    warningModal.style.display = 'block';
+
+                    warningModalConfirmBtn.onclick = () => {
+                        dataToPost.append('force', 'true');
+                        handleFetch(dataToPost);
+                        closeWarningModal();
+                    }
+                } else {
+                    createToast(data.message, 'danger');
+                }
+            })
+            .catch(err => {
+                console.error('Error adding to buffet cart:', err);
+                createToast('An error occurred. Please try again.', 'danger');
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -586,6 +586,10 @@ a.btn-checkout {
     font-weight: bold;
     color: #28a745;
 }
+.order-history-table .status-in-progress {
+    font-weight: bold;
+    color: #007bff; /* A standard blue color */
+}
 
 
 
@@ -899,4 +903,86 @@ a.btn-checkout {
 
 #warningModal .modal-actions .btn {
     margin-left: 0.5rem;
+}
+
+/* --- Buffet Wizard Button Fixes --- */
+.btn-primary[disabled],
+.btn-checkout[disabled] {
+    background-color: #aaa;
+    border-color: #aaa;
+    color: #eee;
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+.btn-primary[disabled]:hover,
+.btn-checkout[disabled]:hover {
+    background-color: #aaa;
+    border-color: #aaa;
+}
+
+/* --- Checkout Options Styles --- */
+.checkout-options-container {
+    max-width: 700px;
+    margin: 2rem auto;
+}
+
+/* Style for the radio button options */
+.option-card {
+    display: block;
+    background: #fff;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.option-card:hover {
+    border-color: #d9534f;
+}
+
+.option-card input[type="radio"] {
+    margin-right: 1rem;
+    /* Make the radio button larger */
+    transform: scale(1.3);
+}
+
+.option-card-label {
+    display: inline-block;
+}
+
+.option-card-label strong {
+    font-size: 1.2rem;
+    color: #333;
+}
+
+.option-card-label span {
+    display: block;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+/* This is the hidden address form */
+#delivery-address-form {
+    background: #f9f9f9;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+    border: 1px solid #eee;
+}
+
+/* --- Buffet Wizard Button Fixes --- */
+.btn-primary[disabled],
+.btn-checkout[disabled] {
+    background-color: #aaa;
+    border-color: #aaa;
+    color: #eee;
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+.btn-primary[disabled]:hover,
+.btn-checkout[disabled]:hover {
+    background-color: #aaa;
+    border-color: #aaa;
 }

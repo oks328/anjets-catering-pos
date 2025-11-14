@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Buffet Final Review{% endblock %}
+
+{% block content %}
+<div class="cart-container"> <h2 style="margin-bottom: 2rem;">Review Your Buffet Package</h2>
+
+    {% if not buffet_package %}
+        <p>Your buffet package is empty.</p>
+        <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-primary">Start Over</a>
+    {% else %}
+        <table class="cart-table">
+            <thead>
+                <tr>
+                    <th colspan="2">Product</th>
+                    <th>Price</th>
+                    <th>Quantity</th>
+                    <th>Total</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for variant_id, item in buffet_package.items() %}
+                <tr>
+                    <td colspan="2">
+                        <div class="cart-item-details">
+                            <img src="{{ url_for('static', filename='uploads/products/' + item.image) }}" alt="{{ item.product_name }}">
+                            <div>
+                                <a href="#">{{ item.product_name }}</a>
+                                <span class="variant-name">{{ item.variant_name }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>₱{{ "%.2f"|format(item.price) }}</td>
+                    <td>
+                        <form action="{{ url_for('buffet_update_quantity') }}" method="POST" class="quantity-form">
+                            <input type="hidden" name="variant_id" value="{{ variant_id }}">
+                            <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="form-control-sm">
+                            <button type="submit" class="btn btn-primary btn-sm">Update</button>
+                        </form>
+                    </td>
+                    <td>₱{{ "%.2f"|format(item.price * item.quantity) }}</td>
+                    <td>
+                        <a href="{{ url_for('buffet_remove_item', variant_id=variant_id) }}" style="color: #d9534f; font-weight: bold;">
+                            Remove
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="cart-summary-container" style="margin-top: 2rem;">
+            
+            <div class="voucher-container">
+                <h3 style="color: #28a745;">Package Discount: 10%</h3>
+                <p>A 10% discount will be applied to all items in this buffet package.</p>
+            </div>
+
+            <div class="cart-totals">
+                <div class="totals-grid">
+                    <span class="total-label">Package Subtotal:</span>
+                    <span class="total-value">₱{{ "%.2f"|format(total_price) }}</span>
+                </div>
+                
+                <form method="POST" action="{{ url_for('buffet_commit_package') }}">
+                    <button type="submit" class="btn-checkout">
+                        Confirm & Add Package to Cart
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

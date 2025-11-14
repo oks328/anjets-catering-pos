@@ -14,7 +14,7 @@
             
             <div class="form-group">
                 {{ register_form.name.label }}
-                {{ register_form.name(class="form-control") }}
+                {{ register_form.name(class="form-control", placeholder="e.g., Juan Dela Cruz") }}
                 {% for error in register_form.name.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
@@ -22,15 +22,23 @@
             
             <div class="form-group">
                 {{ register_form.contact_number.label }}
-                {{ register_form.contact_number(class="form-control") }}
+                {{ register_form.contact_number(class="form-control", placeholder="e.g., 09123456789", type="tel", maxlength="11") }}
                 {% for error in register_form.contact_number.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
 
             <div class="form-group">
+            {{ register_form.address.label }}
+            {{ register_form.address(class="form-control", placeholder="e.g., 123 Rizal St., Brgy. Dita, Santa Rosa, Laguna", rows=3) }}
+            {% for error in register_form.address.errors %}
+                <span class="error-message">{{ error }}</span>
+            {% endfor %}
+            </div>
+
+            <div class="form-group">
                 {{ register_form.email.label }}
-                {{ register_form.email(class="form-control") }}
+                {{ register_form.email(class="form-control", placeholder="e.g., juan@example.com") }}
                 {% for error in register_form.email.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}

@@ -4,7 +4,7 @@ from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField
-from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email
+from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
 from app.models import Customer
 
@@ -211,7 +211,18 @@ class CustomerRegisterForm(FlaskForm):
     )
     contact_number = StringField(
         'Contact Number',
-        validators=[DataRequired(), Length(min=7, max=20)]
+        validators=[
+            DataRequired(),
+            # FIX 1: Enforce exactly 11 digits
+            Length(min=11, max=11, message="Contact number must be exactly 11 digits."),
+            # FIX 2: Enforce numbers-only
+            Regexp(r'^[0-9]+$', message="Contact number must contain only digits.")
+        ]
+    )
+    address = TextAreaField(
+        'Address',
+        validators=[DataRequired(), Length(min=10, max=500)],
+        description="Please enter your full delivery address."
     )
     email = StringField(
         'Email Address',

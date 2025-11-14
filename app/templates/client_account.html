@@ -48,6 +48,8 @@
                         <td>
                             {% if order.status == 'Pending' %}
                                 <span class="status-pending">Pending</span>
+                            {% elif order.status == 'In Progress' %}
+                                <span class="status-in-progress">In Progress</span>
                             {% elif order.status == 'Completed' %}
                                 <span class="status-completed">Completed</span>
                             {% else %}

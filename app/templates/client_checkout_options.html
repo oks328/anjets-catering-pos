@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout - Step 1{% endblock %}
+
+{% block content %}
+<div class="checkout-options-container">
+    <h2 style="margin-bottom: 2rem;">How would you like to get your order?</h2>
+
+    <form action="{{ url_for('save_checkout_options') }}" method="POST">
+        
+        <label class="option-card">
+            <input type="radio" name="order_type" value="Pickup" checked 
+                   onchange="toggleAddressForm()">
+            <div class="option-card-label">
+                <strong>Store Pickup</strong>
+                <span>No additional fee.</span>
+            </div>
+        </label>
+
+        <label class="option-card">
+            <input type="radio" name="order_type" value="Delivery"
+                   onchange="toggleAddressForm()">
+            <div class="option-card-label">
+                <strong>Delivery</strong>
+                <span>A ₱100.00 fee will be added to your order.</span>
+            </div>
+        </label>
+
+        <div id="delivery-address-form" class="form-wrapper" style="display: none;">
+            <h3>Delivery Address</h3>
+            
+            {% if default_address %}
+            <div class="card" style="padding: 1rem; background: #eee;">
+                <strong>Your Default Address:</strong>
+                <p style="margin-top: 0.5rem;">{{ default_address }}</p>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="useDefaultAddress()">
+                    Use this Address
+                </button>
+            </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="delivery_address">Enter a new or different address:</label>
+                <textarea id="delivery_address" name="delivery_address" class="form-control" rows="4" 
+                          placeholder="Please enter your full delivery address."></textarea>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 2rem; text-align: right;">
+            <button type="submit" class="btn-checkout">
+                Continue to Final Review &rarr;
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleAddressForm() {
+        // Get the selected radio button
+        const selectedOption = document.querySelector('input[name="order_type"]:checked').value;
+        
+        const addressForm = document.getElementById('delivery-address-form');
+        const addressTextarea = document.getElementById('delivery_address');
+
+        if (selectedOption === 'Delivery') {
+            addressForm.style.display = 'block';
+            addressTextarea.required = true; // Make address required if delivery
+        } else {
+            addressForm.style.display = 'none';
+            addressTextarea.required = false; // Not required for pickup
+        }
+    }
+
+    function useDefaultAddress() {
+        // Get the default address text and put it in the textarea
+        const defaultAddress = {{ default_address|tojson }}; // Get address from Python
+        document.getElementById('delivery_address').value = defaultAddress;
+    }
+
+    // Run the toggle function once on page load
+    document.addEventListener('DOMContentLoaded', toggleAddressForm);
+</script>
+{% endblock %}
