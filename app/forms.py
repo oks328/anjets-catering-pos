@@ -7,6 +7,7 @@ from wtforms import StringField, PasswordField, SubmitField, TextAreaField, Bool
 from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
 from app.models import Customer
+from wtforms import IntegerField
 
 def password_complexity(form, field):
     """
@@ -122,16 +123,6 @@ class VoucherForm(FlaskForm):
         validators=[DataRequired(), Length(min=3, max=50)],
         description="e.g., 'Kamag-anak' or 'SALE10'"
     )
-
-class VoucherForm(FlaskForm):
-    """
-    Form for adding/editing a voucher.
-    """
-    code = StringField(
-        'Voucher Code',
-        validators=[DataRequired(), Length(min=3, max=50)],
-        description="e.g., 'Kamag-anak' or 'SALE10'"
-    )
     discount_percentage = DecimalField(
         'Discount Percentage',
         places=2,
@@ -146,8 +137,16 @@ class VoucherForm(FlaskForm):
         'Active',
         default=True
     )
-    submit = SubmitField('Save Voucher')
 
+    # --- ADD THIS FIELD ---
+    max_uses = IntegerField(
+        'Max Uses (Optional)',
+        validators=[Optional(), NumberRange(min=1)],
+        description="Leave blank for unlimited uses."
+    )
+
+    submit = SubmitField('Save Voucher')
+    
 class UserAddForm(FlaskForm):
     """
     Form for admin to add a new staff user.

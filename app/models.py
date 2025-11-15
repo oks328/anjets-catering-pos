@@ -197,3 +197,6 @@ class Voucher(db.Model):
     # --- FIX WAS HERE ---
     discount_percentage = db.Column(db.Numeric(5, 2), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    max_uses = db.Column(db.Integer, nullable=True) # null = infinite uses
+    current_uses = db.Column(db.Integer, nullable=False, default=0)

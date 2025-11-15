@@ -320,6 +320,12 @@ def client_cart():
     total_discount_amount = buffet_discount_amt + voucher_discount_amt
     final_total = total_price - total_discount_amount
 
+    # Find all active vouchers that have not expired
+    available_vouchers = Voucher.query.filter(
+        Voucher.is_active == True,
+        (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
+    ).all()
+
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
@@ -406,6 +412,12 @@ def apply_voucher():
     voucher = Voucher.query.filter_by(code=code, is_active=True).first()
     
     if voucher:
+        if voucher.max_uses is not None and voucher.current_uses >= voucher.max_uses:
+            flash("This voucher code has reached its maximum usage limit.", 'danger')
+            session.pop('voucher_code', None)
+            session.pop('discount_percentage', None)
+            return redirect(url_for('client_cart'))
+        
         # Found a valid, active voucher! Save it to the session.
         session['voucher_code'] = voucher.code
         session['discount_percentage'] = float(voucher.discount_percentage)
@@ -626,6 +638,14 @@ def place_order():
                 price_per_item=item_data['price'] 
             )
             db.session.add(new_item)
+
+            if session.get('voucher_code'):
+            # Find the voucher that was used
+                voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
+                if voucher_to_update:
+                    # Increment its use count
+                    voucher_to_update.current_uses += 1
+                    db.session.add(voucher_to_update)
 
         db.session.commit()
 
@@ -2115,7 +2135,8 @@ def admin_add_voucher():
         new_voucher = Voucher(
             code=form_code,
             discount_percentage=add_form.discount_percentage.data,
-            is_active=add_form.is_active.data
+            is_active=add_form.is_active.data,
+            max_uses=add_form.max_uses.data
         )
         db.session.add(new_voucher)
         try:
@@ -2158,6 +2179,7 @@ def admin_edit_voucher(voucher_id):
 
         voucher.code = form_code
         voucher.discount_percentage = edit_form.discount_percentage.data
+        voucher.max_uses = edit_form.max_uses.data
         # We don't update is_active here, that's handled by the toggle route
         
         try:
