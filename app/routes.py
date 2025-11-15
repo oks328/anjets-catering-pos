@@ -6,7 +6,7 @@ import csv
 import pandas as pd
 import xml.etree.ElementTree as ET
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from sqlalchemy import func
 from PIL import Image
 from xml.dom import minidom
@@ -16,7 +16,7 @@ from flask import render_template, redirect, url_for, flash, request, session, j
 from flask_login import login_user, logout_user, current_user, login_required
 # We only need to import the models once
 from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem
-from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm
+from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm
 from functools import wraps
 from flask_mail import Message
 from app import mail
@@ -151,9 +151,21 @@ def client_my_account():
 def client_profile():
     """
     (R)EAD and (U)PDATE the customer's own profile.
+    NOW INCLUDES logic for discount verification.
     """
     customer = Customer.query.get_or_404(session['customer_id'])
     form = CustomerProfileForm(obj=customer) # Pre-fill form
+    upload_form = DiscountVerificationForm()
+
+    # --- ADD THIS NEW LOGIC ---
+    is_eligible = False
+    if customer.birthdate:
+        # Calculate age
+        today = date.today()
+        age = today.year - customer.birthdate.year - ((today.month, today.day) < (customer.birthdate.month, customer.birthdate.day))
+        if age >= 60:
+            is_eligible = True
+    # --- END OF NEW LOGIC ---
 
     if form.validate_on_submit():
         # Update the customer's details
@@ -173,8 +185,70 @@ def client_profile():
     # Show the pre-filled form on a GET request
     return render_template(
         'client_profile.html',
-        form=form
+        form=form,
+        upload_form=upload_form,
+        customer=customer,         # <-- ADD THIS
+        is_eligible=is_eligible    # <-- ADD THIS
     )
+
+@app.route('/my-account/upload-id', methods=['POST'])
+@customer_login_required
+def client_upload_id():
+    """
+    (C)REATE: Process the ID upload form for discount verification.
+    """
+    form = DiscountVerificationForm()
+    customer = Customer.query.get_or_404(session['customer_id'])
+
+    if form.validate_on_submit():
+        # 1. Save the uploaded image file
+        if form.id_image.data:
+            try:
+                # We'll re-use the save_picture function, but we should
+                # create a new folder for these uploads to keep them separate.
+                # Let's modify the function call slightly.
+
+                # First, define the new upload path
+                id_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'ids')
+                if not os.path.exists(id_upload_folder):
+                    os.makedirs(id_upload_folder)
+
+                # Now, save the picture there
+                random_hex = secrets.token_hex(8)
+                _, f_ext = os.path.splitext(form.id_image.data.filename)
+                picture_fn = random_hex + f_ext
+                picture_path = os.path.join(id_upload_folder, picture_fn)
+
+                output_size = (800, 800) # Max 800x800 pixels
+                i = Image.open(form.id_image.data)
+                i.thumbnail(output_size)
+                i.save(picture_path)
+
+                # Save the *relative* path to the database
+                customer.id_image_file = f"ids/{picture_fn}"
+
+            except Exception as e:
+                flash(f'Error uploading image: {e}', 'danger')
+                return redirect(url_for('client_profile'))
+
+        # 2. Update the customer's record
+        customer.discount_type = form.discount_type.data
+        customer.is_verified_discount = False # Set to False, pending admin review
+
+        try:
+            db.session.commit()
+            flash('Your ID has been submitted for verification.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error submitting ID: {e}", 'danger')
+
+    else:
+        # Handle form validation errors
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {field}: {error}", 'danger')
+
+    return redirect(url_for('client_profile'))
 
 # ===============================================
 # CLIENT-SIDE: SHOPPING CART
@@ -271,29 +345,28 @@ def product_details(product_id):
 def client_cart():
     """
     (R)EAD: Display the user's shopping cart with smart totals.
+    NOW INCLUDES SENIOR/PWD DISCOUNT LOGIC.
     """
     cart_session = session.get('cart', {})
     cart_items = []
-    
-    # --- NEW: Separate Subtotals ---
+
     ala_carte_subtotal = 0.0
     buffet_subtotal = 0.0
 
     for item_id, item_data in cart_session.items():
-        # Skip any corrupted items
+        # ... (this loop is the same) ...
         if 'name' not in item_data or 'price' not in item_data:
             continue
-            
+
         quantity = item_data['quantity']
         price = item_data['price']
         line_total = float(price) * quantity
-        
-        # --- NEW: Check the tag ---
+
         if item_data.get('is_buffet_item', False):
             buffet_subtotal += line_total
         else:
             ala_carte_subtotal += line_total
-            
+
         cart_items.append({
             'product_id': item_data['product_id'],
             'variant_id': item_id,
@@ -303,24 +376,42 @@ def client_cart():
             'price': float(price),
             'quantity': quantity,
             'line_total': line_total,
-            'is_buffet_item': item_data.get('is_buffet_item', False) # Pass tag to template
+            'is_buffet_item': item_data.get('is_buffet_item', False)
         })
 
-    # --- NEW: Smart Discount Calculation ---
-    
-    # 1. Buffet Discount (10% on buffet items only)
-    buffet_discount_amt = buffet_subtotal * 0.10
-    
-    # 2. Voucher Discount (on à la carte items only)
-    voucher_discount_perc = session.get('discount_percentage', 0.0)
-    voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-    
-    # 3. Final Totals
+    # --- NEW DISCOUNT LOGIC ---
+
+    # 1. Get the logged-in customer
+    customer = Customer.query.get(session['customer_id'])
+
+    # 2. Initialize all discounts
+    voucher_discount_amt = 0.0
+    senior_discount_amt = 0.0
+
+    # 3. Check if customer is verified
+    if customer and customer.is_verified_discount:
+        # They are verified! Apply 20% discount on ala_carte items
+        senior_discount_amt = (ala_carte_subtotal + buffet_subtotal) * 0.20
+
+        # IMPORTANT: Clear any regular vouchers, as this replaces them
+        if 'voucher_code' in session:
+            session.pop('voucher_code', None)
+            session.pop('discount_percentage', None)
+            flash("Your verified Senior/PWD discount has replaced the voucher.", 'info')
+    else:
+        # They are not verified, so check for a regular voucher
+        voucher_discount_perc = session.get('discount_percentage', 0.0)
+        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+
+    # 4. Final Totals
     total_price = ala_carte_subtotal + buffet_subtotal
-    total_discount_amount = buffet_discount_amt + voucher_discount_amt
+    # Add all possible discounts together
+    total_discount_amount = voucher_discount_amt + senior_discount_amt
     final_total = total_price - total_discount_amount
 
-    # Find all active vouchers that have not expired
+    # --- END OF NEW LOGIC ---
+
+    # (This is the query we added for Feature 2, it stays the same)
     available_vouchers = Voucher.query.filter(
         Voucher.is_active == True,
         (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
@@ -333,9 +424,11 @@ def client_cart():
         ala_carte_subtotal=ala_carte_subtotal,
         buffet_subtotal=buffet_subtotal,
         voucher_discount_amt=voucher_discount_amt,
-        buffet_discount_amt=buffet_discount_amt,
+        senior_discount_amt=senior_discount_amt,  # <-- ADD THIS
         total_discount_amount=total_discount_amount,
-        final_total=final_total
+        final_total=final_total,
+        available_vouchers=available_vouchers,
+        customer=customer                        # <-- ADD THIS
     )
 
 @app.route('/cart/clear')
@@ -347,7 +440,6 @@ def clear_cart():
     session.pop('cart', None)
     session.pop('voucher_code', None)
     session.pop('discount_percentage', None)
-    session.pop('buffet_discount_percentage', None)
     flash("Cart has been cleared.", 'info')
     return redirect(url_for('client_cart'))
 
@@ -590,12 +682,11 @@ def place_order():
         return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
 
     # Calculate Discounts and Fee
-    buffet_discount_amt = buffet_subtotal * 0.10
     voucher_discount_perc = session.get('discount_percentage', 0.0)
     voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
     delivery_fee = session.get('delivery_fee', 0.0)
 
-    total_discount_amount = buffet_discount_amt + voucher_discount_amt
+    total_discount_amount = voucher_discount_amt
     final_total = (total_price - total_discount_amount) + delivery_fee
 
     # --- 2. Create the main Order ---
@@ -653,7 +744,6 @@ def place_order():
         session.pop('cart', None)
         session.pop('voucher_code', None)
         session.pop('discount_percentage', None)
-        session.pop('buffet_discount_percentage', None)
         session.pop('delivery_fee', None)
         session.pop('order_type', None)
         session.pop('delivery_address', None)
@@ -794,7 +884,8 @@ def client_register():
             name=register_form.name.data,
             contact_number=register_form.contact_number.data,
             address=register_form.address.data,
-            email=register_form.email.data
+            email=register_form.email.data,
+            birthdate=register_form.birthdate.data
         )
         new_customer.set_password(register_form.password.data) 
 
@@ -1122,9 +1213,6 @@ def buffet_commit_package():
                     'is_buffet_item': True # Tag as a buffet item
                 }
         # --- END OF NEW LOGIC ---
-
-    # Apply the Buffet Discount
-    session['buffet_discount_percentage'] = 10.0
 
     # Save the updated main cart
     session['cart'] = main_cart
@@ -2359,6 +2447,70 @@ def admin_edit_customer(customer_id):
         form=form,
         customer=customer
     )
+
+@app.route('/admin/verifications')
+@login_required
+def admin_verifications():
+    """
+    (R)EAD: Show all customers awaiting discount verification.
+    """
+    # Find customers who have uploaded an ID but are not yet verified
+    customers_to_verify = Customer.query.filter(
+        Customer.is_verified_discount == False,
+        Customer.id_image_file != None
+    ).order_by(Customer.registration_date.desc()).all()
+
+    return render_template(
+        'admin_verifications.html',
+        customers=customers_to_verify
+    )
+
+@app.route('/admin/approve_discount/<int:customer_id>', methods=['POST'])
+@login_required
+def admin_approve_discount(customer_id):
+    """
+    (U)PDATE: Approve a customer's discount verification.
+    """
+    customer = Customer.query.get_or_404(customer_id)
+
+    # Set their status to verified
+    customer.is_verified_discount = True
+    # We keep the discount_type and id_image_file for records
+
+    try:
+        db.session.commit()
+        flash(f"Approved discount for {customer.name}.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error approving discount: {e}", 'danger')
+
+    return redirect(url_for('admin_verifications'))
+
+# --- ADD THIS SECOND NEW ROUTE ---
+@app.route('/admin/deny_discount/<int:customer_id>', methods=['POST'])
+@login_required
+def admin_deny_discount(customer_id):
+    """
+    (U)PDATE: Deny a customer's discount verification.
+    """
+    customer = Customer.query.get_or_404(customer_id)
+
+    # We will clear all their verification data so they can re-submit
+    customer.is_verified_discount = False
+    customer.discount_type = None
+
+    # Optional: You could also delete the uploaded ID file from the 'uploads/ids' folder
+    # but for simplicity, we'll just clear the database record for it.
+    customer.id_image_file = None 
+
+    try:
+        db.session.commit()
+        flash(f"Denied and cleared discount request for {customer.name}.", 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error denying discount: {e}", 'danger')
+
+    return redirect(url_for('admin_verifications'))
 
 # ===============================================
 # MODULE 6: SALES REPORTING

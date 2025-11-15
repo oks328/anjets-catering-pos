@@ -3,7 +3,7 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField, DateField
 from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
 from app.models import Customer
@@ -146,7 +146,7 @@ class VoucherForm(FlaskForm):
     )
 
     submit = SubmitField('Save Voucher')
-    
+
 class UserAddForm(FlaskForm):
     """
     Form for admin to add a new staff user.
@@ -223,6 +223,7 @@ class CustomerRegisterForm(FlaskForm):
         validators=[DataRequired(), Length(min=10, max=500)],
         description="Please enter your full delivery address."
     )
+    birthdate = DateField('Birthdate (Optional)', validators=[Optional()])
     email = StringField(
         'Email Address',
         validators=[DataRequired(), Email(), email_exists] # email_exists checks for duplicates
@@ -292,6 +293,25 @@ class CustomerProfileForm(FlaskForm):
         validators=[DataRequired(), Length(min=7, max=20)]
     )
     submit = SubmitField('Update Profile')
+
+class DiscountVerificationForm(FlaskForm):
+    """
+    Form for uploading a Senior/PWD ID.
+    """
+    discount_type = SelectField(
+        'Discount Type',
+        choices=[('Senior', 'Senior Citizen'), ('PWD', 'PWD')],
+        validators=[DataRequired()]
+    )
+    id_image = FileField(
+        'Upload ID Image',
+        validators=[
+            DataRequired(),
+            FileAllowed(['jpg', 'png', 'jpeg'], 'Images only! (jpg, png, jpeg)'),
+            FileSize(max_size=2 * 1024 * 1024)  # 2MB max size
+        ]
+    )
+    submit = SubmitField('Submit for Verification')
 
 class RequestResetForm(FlaskForm):
     """

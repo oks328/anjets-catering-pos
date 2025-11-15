@@ -47,11 +47,6 @@
                     <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(voucher_discount_amt) }}</span>
                 {% endif %}
                 
-                {% if buffet_discount_amt > 0 %}
-                    <span style="color: #007bff; font-weight: bold;">Buffet Discount (10%):</span>
-                    <span style="color: #007bff; font-weight: bold;">- ₱{{ "%.2f"|format(buffet_discount_amt) }}</span>
-                {% endif %}
-                
                 {% if delivery_fee > 0 %}
                     <span>Delivery Fee:</span>
                     <span>₱{{ "%.2f"|format(delivery_fee) }}</span>

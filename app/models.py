@@ -65,6 +65,10 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
     password_hash = db.Column(db.String(255), nullable=False)
     registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     address = db.Column(db.Text, nullable=True)
+    birthdate = db.Column(db.Date, nullable=True)
+    discount_type = db.Column(db.String(50), nullable=True) # e.g., 'Senior', 'PWD'
+    id_image_file = db.Column(db.String(100), nullable=True) # Filename of uploaded ID
+    is_verified_discount = db.Column(db.Boolean, default=False, nullable=False)
     orders = db.relationship('Order', backref='customer', lazy=True)
 
     def get_id(self):

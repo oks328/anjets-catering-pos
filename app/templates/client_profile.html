@@ -40,6 +40,50 @@
             </form>
         </div>
 
+        <hr style="margin-top: 2rem; margin-bottom: 2rem;">
+
+    <div class="discount-verification">
+        <h3>Discount Verification</h3>
+
+        {% if customer.is_verified_discount %}
+            <div style="background: #d4edda; color: #155724; padding: 1rem; border-radius: 4px;">
+                <strong>Status: Verified!</strong>
+                <p style="margin: 0;">Your {{ customer.discount_type or 'Senior/PWD' }} discount will be automatically applied at checkout.</p>
+            </div>
+
+        {% elif is_eligible %}
+            <div style="background: #d1ecf1; color: #0c5460; padding: 1rem; border-radius: 4px;">
+                <strong>Status: Eligible</strong>
+                <p style="margin: 0;">Your birthdate shows you are eligible for a Senior Citizen discount. Please upload a valid ID to complete verification.</p>
+            </div>
+
+            <div class="form-wrapper" style="box-shadow: none; padding: 1rem 0;">
+                <form method="POST" action="{{ url_for('client_upload_id') }}" enctype="multipart/form-data" novalidate>
+                    {{ upload_form.hidden_tag() }}
+
+                    <div class="form-group">
+                        {{ upload_form.discount_type.label }}
+                        {{ upload_form.discount_type(class="form-control") }}
+                    </div>
+
+                    <div class="form-group">
+                        {{ upload_form.id_image.label }}
+                        {{ upload_form.id_image(class="form-control") }}
+                        {% for error in upload_form.id_image.errors %}
+                            <span class="error-message">{{ error }}</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="form-group">
+                        {{ upload_form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+            {% else %}
+            <p>If you are a Senior Citizen (60+) or PWD, please ensure your birthdate is set correctly in your profile. Once eligible, you will be prompted to upload an ID for verification.</p>
+        {% endif %}
+    </div>
+
     </section>
 </div>
 {% endblock %}
