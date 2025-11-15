@@ -293,3 +293,32 @@ class CustomerProfileForm(FlaskForm):
         validators=[DataRequired(), Length(min=7, max=20)]
     )
     submit = SubmitField('Update Profile')
+
+class RequestResetForm(FlaskForm):
+    """
+    Form for customer to request a password reset email.
+    """
+    email = StringField(
+        'Email Address',
+        validators=[DataRequired(), Email()]
+    )
+    submit = SubmitField('Request Password Reset')
+
+    def validate_email(self, email):
+        customer = Customer.query.filter_by(email=email.data).first()
+        if customer is None:
+            raise ValidationError('There is no account with that email. You must register first.')
+
+class ResetPasswordForm(FlaskForm):
+    """
+    Form for customer to enter their new password.
+    """
+    password = PasswordField(
+        'New Password',
+        validators=[DataRequired(), Length(min=6), password_complexity]
+    )
+    confirm_password = PasswordField(
+        'Confirm New Password',
+        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
+    )
+    submit = SubmitField('Reset Password')

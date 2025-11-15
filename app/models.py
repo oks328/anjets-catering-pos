@@ -1,7 +1,9 @@
-from app import db
+from app import db, bcrypt
 from datetime import datetime
 from flask_login import UserMixin
 from flask_bcrypt import Bcrypt
+from itsdangerous import URLSafeTimedSerializer as Serializer # <-- ADD THIS
+from flask import current_app # <-- ADD THIS
 
 bcrypt = Bcrypt()
 
@@ -92,6 +94,25 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
         """Checks if the provided password matches the hash."""
         return bcrypt.check_password_hash(self.password_hash, password)
 
+    def get_reset_token(self, expires_sec=1800):
+        """
+        Generates a password reset token valid for 30 minutes.
+        """
+        s = Serializer(current_app.config['SECRET_KEY'])
+        return s.dumps({'customer_id': self.customer_id})
+
+    @staticmethod
+    def verify_reset_token(token, expires_sec=1800):
+        """
+        Verifies the reset token and returns the Customer object if valid.
+        """
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token, max_age=expires_sec)
+            customer_id = data.get('customer_id')
+        except Exception:
+            return None
+        return Customer.query.get(customer_id)
 class User(db.Model, UserMixin): # <-- Note the change here
     """
     Model for secure admin/staff logins.

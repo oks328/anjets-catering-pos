@@ -2,7 +2,8 @@ from flask import Flask
 from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt       
-from flask_login import LoginManager  
+from flask_login import LoginManager
+from flask_mail import Mail  # <-- 1. IMPORT MAIL
 
 # Initialize our database
 db = SQLAlchemy()
@@ -11,6 +12,8 @@ bcrypt = Bcrypt()
 login_manager = LoginManager()
 login_manager.login_view = 'admin_login'
 login_manager.login_message_category = 'info'
+
+mail = Mail() # <-- 2. CREATE MAIL INSTANCE
 
 def create_app(config_class=Config):
     """Create and configure the Flask app."""
@@ -22,6 +25,7 @@ def create_app(config_class=Config):
     db.init_app(app)
     bcrypt.init_app(app)
     login_manager.init_app(app)
+    mail.init_app(app) # <-- 3. INITIALIZE MAIL
 
     # Register our 'routes' (the URLs)
     with app.app_context():
@@ -32,4 +36,19 @@ def create_app(config_class=Config):
         def load_user(user_id):
             return models.User.query.get(int(user_id))
         
-        return app
+        # This registers your models with flask shell
+        @app.shell_context_processor
+        def make_shell_context():
+            return {
+                'db': db,
+                'User': models.User,
+                'Category': models.Category,
+                'Product': models.Product,
+                'ProductVariant': models.ProductVariant,
+                'Voucher': models.Voucher,
+                'Customer': models.Customer,
+                'Order': models.Order,
+                'OrderItem': models.OrderItem
+            }
+        
+    return app # <-- IMPORTANT: Return app OUTSIDE the 'with' block

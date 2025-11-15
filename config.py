@@ -20,3 +20,12 @@ class Config:
     # Database
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # ... (your existing SECRET_KEY and SQLALCHEMY settings) ...
+    
+    # --- ADD THESE LINES for Flask-Mail ---
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
+    MAIL_USE_TLS = True
+    MAIL_USERNAME = 'khianvivar@gmail.com'  # <-- REPLACE with your full email
+    MAIL_PASSWORD = 'mrnj qyok llsa pgru' # <-- REPLACE with your 16-digit App Password

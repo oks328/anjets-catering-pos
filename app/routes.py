@@ -12,12 +12,15 @@ from PIL import Image
 from xml.dom import minidom
 from flask import make_response, jsonify
 from flask import current_app as app
-from flask import render_template, redirect, url_for, flash, request, session, jsonify
+from flask import render_template, redirect, url_for, flash, request, session, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
 # We only need to import the models once
 from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm
 from functools import wraps
+from flask_mail import Message
+from app import mail
+from app.forms import RequestResetForm, ResetPasswordForm
 
 def get_category_choices():
     """
@@ -819,6 +822,79 @@ def client_login():
         'client_login.html',
         login_form=login_form
     )
+def send_async_email(app, msg):
+    """
+    New helper function to send email in a thread with app context.
+    """
+    with app.app_context():
+        mail.send(msg)
+
+def send_reset_email(customer):
+    """
+    Helper function to send the password reset email.
+    """
+    token = customer.get_reset_token()
+    msg = Message(
+        'Password Reset Request',
+        sender=current_app.config['MAIL_USERNAME'],
+        recipients=[customer.email]
+    )
+    msg.html = render_template('reset_email.html', customer=customer, token=token)
+    
+    # Use a thread to send email in the background
+    from threading import Thread
+    
+    # Get the real app object (not the proxy)
+    app = current_app._get_current_object() 
+    
+    # Pass the app and the message to our new async function
+    thread = Thread(target=send_async_email, args=(app, msg))
+    thread.start()
+    return thread
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+# ... (rest of your routes) ...
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def client_forgot_password():
+    """
+    (C)REATE: Show form to request a password reset.
+    """
+    if 'customer_id' in session:
+        return redirect(url_for('client_home'))
+    
+    form = RequestResetForm()
+    if form.validate_on_submit():
+        customer = Customer.query.filter_by(email=form.email.data).first()
+        if customer:
+            send_reset_email(customer)
+        # Security: Don't reveal if an email exists or not
+        flash('If an account exists with that email, a reset link has been sent.', 'info')
+        return redirect(url_for('client_account_page'))
+
+    return render_template('client_forgot_password.html', form=form)
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def client_reset_token(token):
+    """
+    (U)PDATE: Process the password reset form using the token.
+    """
+    if 'customer_id' in session:
+        return redirect(url_for('client_home'))
+    
+    customer = Customer.verify_reset_token(token)
+    if customer is None:
+        flash('That is an invalid or expired token.', 'danger')
+        return redirect(url_for('client_forgot_password'))
+    
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        customer.set_password(form.password.data)
+        db.session.commit()
+        flash('Your password has been updated! You are now able to log in.', 'success')
+        return redirect(url_for('client_account_page'))
+    
+    return render_template('client_reset_password.html', form=form)
 
 # ===============================================
 # CLIENT-SIDE: BUFFET WIZARD
