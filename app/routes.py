@@ -527,21 +527,22 @@ def apply_voucher():
 def client_checkout():
     """
     (R)EAD: Display the FINAL checkout page with ALL totals.
+    NOW INCLUDES SENIOR/PWD DISCOUNT LOGIC.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
-    # Check if they've completed the options step
     if 'order_type' not in session:
         flash("Please select your delivery or pickup option first.", 'info')
         return redirect(url_for('client_checkout_options'))
 
-    # --- This is the same logic from client_cart() ---
+    # --- Recalculate totals just like in the cart ---
     cart_items = []
     ala_carte_subtotal = 0.0
     buffet_subtotal = 0.0
+    total_price = 0.0
 
     for item_id, item_data in cart_session.items():
         if 'name' not in item_data or 'price' not in item_data:
@@ -550,6 +551,7 @@ def client_checkout():
         quantity = item_data['quantity']
         price = item_data['price']
         line_total = float(price) * quantity
+        total_price += line_total
 
         if item_data.get('is_buffet_item', False):
             buffet_subtotal += line_total
@@ -568,17 +570,27 @@ def client_checkout():
             'is_buffet_item': item_data.get('is_buffet_item', False)
         })
 
-    # --- NEW: Smart Discount + Delivery Fee ---
-    total_price = ala_carte_subtotal + buffet_subtotal
+    # --- NEW DISCOUNT LOGIC (mirroring client_cart) ---
 
-    buffet_discount_amt = buffet_subtotal * 0.10
-    voucher_discount_perc = session.get('discount_percentage', 0.0)
-    voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    # 1. Get the logged-in customer
+    customer = Customer.query.get(session['customer_id'])
 
-    # Get the new delivery fee
+    # 2. Initialize discounts
+    voucher_discount_amt = 0.0
+    senior_discount_amt = 0.0
     delivery_fee = session.get('delivery_fee', 0.0)
 
-    total_discount_amount = buffet_discount_amt + voucher_discount_amt
+    # 3. Check if customer is verified
+    if customer and customer.is_verified_discount:
+        # They are verified! Apply 20% global discount
+        senior_discount_amt = (ala_carte_subtotal + buffet_subtotal) * 0.20
+    else:
+        # They are not verified, so check for a regular voucher
+        voucher_discount_perc = session.get('discount_percentage', 0.0)
+        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+
+    # 4. Final Totals
+    total_discount_amount = voucher_discount_amt + senior_discount_amt
     final_total = (total_price - total_discount_amount) + delivery_fee
     # --- END OF NEW LOGIC ---
 
@@ -586,11 +598,10 @@ def client_checkout():
         'client_checkout.html',
         cart_items=cart_items,
         total_price=total_price,
-        ala_carte_subtotal=ala_carte_subtotal,
-        buffet_subtotal=buffet_subtotal,
+        # We removed buffet_discount_amt, so no need to pass it
         voucher_discount_amt=voucher_discount_amt,
-        buffet_discount_amt=buffet_discount_amt,
-        delivery_fee=delivery_fee, # Pass new fee
+        senior_discount_amt=senior_discount_amt, # <-- Pass new discount
+        delivery_fee=delivery_fee,
         total_discount_amount=total_discount_amount,
         final_total=final_total
     )
@@ -652,9 +663,8 @@ def save_checkout_options():
 def place_order():
     """
     (C)REATE: Create the order in the database.
-    Returns JSON status for AJAX submission.
+    NOW INCLUDES SENIOR/PWD DISCOUNT LOGIC.
     """
-    # --- (Existing Totals Recalculation Logic is Here) ---
     cart_session = session.get('cart', {})
     if not cart_session:
         return jsonify({'status': 'error', 'message': "Your cart is empty. Please try again."}), 400
@@ -681,21 +691,38 @@ def place_order():
     if not valid_cart_items:
         return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
 
-    # Calculate Discounts and Fee
-    voucher_discount_perc = session.get('discount_percentage', 0.0)
-    voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    # --- NEW DISCOUNT LOGIC (mirroring client_cart) ---
+
+    # 1. Get the logged-in customer
+    customer = Customer.query.get(session['customer_id'])
+
+    # 2. Initialize discounts
+    voucher_discount_amt = 0.0
+    senior_discount_amt = 0.0
     delivery_fee = session.get('delivery_fee', 0.0)
 
-    total_discount_amount = voucher_discount_amt
+    # 3. Check if customer is verified
+    if customer and customer.is_verified_discount:
+        # They are verified! Apply 20% global discount
+        senior_discount_amt = (ala_carte_subtotal + buffet_subtotal) * 0.20
+    else:
+        # They are not verified, so check for a regular voucher
+        voucher_discount_perc = session.get('discount_percentage', 0.0)
+        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+
+    # 4. Final Totals
+    total_discount_amount = voucher_discount_amt + senior_discount_amt # Removed buffet_discount_amt
     final_total = (total_price - total_discount_amount) + delivery_fee
+    # --- END OF NEW LOGIC ---
+
 
     # --- 2. Create the main Order ---
     try:
         new_order = Order(
             customer_id=session['customer_id'],
             total_amount=total_price,
-            discount_amount=total_discount_amount,
-            final_amount=final_total,
+            discount_amount=total_discount_amount, # <-- This is now correct
+            final_amount=final_total,            # <-- This is now correct
             status="Pending",
             order_type=session.get('order_type', 'Pickup'),
             delivery_address=session.get('delivery_address', 'Store Pickup'),
@@ -707,43 +734,42 @@ def place_order():
         # --- 3. Create the OrderItems (using the VALID list) ---
         for item_key, item_data in valid_cart_items.items():
 
-            # Determine the REAL variant ID: 
-            # For a simple item, the key IS the variant_id. For a smart buffet key (e.g., 'buffet_2'), the ID is stored inside the data.
+            # Determine the REAL variant ID
             real_variant_id = item_data.get('variant_id', item_key)
 
-            # Now, check if the key is a string (meaning it's a buffet collision key like 'buffet_2')
-            # We only want to save the integer part to the database.
+            # Now, check if the key is a string (e.g., 'buffet_2')
             if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
-                # The real ID is the part after 'buffet_'
                 final_variant_id = int(real_variant_id.split('_')[1])
             else:
-                # Otherwise, it's the correct integer variant ID
                 final_variant_id = int(real_variant_id)
 
             # --- Now create the OrderItem ---
             new_item = OrderItem(
                 order_id=new_order.order_id,
                 product_id=item_data['product_id'],
-                variant_id=final_variant_id, # <-- FIX: Use the cleaned integer ID
+                variant_id=final_variant_id,
                 quantity=item_data['quantity'],
                 price_per_item=item_data['price'] 
             )
             db.session.add(new_item)
 
-            if session.get('voucher_code'):
+        # --- This is the logic from Feature 1 (Increment Voucher) ---
+        if session.get('voucher_code'):
             # Find the voucher that was used
-                voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
-                if voucher_to_update:
-                    # Increment its use count
-                    voucher_to_update.current_uses += 1
-                    db.session.add(voucher_to_update)
+            voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
+            if voucher_to_update:
+                # Increment its use count
+                voucher_to_update.current_uses += 1
+                db.session.add(voucher_to_update)
+        # --- End of voucher logic ---
 
-        db.session.commit()
+        db.session.commit() # Commit new items and voucher update
 
         # --- 4. Clear the cart AND ALL checkout session data ---
         session.pop('cart', None)
         session.pop('voucher_code', None)
         session.pop('discount_percentage', None)
+        # session.pop('buffet_discount_percentage', None) # <-- This is already removed
         session.pop('delivery_fee', None)
         session.pop('order_type', None)
         session.pop('delivery_address', None)
