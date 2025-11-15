@@ -986,3 +986,20 @@ a.btn-checkout {
     background-color: #aaa;
     border-color: #aaa;
 }
+
+/* --- Buffet Category Checklist Grid --- */
+.category-checklist {
+    display: grid;
+    /* This creates a responsive grid that fits as many 
+       150px columns as it can, then wraps. */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0; /* Give it some space */
+    font-size: 1.1rem;
+}
+
+/* Make sure the option card text is centered */
+.category-checklist .option-card {
+    padding: 1rem;
+    text-align: center;
+}

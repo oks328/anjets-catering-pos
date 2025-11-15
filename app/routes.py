@@ -904,16 +904,23 @@ def client_reset_token(token):
 @customer_login_required
 def buffet_wizard_start():
     """
-    (R)EAD: Show Step 1 of the buffet wizard: How many guests?
+    (R)EAD: Show Step 1 of the buffet wizard:
+    Ask for guest count AND category checklist.
     """
-    return render_template('client_buffet_step1.html')
+    # --- NEW: Fetch all active categories for the checklist ---
+    categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
+
+    return render_template(
+        'client_buffet_step1.html',
+        categories=categories  # <-- Pass the categories to the template
+    )
 
 @app.route('/buffet-builder/reco', methods=['POST'])
 @customer_login_required
 def buffet_wizard_reco():
     """
-    (C)REATE: Processes guest count, calculates recommendations, 
-    and redirects user to the first selection page (Ulam).
+    (C)REATE: Processes guest count AND a dynamic category list.
+    Redirects user to the first selection page.
     """
     try:
         guest_count = int(request.form.get('guest_count'))
@@ -921,31 +928,38 @@ def buffet_wizard_reco():
             guest_count = 1
     except:
         guest_count = 30 # Default if something goes wrong
-        
-    # --- Smart Recommendation Logic ---
-    # 1 dish type per 10 guests, rounded up. Noodles serve more (1 per 15).
-    num_ulam = (guest_count + 9) // 10
-    num_noodles = (guest_count + 14) // 15 
-    num_dessert = (guest_count + 14) // 15
-    
-    recommendations = {
-        'Ulam': num_ulam,
-        'Noodles': num_noodles,
-        'Dessert': num_dessert
-    }
 
-    # --- Initialize Session State ---
+    # --- NEW DYNAMIC LOGIC ---
+    # 1. Get the list of checked categories from the form
+    selected_categories = request.form.getlist('categories')
+
+    if not selected_categories:
+        flash("Please select at least one category to include in your buffet.", 'danger')
+        return redirect(url_for('buffet_wizard_start'))
+
+    # 2. Dynamically build the recommendations dictionary
+    recommendations = {}
+    for category_name in selected_categories:
+        # We'll use a simple rule for all categories for now
+        # You can customize this later (e.g., if category_name == 'Noodles')
+        if category_name in ['Noodles', 'Dessert']:
+            count = (guest_count + 14) // 15 # Serves 15
+        else:
+            count = (guest_count + 9) // 10 # Serves 10
+
+        recommendations[category_name] = count
+    # --- END OF DYNAMIC LOGIC ---
+
+    # 3. Initialize Session State
     session['buffet_recommendations'] = recommendations
     session['buffet_guest_count'] = guest_count
     session['buffet_package'] = {} # This will store the final selected items
 
-    # --- Define the sequence of pages/categories for the wizard ---
-    # The wizard must step through these categories in this exact order.
-    wizard_sequence = ['Ulam', 'Noodles', 'Dessert'] 
-    session['buffet_sequence'] = wizard_sequence
-    
-    # --- Redirect to the first selection page ---
-    return redirect(url_for('buffet_wizard_select', category_name='Ulam'))
+    # 4. The wizard sequence is now the list the user selected
+    session['buffet_sequence'] = selected_categories
+
+    # 5. Redirect to the *first* category in their custom list
+    return redirect(url_for('buffet_wizard_select', category_name=selected_categories[0]))
 
 @app.route('/buffet-builder/select/<string:category_name>', methods=['GET', 'POST'])
 @customer_login_required
