@@ -2709,55 +2709,99 @@ def admin_deny_discount(customer_id):
 @login_required
 def admin_sales_reports():
     """
-    (R)EAD: Display sales reports and analytics.
+    (R)EAD: Display sales reports and analytics with dynamic date filtering.
     """
+    # 1. Get dates from query params
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
 
-    # --- 1. Top Selling Items Report ---
-    # This query groups items by their variant_id,
-    # joins with Product and ProductVariant to get their names,
-    # and sums up the total quantity sold for each.
+    # 2. Set dates or use defaults (Last 30 Days)
+    try:
+        # Default start: 30 days ago
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else date.today() - timedelta(days=30)
+    except:
+        start_date = date.today() - timedelta(days=30)
+    
+    try:
+        # Default end: today
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else date.today()
+    except:
+        end_date = date.today()
+
+    # Prepare filter for SQL query
+    date_filter = [Order.order_date.between(start_date, end_date + timedelta(days=1))] # +1 day to include the end date fully
+
+    # Create dynamic string for template header
+    if start_date.strftime('%Y-%m-%d') == (date.today() - timedelta(days=30)).strftime('%Y-%m-%d') and end_date.strftime('%Y-%m-%d') == date.today().strftime('%Y-%m-%d'):
+        date_range_str = "Last 30 Days"
+    else:
+        date_range_str = f"from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+
+
+    # --- 1. Top Selling Items Report (UPDATED WITH FILTER) ---
     top_selling_items = db.session.query(
         Product.name,
         ProductVariant.size_name,
         func.sum(OrderItem.quantity).label('total_sold')
     ).join(Product, Product.product_id == OrderItem.product_id)\
      .join(ProductVariant, ProductVariant.variant_id == OrderItem.variant_id)\
+     .join(Order, Order.order_id == OrderItem.order_id)\
+     .filter(*date_filter)\
      .group_by(OrderItem.variant_id)\
      .order_by(func.sum(OrderItem.quantity).desc())\
      .all()
 
-    # --- 2. Sales Per Day Report (Example) ---
-    # This query groups orders by the date they were created
-    # and sums up the final_amount for each day.
+    # --- 2. Sales Per Day Report (UPDATED WITH FILTER) ---
     sales_by_day = db.session.query(
         func.date(Order.order_date).label('date'),
         func.sum(Order.final_amount).label('total_sales')
-    ).group_by(func.date(Order.order_date))\
+    ).filter(*date_filter)\
+     .group_by(func.date(Order.order_date))\
      .order_by(func.date(Order.order_date).desc())\
-     .limit(30).all() # Get last 30 days
+     .all()
 
     return render_template(
         'admin_sales_reports.html',
         top_selling_items=top_selling_items,
-        sales_by_day=sales_by_day
+        sales_by_day=sales_by_day,
+        start_date=start_date_str,
+        end_date=end_date_str,
+        date_range_str=date_range_str
     )
 
 @app.route('/admin/export/sales_csv')
 @login_required
 def admin_export_sales_csv():
     """
-    (R)EAD: Generate and download a CSV file of daily sales.
+    (R)EAD: Generate and download a CSV file of daily sales, respecting date filters.
     """
+    # 1. Get dates from query params
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    # 2. Set dates or use defaults (Last 30 Days)
     try:
-        # 1. Run the same query as the sales report page
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else date.today() - timedelta(days=30)
+    except:
+        start_date = date.today() - timedelta(days=30)
+    
+    try:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else date.today()
+    except:
+        end_date = date.today()
+
+    date_filter = [Order.order_date.between(start_date, end_date + timedelta(days=1))] # +1 day to include the end date fully
+    
+    try:
+        # 1. Run the same filtered query as the sales report page
         sales_by_day_query = db.session.query(
             func.date(Order.order_date).label('date'),
             func.sum(Order.final_amount).label('total_sales')
-        ).group_by(func.date(Order.order_date))\
+        ).filter(*date_filter)\
+         .group_by(func.date(Order.order_date))\
          .order_by(func.date(Order.order_date).desc())
 
         # 2. Use Pandas to read the query directly
-        # This is a bit advanced, but it's the most efficient way
         df = pd.read_sql(sales_by_day_query.statement, db.engine)
 
         # 3. Rename columns for a user-friendly CSV
@@ -2769,7 +2813,7 @@ def admin_export_sales_csv():
         # 4. Create an in-memory file to hold the CSV
         output = io.StringIO()
         df.to_csv(output, index=False)
-        output.seek(0) # Go to the start of the file
+        output.seek(0)
 
         # 5. Create the file download response
         response = make_response(output.getvalue())
