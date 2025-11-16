@@ -2791,7 +2791,9 @@ def admin_approve_rider(rider_id):
         db.session.rollback()
         flash(f"Error approving rider: {e}", 'danger')
 
-    return redirect(url_for('admin_rider_verifications'))
+    # --- FIX ---
+    # Redirect to the correct route name
+    return redirect(url_for('admin_verifications'))
 
 @app.route('/admin/deny_rider/<int:rider_id>', methods=['POST'])
 @login_required
@@ -2809,7 +2811,9 @@ def admin_deny_rider(rider_id):
         db.session.rollback()
         flash(f"Error denying rider: {e}", 'danger')
 
-    return redirect(url_for('admin_rider_verifications'))
+    # --- FIX ---
+    # Redirect to the correct route name
+    return redirect(url_for('admin_verifications'))
 
 # ===============================================
 # MODULE 6: SALES REPORTING
