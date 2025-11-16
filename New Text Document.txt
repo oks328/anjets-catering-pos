@@ -1,0 +1,5 @@
+FLASK_ENV=development
+
+DATABASE_URL="mysql+pymysql://root:@localhost/anjets_pos"
+
+SECRET_KEY="105760100055"
