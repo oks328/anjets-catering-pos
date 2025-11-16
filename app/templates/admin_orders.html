@@ -30,7 +30,7 @@
                     <th>Date</th>
                     <th>Items</th>
                     <th>Total</th>
-                    <th>Status</th>
+                    <th>Status & Assignment</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -62,17 +62,35 @@
                     <td><strong>₱{{ "%.2f"|format(order.final_amount) }}</strong></td>
                     
                     <td>
-                        <form action="{{ url_for('admin_update_order_status', order_id=order.order_id, status=current_filter) }}" method="POST" class="status-form" id="form-status-{{ order.order_id }}">
+                        <form action="{{ url_for('admin_update_order_status', order_id=order.order_id, status=current_filter) }}" method="POST" class="status-form" id="form-update-{{ order.order_id }}">
+                            
                             <select name="status" class="form-control" style="min-width: 140px;">
                                 <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>Pending</option>
                                 <option value="In Progress" {% if order.status == 'In Progress' %}selected{% endif %}>In Progress</option>
                                 <option value="Completed" {% if order.status == 'Completed' %}selected{% endif %}>Completed</option>
                             </select>
-                            </form>
+
+                            {% if order.order_type == 'Delivery' %}
+                                <div style="margin-top: 0.5rem;">
+                                    <label for="rider-{{ order.order_id }}" style="font-size: 0.9em; font-weight: 500;">Assign Rider:</label>
+                                    <select name="rider_id" id="rider-{{ order.order_id }}" class="form-control">
+                                        
+                                        <option value="">
+                                            -- {{ 'Current: ' + order.rider.name if order.rider else 'Select Rider' }} --
+                                        </option>
+                                        
+                                        {% for rider in available_riders %}
+                                            <option value="{{ rider.rider_id }}">{{ rider.name }} (Online)</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            {% endif %}
+                            
+                        </form>
                     </td>
 
                     <td class="action-buttons">
-                        <button type="submit" form="form-status-{{ order.order_id }}" class="btn btn-secondary btn-sm">Update</button>
+                        <button type="submit" form="form-update-{{ order.order_id }}" class="btn btn-secondary btn-sm">Update</button>
                         
                         <form action="{{ url_for('admin_delete_order', order_id=order.order_id, status=current_filter) }}" method="POST" class="delete-form-modal" style="display:inline;">
                             <input type="submit" value="Delete" class="btn btn-danger btn-sm">

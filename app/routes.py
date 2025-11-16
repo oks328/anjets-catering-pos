@@ -1571,23 +1571,67 @@ def admin_orders():
 @login_required
 def admin_update_order_status(order_id):
     """
-    (U)PDATE: Update an order's status.
+    (U)PDATE: Update an order's status AND/OR assign a rider.
     """
     order = Order.query.get_or_404(order_id)
     new_status = request.form.get('status')
-    
-    # Check if the status is valid
-    if new_status in ['Pending', 'In Progress', 'Completed']:
-        order.status = new_status
-        try:
-            db.session.commit()
+    new_rider_id_str = request.form.get('rider_id')
+
+    try:
+        rider_assigned = False
+        status_changed = False
+
+        # --- 1. Handle Rider Assignment ---
+        if new_rider_id_str:
+            rider_id = int(new_rider_id_str)
+            new_rider = Rider.query.get(rider_id)
+
+            if new_rider and new_rider.status == 'Online':
+                # Free up the *old* rider if there was one and it's a different person
+                if order.rider_id and order.rider_id != rider_id:
+                    old_rider = Rider.query.get(order.rider_id)
+                    if old_rider: 
+                        old_rider.status = 'Online'
+                
+                # Assign the new rider
+                order.rider_id = new_rider.rider_id
+                order.status = 'In Progress' # Assigning a rider automatically moves it to 'In Progress'
+                new_rider.status = 'Delivering'
+                
+                flash(f"Order #{order.order_id} assigned to {new_rider.name}.", 'success')
+                rider_assigned = True
+            else:
+                flash(f"Rider {new_rider.name if new_rider else ''} is not available.", 'danger')
+
+        # --- 2. Handle Status Change ---
+        # Only run if a rider wasn't *just* assigned (which auto-sets status)
+        if not rider_assigned and new_status and new_status != order.status:
+            
+            # Case A: Order is being Completed
+            if new_status == 'Completed':
+                if order.rider and order.rider.status == 'Delivering':
+                    order.rider.status = 'Online' # Free the rider
+            
+            # Case B: Order is being set back to Pending
+            elif new_status == 'Pending':
+                if order.rider and order.rider.status == 'Delivering':
+                    order.rider.status = 'Online' # Free the rider
+                order.rider_id = None # Un-assign the rider
+            
+            # Case C: Any other status change
+            order.status = new_status
             flash(f"Order #{order.order_id} status updated to '{new_status}'.", 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error updating order status: {e}", 'danger')
-    else:
-        flash("Invalid status selected.", 'danger')
+            status_changed = True
         
+        if not rider_assigned and not status_changed and not new_rider_id_str:
+            flash("No changes were made.", 'info')
+
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error updating order: {e}", 'danger')
+
     # Redirect back to the orders page, preserving any filter
     current_filter = request.args.get('status')
     if current_filter:
@@ -1619,38 +1663,6 @@ def admin_delete_order(order_id):
     if current_filter:
         return redirect(url_for('admin_orders', status=current_filter))
     return redirect(url_for('admin_orders'))
-@app.route('/admin/orders/assign_rider/<int:order_id>', methods=['POST'])
-@login_required
-def admin_assign_rider(order_id):
-    """
-    (U)PDATE: Assign a rider to a pending delivery order.
-    """
-    order = Order.query.get_or_404(order_id)
-    rider_id = request.form.get('rider_id')
-
-    if not rider_id:
-        flash("Please select a rider to assign.", 'danger')
-        return redirect(url_for('admin_orders'))
-
-    rider = Rider.query.get(rider_id)
-
-    if not rider or rider.status != 'Online':
-        flash("That rider is not available (may be offline or on another delivery).", 'danger')
-        return redirect(url_for('admin_orders'))
-
-    # Assign the order!
-    order.rider_id = rider.rider_id
-    order.status = 'In Progress'
-    rider.status = 'Delivering'
-    
-    try:
-        db.session.commit()
-        flash(f"Order #{order.order_id} has been assigned to {rider.name}.", 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error assigning order: {e}", 'danger')
-
-    return redirect(url_for('admin_orders', status='Pending'))
 
 @app.route('/admin/export/orders_json')
 @login_required
