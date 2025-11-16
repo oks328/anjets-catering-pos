@@ -31,11 +31,12 @@
                 {% endfor %}
             </div>
 
-            <hr>
+            <hr style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: none; border-top: 1px solid var(--border-gray);">
+            
             <p>Only fill out the password fields if you want to change the customer's password.</p>
 
             <div class="form-group">
-                {{ form.password.label }}
+                {{ form.password.label(text="New Password (Optional)") }}
                 {{ form.password(class="form-control") }}
                 {% for error in form.password.errors %}
                     <span class="error-message">{{ error }}</span>
@@ -43,15 +44,15 @@
             </div>
 
             <div class="form-group">
-                {{ form.confirm_password.label }}
+                {{ form.confirm_password.label(text="Confirm New Password") }}
                 {{ form.confirm_password(class="form-control") }}
                 {% for error in form.confirm_password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
 
-            <div class="form-group">
-                {{ form.submit(class="btn btn-primary") }}
+            <div class="form-group" style="margin-top: 1.5rem;">
+                {{ form.submit(class="btn btn-primary", value="Update Customer") }}
                 <a href="{{ url_for('admin_customers') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
