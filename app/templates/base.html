@@ -115,8 +115,10 @@
             }, 5000); 
         }
 
-        // --- Global Page Load Toast Handler ---
+        // --- Global Page Load & Modal Logic ---
         document.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. Show flashed messages from server
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
@@ -124,7 +126,151 @@
                     {% endfor %}
                 {% endif %}
             {% endwith %}
-        });
+
+            // 2. Get All Modal Elements
+            const modal = document.getElementById('productModal');
+            if (!modal) return; // If no modal on this page, stop.
+
+            const closeModalBtn = modal.querySelector('.modal-close-btn');
+            const modalProductName = document.getElementById('modalProductName');
+            const modalProductId = document.getElementById('modalProductId');
+            const modalVariantSelector = document.getElementById('modalVariantSelector');
+            const modalVariantLabel = document.getElementById('modalVariantLabel');
+            const modalVariantSelect = document.getElementById('modalVariantId');
+            const modalCartForm = document.getElementById('modalCartForm');
+            const modalQuantityInput = document.getElementById('modalQuantity');
+            const modalBtnMinus = document.getElementById('modal-btn-minus');
+            const modalBtnPlus = document.getElementById('modal-btn-plus');
+            const modalCurrentCount = document.getElementById('modalCurrentCount');
+            
+            let allVariantsData = [];
+
+            // 3. --- Global Modal Close Logic ---
+            const closeProductModal = () => {
+                modal.style.display = 'none';
+            }
+            closeModalBtn.onclick = closeProductModal;
+            window.onclick = (event) => {
+                if (event.target == modal) closeProductModal();
+            };
+
+            // 4. --- Global Quantity Stepper Logic ---
+            if (modalBtnMinus && modalBtnPlus) {
+                modalBtnMinus.addEventListener('click', () => {
+                    let currentVal = parseInt(modalQuantityInput.value);
+                    if (currentVal > 1) {
+                        modalQuantityInput.value = currentVal - 1;
+                    }
+                });
+                modalBtnPlus.addEventListener('click', () => {
+                    let currentVal = parseInt(modalQuantityInput.value);
+                    modalQuantityInput.value = currentVal + 1;
+                });
+            }
+            
+            // 5. --- Global Buffet Counter Logic ---
+            function updateBuffetCounter() {
+                const selectedVariantId = modalVariantSelect.value;
+                const variantData = allVariantsData.find(v => v.id == selectedVariantId);
+                if (modalCurrentCount) {
+                    if (variantData && variantData.current_quantity > 0) {
+                        modalCurrentCount.innerText = `You have ${variantData.current_quantity} of this item in your buffet.`;
+                        modalCurrentCount.style.display = 'block';
+                    } else {
+                        modalCurrentCount.style.display = 'none';
+                    }
+                }
+            }
+            modalVariantSelect.addEventListener('change', updateBuffetCounter);
+
+            // 6. --- Global Modal Open Logic ---
+            // Find all buttons that should open the modal
+            document.querySelectorAll('.btn-open-product-modal').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const productId = this.dataset.productId;
+                    
+                    fetch(`/product_details/${productId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            modalProductName.innerText = data.name;
+                            modalProductId.value = data.id;
+                            modalQuantityInput.value = 1; 
+                            
+                            allVariantsData = data.variants; 
+                            modalVariantSelect.innerHTML = ''; 
+                            
+                            if (data.has_variants) {
+                                modalVariantSelector.style.display = 'block';
+                                modalVariantLabel.style.display = 'block';
+                                data.variants.forEach(variant => {
+                                    const option = document.createElement('option');
+                                    option.value = variant.id;
+                                    option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                    modalVariantSelect.appendChild(option);
+                                });
+                            } else {
+                                modalVariantSelector.style.display = 'block';
+                                modalVariantLabel.style.display = 'none';
+                                if (data.variants.length > 0) {
+                                    const variant = data.variants[0];
+                                    const option = document.createElement('option');
+                                    option.value = variant.id;
+                                    option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
+                                    modalVariantSelect.appendChild(option);
+                                }
+                            }
+                            
+                            // Check if this button is on the buffet page
+                            if (button.hasAttribute('data-category')) {
+                                window.isBuffetPage = true;
+                                modalCartForm.action = "{{ url_for('buffet_add_item') }}";
+                                updateBuffetCounter(); // Show buffet counter
+                            } else {
+                                window.isBuffetPage = false;
+                                modalCartForm.action = "{{ url_for('add_to_cart') }}";
+                                if (modalCurrentCount) modalCurrentCount.style.display = 'none'; // Hide buffet counter
+                            }
+                            
+                            modal.style.display = 'block';
+                        });
+                });
+            }); // end querySelectorAll
+
+            // 7. --- Global Form Submit Logic ---
+            if (modalCartForm) {
+                modalCartForm.onsubmit = function(e) {
+                    // If window.isBuffetPage is true, the buffet script (on client_buffet_select.html)
+                    // will take over. If it's false, this code will run.
+                    if (window.isBuffetPage) {
+                        return; 
+                    }
+                    
+                    // This is for the Menu or Home page
+                    e.preventDefault(); 
+                    const formData = new FormData(modalCartForm);
+
+                    fetch("{{ url_for('add_to_cart') }}", {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            createToast(data.message, 'success');
+                            closeProductModal(); 
+                        } else {
+                            createToast(data.message, 'danger');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error adding to cart:', err);
+                        createToast('An error occurred. Please try again.', 'danger');
+                    });
+                }
+            } // end if(modalCartForm)
+
+        }); // end DOMContentLoaded
     </script>
 
     {% block scripts %}{% endblock %}

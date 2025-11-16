@@ -102,23 +102,13 @@
 
 {% block scripts %}
 <script>
+    // Set flag for base.html to know this is the buffet page
+    window.isBuffetPage = true; 
+
     document.addEventListener('DOMContentLoaded', () => {
         // --- Get ALL Modal Elements ---
-        const modal = document.getElementById('productModal');
-        const closeModalBtn = document.querySelector('.modal-close-btn');
-        const modalProductName = document.getElementById('modalProductName');
-        const modalProductId = document.getElementById('modalProductId');
-        const modalVariantSelector = document.getElementById('modalVariantSelector');
-        const modalVariantLabel = document.getElementById('modalVariantLabel');
-        const modalVariantSelect = document.getElementById('modalVariantId');
         const modalCartForm = document.getElementById('modalCartForm');
-
-        // --- Get Stepper & Counter Elements ---
-        const modalQuantityInput = document.getElementById('modalQuantity');
-        const modalBtnMinus = document.getElementById('modal-btn-minus');
-        const modalBtnPlus = document.getElementById('modal-btn-plus');
-        const modalCurrentCount = document.getElementById('modalCurrentCount');
-
+        
         // --- Get Warning Modal Elements ---
         const warningModal = document.getElementById('warningModal');
         const warningModalCloseBtn = document.getElementById('warningModalCloseBtn');
@@ -126,128 +116,41 @@
         const warningModalConfirmBtn = document.getElementById('warningModalConfirm');
         const warningModalMessage = document.getElementById('warningModalMessage');
 
-        let allVariantsData = []; 
-
+        // --- Logic for the "Continue" button ---
         const continueBtn = document.getElementById('btn-continue');
         if (continueBtn) {
             continueBtn.addEventListener('click', function(e) {
-                // Check if the button has the 'disabled' attribute
                 if (this.hasAttribute('disabled')) {
-                    // If it's disabled, stop the link from working
                     e.preventDefault();
-                    
-                    // Show the custom warning modal
                     warningModalMessage.innerText = 'You must select the required number of items to continue.';
                     warningModal.style.display = 'block';
-                    // We don't need the 'Add Anyway' button, so we hide it.
-                    document.getElementById('warningModalConfirm').style.display = 'none';
+                    warningModalConfirmBtn.style.display = 'none'; // Hide "Add Anyway"
                 }
             });
         }
-
-        // --- Stepper Button Logic ---
-        if (modalBtnMinus && modalBtnPlus) {
-            modalBtnMinus.addEventListener('click', () => {
-                let currentVal = parseInt(modalQuantityInput.value);
-                if (currentVal > 1) {
-                    modalQuantityInput.value = currentVal - 1;
-                }
-            });
-            modalBtnPlus.addEventListener('click', () => {
-                let currentVal = parseInt(modalQuantityInput.value);
-                modalQuantityInput.value = currentVal + 1;
-            });
-        }
-
-        // --- Function to update the counter text ---
-        function updateCounter() {
-            const selectedVariantId = modalVariantSelect.value;
-            const variantData = allVariantsData.find(v => v.id == selectedVariantId);
-
-            if (variantData && variantData.current_quantity > 0) {
-                modalCurrentCount.innerText = `You have ${variantData.current_quantity} of this item in your buffet.`;
-                modalCurrentCount.style.display = 'block';
-            } else {
-                modalCurrentCount.style.display = 'none';
-            }
-        }
-
-        if (modalVariantSelect) {
-            modalVariantSelect.addEventListener('change', updateCounter);
-        }
-
-        // --- Function to close the PRODUCT modal ---
-        const closeProductModal = () => {
-            if (modal) modal.style.display = 'none';
-        }
-        if (closeModalBtn) closeModalBtn.onclick = closeProductModal;
-
+        
         // --- Function to close the WARNING modal ---
         const closeWarningModal = () => {
             if (warningModal) warningModal.style.display = 'none';
+            warningModalConfirmBtn.style.display = 'inline-block'; // Re-show "Add Anyway"
         }
         if (warningModalCloseBtn) warningModalCloseBtn.onclick = closeWarningModal;
         if (warningModalCancelBtn) warningModalCancelBtn.onclick = closeWarningModal;
 
-        // --- Close modals on outside click ---
-        window.onclick = (event) => {
-            if (event.target == modal) closeProductModal();
-            if (event.target == warningModal) closeWarningModal();
-        }
-
-        // --- Find all "Add" buttons ON THIS PAGE ---
-        document.querySelectorAll('.btn-add-to-cart[data-product-id]').forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                const productId = this.dataset.productId;
-
-                fetch(`/product_details/${productId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        modalProductName.innerText = data.name;
-                        modalProductId.value = data.id;
-                        modalQuantityInput.value = 1; 
-
-                        allVariantsData = data.variants; 
-                        modalVariantSelect.innerHTML = ''; 
-
-                        if (data.has_variants) {
-                            modalVariantSelector.style.display = 'block';
-                            modalVariantLabel.style.display = 'block';
-                            data.variants.forEach(variant => {
-                                const option = document.createElement('option');
-                                option.value = variant.id;
-                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
-                                modalVariantSelect.appendChild(option);
-                            });
-                        } else {
-                            modalVariantSelector.style.display = 'block';
-                            modalVariantLabel.style.display = 'none';
-                            if (data.variants.length > 0) {
-                                const variant = data.variants[0];
-                                const option = document.createElement('option');
-                                option.value = variant.id;
-                                option.innerText = `${variant.size} - ₱${variant.price.toFixed(2)}`;
-                                modalVariantSelect.appendChild(option);
-                            }
-                        }
-
-                        updateCounter(); 
-                        modal.style.display = 'block';
-                    });
-            });
-        });
-
-        // --- Hijack the modal's submit button ---
+        // --- Hijack the modal's submit button (for Buffet) ---
         if (modalCartForm) {
             modalCartForm.onsubmit = function(e) {
+                // Only run this if we are on the buffet page
+                if (window.isBuffetPage !== true) {
+                    return;
+                }
                 e.preventDefault(); 
                 const formData = new FormData(modalCartForm);
                 handleFetch(formData);
             };
         }
 
-        // --- Main Fetch Logic ---
+        // --- Main Fetch Logic (for Buffet) ---
         function handleFetch(dataToPost) {
             fetch("{{ url_for('buffet_add_item') }}", {
                 method: 'POST',
@@ -256,12 +159,13 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Reload the page to update the count
+                    // Reload the page to update the count and "Your Selections" list
                     location.reload(); 
 
                 } else if (data.status === 'warning') {
                     warningModalMessage.innerText = data.message;
                     warningModal.style.display = 'block';
+                    warningModalConfirmBtn.style.display = 'inline-block'; // Ensure "Add Anyway" is visible
 
                     warningModalConfirmBtn.onclick = () => {
                         dataToPost.append('force', 'true');

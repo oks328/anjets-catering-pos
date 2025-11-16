@@ -1,0 +1,97 @@
+{% extends "delivery_base.html" %}
+
+{% block title %}Rider Dashboard{% endblock %}
+
+{% block content %}
+    <h2>Rider Dashboard</h2>
+
+    <div class="card">
+        <h3>My Current Delivery</h3>
+        {% if my_delivery %}
+            <table class="admin-table">
+                <tbody>
+                    <tr>
+                        <td style="width: 200px;"><strong>Order ID:</strong></td>
+                        <td><strong>#{{ my_delivery.order_id }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Customer Name:</strong></td>
+                        <td>{{ my_delivery.customer.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Contact Number:</strong></td>
+                        <td>{{ my_delivery.customer.contact_number }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Delivery Address:</strong></td>
+                        <td>{{ my_delivery.delivery_address }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Items to Deliver:</strong></td>
+                        <td class="order-items-list">
+                            <ul>
+                            {% for item in my_delivery.items %}
+                                <li>
+                                    {{ item.quantity }}x {{ item.product.name }}
+                                    <span class="variant-name">({{ item.variant.size_name }})</span>
+                                </li>
+                            {% endfor %}
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total to Collect (Cash):</strong></td>
+                        <td style="font-size: 1.5rem; font-weight: bold; color: #d9534f;">
+                            ₱{{ "%.2f"|format(my_delivery.final_amount) }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <form method="POST" action="{{ url_for('delivery_complete_order', order_id=my_delivery.order_id) }}" style="text-align: right; margin-top: 1rem;">
+                <button type="submit" class="btn btn-success" style="font-size: 1.2rem; padding: 1rem 2rem;">
+                    Confirm Payment & Complete Order
+                </button>
+            </form>
+
+        {% else %}
+            <p>You do not have an active delivery.</p>
+        {% endif %}
+    </div>
+    
+    <div class="card">
+        <h3>Available Deliveries</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Date Placed</th>
+                    <th>Customer Name</th>
+                    <th>Address</th>
+                    <th>Total</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in available_orders %}
+                <tr>
+                    <td><strong>#{{ order.order_id }}</strong></td>
+                    <td>{{ order.order_date.strftime('%I:%M %p') }}</td>
+                    <td>{{ order.customer.name }}</td>
+                    <td>{{ order.delivery_address }}</td>
+                    <td><strong>₱{{ "%.2f"|format(order.final_amount) }}</strong></td>
+                    <td class="action-buttons">
+                        <form method="POST" action="{{ url_for('delivery_accept_order', order_id=order.order_id) }}">
+                            <button type="submit" class="btn btn-primary">Accept</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">No deliveries are currently available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

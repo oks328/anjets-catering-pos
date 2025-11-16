@@ -16,6 +16,16 @@
             <h4>Total Sales (This Month)</h4>
             <div class="stat-value stat-value-small">₱{{ "%.2f"|format(total_sales_month) }}</div>
         </div>
+
+        <div class="stat-card">
+            <h4>Online Riders</h4>
+            <div class="stat-value">{{ online_riders_count }}</div>
+        </div>
+
+        <div class="stat-card">
+            <h4>Pending Verifications</h4>
+            <div class="stat-value">{{ pending_verifications_count }}</div>
+        </div>
         
         <div class="stat-card">
             <h4>New Customers (This Month)</h4>

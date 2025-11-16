@@ -1,0 +1,12 @@
+<p>Dear Rider,</p>
+<p>
+    To reset your password, please click the following link:
+</p>
+<p>
+    <a href="{{ url_for('delivery_reset_token', token=token, _external=True) }}">
+        Reset My Password
+    </a>
+</p>
+<p>
+    If you did not make this request, please ignore this email. This link will expire in 30 minutes.
+</p>

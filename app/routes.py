@@ -15,8 +15,8 @@ from flask import current_app as app
 from flask import render_template, redirect, url_for, flash, request, session, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
 # We only need to import the models once
-from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem
-from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm
+from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem, Rider
+from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm, RiderLoginForm, RiderRegisterForm, RiderRequestResetForm, RiderResetPasswordForm, AdminRiderAddForm, AdminRiderEditForm
 from functools import wraps
 from flask_mail import Message
 from app import mail
@@ -133,13 +133,16 @@ def client_my_account():
     (R)EAD: Display the customer's account page.
     Shows their profile and order history.
     """
-    # Get the logged-in customer's ID from the session
     customer_id = session['customer_id']
 
-    # Fetch all orders for this customer, newest first
-    orders = Order.query.filter_by(customer_id=customer_id).order_by(Order.order_date.desc()).all()
-
-    # We'll add the profile form later
+    # --- UPDATED QUERY ---
+    # We use joinedload(Order.rider) to efficiently fetch the rider's
+    # information in the same query, preventing database slowdowns.
+    orders = Order.query\
+        .options(db.joinedload(Order.rider))\
+        .filter_by(customer_id=customer_id)\
+        .order_by(Order.order_date.desc())\
+        .all()
 
     return render_template(
         'client_account.html',
@@ -171,6 +174,7 @@ def client_profile():
         # Update the customer's details
         customer.name = form.name.data
         customer.contact_number = form.contact_number.data
+        customer.birthdate = form.birthdate.data # <-- ADD THIS LINE
 
         try:
             db.session.commit()
@@ -230,10 +234,10 @@ def client_upload_id():
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('client_profile'))
-
-        # 2. Update the customer's record
+# 2. Update the customer's record
         customer.discount_type = form.discount_type.data
         customer.is_verified_discount = False # Set to False, pending admin review
+        customer.discount_status = 'Pending'  # <-- ADD THIS LINE
 
         try:
             db.session.commit()
@@ -493,6 +497,7 @@ def update_cart_quantity():
 def apply_voucher():
     """
     Apply a voucher code to the cart.
+    NOW CHECKS USAGE LIMITS.
     """
     code = request.form.get('voucher_code')
     
@@ -504,12 +509,15 @@ def apply_voucher():
     voucher = Voucher.query.filter_by(code=code, is_active=True).first()
     
     if voucher:
+        # --- ADD THIS CHECK ---
+        # Check if the voucher has a max_uses limit and if it's been reached
         if voucher.max_uses is not None and voucher.current_uses >= voucher.max_uses:
             flash("This voucher code has reached its maximum usage limit.", 'danger')
             session.pop('voucher_code', None)
             session.pop('discount_percentage', None)
             return redirect(url_for('client_cart'))
-        
+        # --- END OF CHECK ---
+
         # Found a valid, active voucher! Save it to the session.
         session['voucher_code'] = voucher.code
         session['discount_percentage'] = float(voucher.discount_percentage)
@@ -1509,17 +1517,27 @@ def admin_orders():
     # Get the filter status from the URL (e.g., /admin/orders?status=Pending)
     status_filter = request.args.get('status')
 
+    # --- THIS LINE WAS LIKELY DELETED ---
     # Start the base query
     order_query = Order.query.join(Customer).order_by(Order.order_date.desc())
+    # --- END OF MISSING LINE ---
 
     if status_filter:
         # Apply the filter if one is provided
         order_query = order_query.filter(Order.status == status_filter)
 
-    # Execute the query
+    # This is the line that was causing the error
     orders = order_query.all()
+    
+    # Get all riders who are currently 'Online'
+    available_riders = Rider.query.filter_by(status='Online').all()
 
-    return render_template('admin_orders.html', orders=orders, current_filter=status_filter)
+    return render_template(
+        'admin_orders.html', 
+        orders=orders, 
+        current_filter=status_filter,
+        available_riders=available_riders
+    )
 
 @app.route('/admin/orders/update_status/<int:order_id>', methods=['POST'])
 @login_required
@@ -1573,6 +1591,38 @@ def admin_delete_order(order_id):
     if current_filter:
         return redirect(url_for('admin_orders', status=current_filter))
     return redirect(url_for('admin_orders'))
+@app.route('/admin/orders/assign_rider/<int:order_id>', methods=['POST'])
+@login_required
+def admin_assign_rider(order_id):
+    """
+    (U)PDATE: Assign a rider to a pending delivery order.
+    """
+    order = Order.query.get_or_404(order_id)
+    rider_id = request.form.get('rider_id')
+
+    if not rider_id:
+        flash("Please select a rider to assign.", 'danger')
+        return redirect(url_for('admin_orders'))
+
+    rider = Rider.query.get(rider_id)
+
+    if not rider or rider.status != 'Online':
+        flash("That rider is not available (may be offline or on another delivery).", 'danger')
+        return redirect(url_for('admin_orders'))
+
+    # Assign the order!
+    order.rider_id = rider.rider_id
+    order.status = 'In Progress'
+    rider.status = 'Delivering'
+    
+    try:
+        db.session.commit()
+        flash(f"Order #{order.order_id} has been assigned to {rider.name}.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error assigning order: {e}", 'danger')
+
+    return redirect(url_for('admin_orders', status='Pending'))
 
 @app.route('/admin/export/orders_json')
 @login_required
@@ -2413,6 +2463,120 @@ def admin_delete_customer(customer_id):
         flash(f"Error deleting customer: {e}", 'danger')
 
     return redirect(url_for('admin_customers'))
+# ===============================================
+# MODULE 5b: RIDER MANAGEMENT (by Admin)
+# ===============================================
+
+@app.route('/admin/riders')
+@login_required
+def admin_riders():
+    """
+    (R)EAD: Display all registered delivery riders.
+    """
+    riders = Rider.query.order_by(Rider.name.asc()).all()
+    return render_template('admin_riders.html', riders=riders)
+
+@app.route('/admin/riders/add', methods=['GET', 'POST'])
+@login_required
+def admin_add_rider():
+    """
+    (C)REATE: Add a new delivery rider.
+    """
+    form = AdminRiderAddForm()
+    if form.validate_on_submit():
+        new_rider = Rider(
+            name=form.name.data,
+            contact_number=form.contact_number.data,
+            email=form.email.data
+        )
+        new_rider.set_password(form.password.data)
+        
+        try:
+            db.session.add(new_rider)
+            db.session.commit()
+            flash(f"Rider '{new_rider.name}' created successfully.", 'success')
+            return redirect(url_for('admin_riders'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error creating rider: {e}", 'danger')
+
+    return render_template(
+        'admin_rider_form.html',
+        form=form,
+        form_title="Add New Rider",
+        action_url=url_for('admin_add_rider')
+    )
+
+@app.route('/admin/riders/edit/<int:rider_id>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_rider(rider_id):
+    """
+    (U)PDATE: Edit an existing rider.
+    """
+    rider = Rider.query.get_or_404(rider_id)
+    form = AdminRiderEditForm(obj=rider)
+
+    if form.validate_on_submit():
+        # Check for email conflicts
+        new_email = form.email.data
+        if new_email != rider.email:
+            existing_rider = Rider.query.filter_by(email=new_email).first()
+            if existing_rider:
+                flash('That email is already in use by another rider.', 'danger')
+                return render_template('admin_rider_form.html', form=form, form_title=f"Edit Rider: {rider.name}", action_url=url_for('admin_edit_rider', rider_id=rider_id))
+
+        rider.name = form.name.data
+        rider.contact_number = form.contact_number.data
+        rider.email = new_email
+
+        if form.password.data:
+            rider.set_password(form.password.data)
+            flash(f"Rider '{rider.name}' updated successfully (password changed).", 'success')
+        else:
+            flash(f"Rider '{rider.name}' updated successfully (password unchanged).", 'success')
+
+        try:
+            db.session.commit()
+            return redirect(url_for('admin_riders'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating rider: {e}", 'danger')
+
+    return render_template(
+        'admin_rider_form.html',
+        form=form,
+        form_title=f"Edit Rider: {rider.name}",
+        action_url=url_for('admin_edit_rider', rider_id=rider_id)
+    )
+
+@app.route('/admin/riders/delete/<int:rider_id>', methods=['POST'])
+@login_required
+def admin_delete_rider(rider_id):
+    """
+    (D)ELETE: Delete a rider.
+    """
+    rider = Rider.query.get_or_404(rider_id)
+    
+    # Check if rider is assigned to any non-completed orders
+    active_deliveries = Order.query.filter_by(rider_id=rider.rider_id)\
+                                   .filter(Order.status != 'Completed').count()
+    
+    if active_deliveries > 0:
+        flash(f"Error: Rider '{rider.name}' is still assigned to {active_deliveries} active order(s). Please reassign or complete orders first.", 'danger')
+        return redirect(url_for('admin_riders'))
+
+    try:
+        # You might want to just set their orders' rider_id to None
+        Order.query.filter_by(rider_id=rider.rider_id).update({'rider_id': None})
+        
+        db.session.delete(rider)
+        db.session.commit()
+        flash(f"Rider '{rider.name}' has been deleted.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting rider: {e}", 'danger')
+
+    return redirect(url_for('admin_riders'))
 
 @app.route('/admin/customers/edit/<int:customer_id>', methods=['GET'])
 @login_required
@@ -2480,10 +2644,9 @@ def admin_verifications():
     """
     (R)EAD: Show all customers awaiting discount verification.
     """
-    # Find customers who have uploaded an ID but are not yet verified
+   # Find customers whose status is 'Pending'
     customers_to_verify = Customer.query.filter(
-        Customer.is_verified_discount == False,
-        Customer.id_image_file != None
+        Customer.discount_status == 'Pending'
     ).order_by(Customer.registration_date.desc()).all()
 
     return render_template(
@@ -2499,8 +2662,9 @@ def admin_approve_discount(customer_id):
     """
     customer = Customer.query.get_or_404(customer_id)
 
-    # Set their status to verified
+   # Set their status to verified
     customer.is_verified_discount = True
+    customer.discount_status = 'Approved' # <-- ADD THIS LINE
     # We keep the discount_type and id_image_file for records
 
     try:
@@ -2521,13 +2685,12 @@ def admin_deny_discount(customer_id):
     """
     customer = Customer.query.get_or_404(customer_id)
 
-    # We will clear all their verification data so they can re-submit
+    # We will set their status to 'Denied' so they see the message
     customer.is_verified_discount = False
-    customer.discount_type = None
-
-    # Optional: You could also delete the uploaded ID file from the 'uploads/ids' folder
-    # but for simplicity, we'll just clear the database record for it.
-    customer.id_image_file = None 
+    customer.discount_status = 'Denied' # <-- THIS IS THE KEY CHANGE
+    # We are NOT clearing the id_image_file or type,
+    # so the admin can see what was denied.
+    # The user can override it by re-uploading.
 
     try:
         db.session.commit()
@@ -2741,3 +2904,249 @@ def admin_delete_user(user_id):
         flash(f"Error deleting user: {e}", 'danger')
 
     return redirect(url_for('admin_users'))
+
+# ===============================================
+# == DELIVERY RIDER PORTAL (NEW SECTION)
+# ===============================================
+
+def rider_login_required(f):
+    """
+    Decorator to ensure a rider is logged in.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'rider_id' not in session:
+            flash("You must be logged in to view that page.", 'danger')
+            return redirect(url_for('delivery_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/delivery/login', methods=['GET', 'POST'])
+def delivery_login():
+    """
+    (C)REATE: Log in a delivery rider.
+    """
+    if 'rider_id' in session:
+        return redirect(url_for('delivery_dashboard')) # We will create this next
+
+    form = RiderLoginForm()
+    if form.validate_on_submit():
+        rider = Rider.query.filter_by(email=form.email.data).first()
+        if rider and rider.check_password(form.password.data):
+            session['rider_id'] = rider.rider_id
+            session['rider_name'] = rider.name
+            
+            # Set rider status to 'Online'
+            rider.status = 'Online'
+            db.session.commit()
+            
+            flash('Login successful. Welcome!', 'success')
+            return redirect(url_for('delivery_dashboard')) # We will create this next
+        else:
+            flash('Invalid email or password.', 'danger')
+            
+    return render_template('delivery_login.html', form=form)
+@app.route('/delivery/dashboard')
+@rider_login_required
+def delivery_dashboard():
+    """
+    (R)EAD: Show the main dashboard for the rider.
+    Shows their current delivery and available new deliveries.
+    """
+    rider_id = session['rider_id']
+    
+    # --- 1. Set Rider status to 'Online' ---
+    rider = Rider.query.get(rider_id)
+    if rider.status != 'Delivering':
+        rider.status = 'Online'
+        db.session.commit()
+
+    # --- 2. Find Rider's CURRENT Delivery ---
+    my_delivery = Order.query.filter_by(
+        rider_id=rider_id,
+        status='In Progress'
+    ).first() 
+
+    # --- 3. Find all AVAILABLE Deliveries ---
+    available_orders = Order.query.filter_by(
+        order_type='Delivery',
+        status='Pending',
+        rider_id=None
+    ).order_by(Order.order_date.asc()).all()
+    
+    return render_template(
+        'delivery_dashboard.html',
+        my_delivery=my_delivery,
+        available_orders=available_orders
+    )
+
+
+
+@app.route('/delivery/logout')
+@rider_login_required
+def delivery_logout():
+    """
+    (D)ELETE: Log out the delivery rider.
+    """
+    # Set rider status to 'Offline'
+    rider = Rider.query.get(session['rider_id'])
+    if rider:
+        rider.status = 'Offline'
+        db.session.commit()
+        
+    session.pop('rider_id', None)
+    session.pop('rider_name', None)
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('delivery_login'))
+
+@app.route('/delivery/register', methods=['GET', 'POST'])
+def delivery_register():
+    """
+    (C)REATE: Register a new delivery rider.
+    """
+    if 'rider_id' in session:
+        return redirect(url_for('delivery_dashboard'))
+
+    form = RiderRegisterForm()
+    if form.validate_on_submit():
+        new_rider = Rider(
+            name=form.name.data,
+            contact_number=form.contact_number.data,
+            email=form.email.data
+        )
+        new_rider.set_password(form.password.data)
+        
+        try:
+            db.session.add(new_rider)
+            db.session.commit()
+            
+            session['rider_id'] = new_rider.rider_id
+            session['rider_name'] = new_rider.name
+            
+            flash(f"Welcome, {new_rider.name}! Your account has been created.", 'success')
+            return redirect(url_for('delivery_dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error creating account: {e}", 'danger')
+    
+    return render_template('delivery_register.html', form=form)
+
+# --- Password Reset Routes for Riders ---
+
+def send_rider_reset_email(rider):
+    """
+    Helper function to send the password reset email to a rider.
+    """
+    token = rider.get_reset_token()
+    msg = Message(
+        'Password Reset Request (Rider Portal)',
+        sender=current_app.config['MAIL_USERNAME'],
+        recipients=[rider.email]
+    )
+    msg.html = render_template('delivery_reset_email.html', token=token)
+    
+    from threading import Thread
+    app = current_app._get_current_object() 
+    thread = Thread(target=send_async_email, args=(app, msg))
+    thread.start()
+    return thread
+
+@app.route('/delivery/forgot-password', methods=['GET', 'POST'])
+def delivery_forgot_password():
+    """
+    (C)REATE: Show form for rider to request a password reset.
+    """
+    if 'rider_id' in session:
+        return redirect(url_for('delivery_dashboard'))
+    
+    form = RiderRequestResetForm()
+    if form.validate_on_submit():
+        rider = Rider.query.filter_by(email=form.email.data).first()
+        if rider:
+            send_rider_reset_email(rider)
+        flash('If an account exists, a reset link has been sent.', 'info')
+        return redirect(url_for('delivery_login'))
+
+    return render_template('delivery_forgot_password.html', form=form)
+
+@app.route('/delivery/reset-password/<token>', methods=['GET', 'POST'])
+def delivery_reset_token(token):
+    """
+    (U)PDATE: Process the rider's password reset.
+    """
+    if 'rider_id' in session:
+        return redirect(url_for('delivery_dashboard'))
+    
+    rider = Rider.verify_reset_token(token)
+    if rider is None:
+        flash('That is an invalid or expired token.', 'danger')
+        return redirect(url_for('delivery_forgot_password'))
+    
+    form = RiderResetPasswordForm()
+    if form.validate_on_submit():
+        rider.set_password(form.password.data)
+        db.session.commit()
+        flash('Your password has been updated! You can now log in.', 'success')
+        return redirect(url_for('delivery_login'))
+    
+    return render_template('delivery_reset_password.html', form=form)
+
+@app.route('/delivery/accept/<int:order_id>', methods=['POST'])
+@rider_login_required
+def delivery_accept_order(order_id):
+    """
+    (U)PDATE: Assign an order to the logged-in rider.
+    """
+    order = Order.query.get_or_404(order_id)
+    rider = Rider.query.get(session['rider_id'])
+
+    # Check if order is still available
+    if order.status != 'Pending' or order.rider_id is not None:
+        flash("This order is no longer available.", 'danger')
+        return redirect(url_for('delivery_dashboard'))
+    
+    # Check if rider is already on a delivery
+    if rider.status == 'Delivering':
+        flash("You must complete your current delivery before accepting a new one.", 'danger')
+        return redirect(url_for('delivery_dashboard'))
+
+    # Assign the order!
+    order.rider_id = rider.rider_id
+    order.status = 'In Progress' # Move from 'Pending' to 'In Progress'
+    rider.status = 'Delivering'
+    
+    try:
+        db.session.commit()
+        flash(f"You have accepted Order #{order.order_id}.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error accepting order: {e}", 'danger')
+
+    return redirect(url_for('delivery_dashboard'))
+
+@app.route('/delivery/complete/<int:order_id>', methods=['POST'])
+@rider_login_required
+def delivery_complete_order(order_id):
+    """
+    (U)PDATE: Mark an order as 'Completed' and set rider to 'Online'.
+    """
+    order = Order.query.get_or_404(order_id)
+    rider = Rider.query.get(session['rider_id'])
+    
+    # Security check: Make sure this rider owns this order
+    if order.rider_id != rider.rider_id:
+        flash("This is not your order.", 'danger')
+        return redirect(url_for('delivery_dashboard'))
+        
+    # Mark as completed
+    order.status = 'Completed'
+    rider.status = 'Online' # Rider is now free
+    
+    try:
+        db.session.commit()
+        flash(f"Order #{order.order_id} marked as complete!", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error completing order: {e}", 'danger')
+        
+    return redirect(url_for('delivery_dashboard'))

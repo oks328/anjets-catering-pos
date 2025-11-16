@@ -1,29 +1,26 @@
-{% extends "base.html" %}
+{% extends "delivery_base.html" %}
 
-{% block title %}Log In{% endblock %}
+{% block title %}Rider Login{% endblock %}
 
 {% block content %}
-
-<div class="form-container">
-    <div class="form-wrapper">
-        <h2>Log In</h2>
-        <p style="text-align: center; margin-bottom: 1rem;">Welcome back!</p>
-
-        <form method="POST" action="{{ url_for('client_login') }}" novalidate>
-            {{ login_form.hidden_tag() }}
-
+    <div class="login-container">
+        <h2>Rider Log In</h2>
+        <p style="text-align: center; margin-bottom: 1rem;">Welcome back, Rider.</p>
+        
+        <form method="POST" action="{{ url_for('delivery_login') }}" novalidate>
+            {{ form.hidden_tag() }}
             <div class="form-group">
-                {{ login_form.email.label }}
-                {{ login_form.email(class="form-control") }}
-                {% for error in login_form.email.errors %}
+                {{ form.email.label }}
+                {{ form.email(class="form-control") }}
+                {% for error in form.email.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
 
             <div class="form-group">
-                {{ login_form.password.label }}
-                {{ login_form.password(class="form-control", id="password_field") }}
-                {% for error in login_form.password.errors %}
+                {{ form.password.label }}
+                {{ form.password(class="form-control", id="password_field") }}
+                {% for error in form.password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
@@ -33,33 +30,31 @@
                 <label for="toggle_password" style="font-weight: normal; display: inline;">Show Password</label>
             </div>
 
-            <div class="form-group" style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
-                <a href="{{ url_for('client_forgot_password') }}">Forgot Password?</a>
+            <div class-="form-group" style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
+                <a href="{{ url_for('delivery_forgot_password') }}">Forgot Password?</a>
             </div>
+
             <div class="form-group">
-                {{ login_form.submit(class="btn btn-primary") }}
+                {{ form.submit(class="btn btn-primary") }}
             </div>
-
-         </form>
+        </form>
     </div>
 
-    <div class="form-switch-link">
+    <div class="form-switch-link" style="max-width: 400px; margin: 2rem auto;">
         <span>Don't have an account?</span>
-        <a href="{{ url_for('client_register_page') }}" class="btn btn-secondary" style="margin-top: 1rem;">Create Account</a>
+        <a href="{{ url_for('delivery_register') }}" class="btn btn-secondary" style="margin-top: 1rem;">Create Rider Account</a>
     </div>
-</div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
+    // Re-using the show password script from admin_login
     document.addEventListener('DOMContentLoaded', function() {
         const togglePassword = document.getElementById('toggle_password');
         const passwordField = document.getElementById('password_field');
 
         if (togglePassword && passwordField) {
             togglePassword.addEventListener('click', function() {
-                // Toggle the type attribute
                 const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
                 passwordField.setAttribute('type', type);
             });

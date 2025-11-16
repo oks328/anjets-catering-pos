@@ -69,6 +69,10 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
     discount_type = db.Column(db.String(50), nullable=True) # e.g., 'Senior', 'PWD'
     id_image_file = db.Column(db.String(100), nullable=True) # Filename of uploaded ID
     is_verified_discount = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # --- ADD THIS LINE ---
+    discount_status = db.Column(db.String(20), nullable=True, default=None) # Can be 'Pending', 'Approved', or 'Denied'
+
     orders = db.relationship('Order', backref='customer', lazy=True)
 
     def get_id(self):
@@ -174,6 +178,8 @@ class Order(db.Model):
     order_type = db.Column(db.String(50), nullable=False, default='Pickup')
     delivery_address = db.Column(db.Text, nullable=True)
     delivery_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
+    rider_id = db.Column(db.Integer, db.ForeignKey('Riders.rider_id'), nullable=True)
+
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
 
 class OrderItem(db.Model):
@@ -204,3 +210,54 @@ class Voucher(db.Model):
 
     max_uses = db.Column(db.Integer, nullable=True) # null = infinite uses
     current_uses = db.Column(db.Integer, nullable=False, default=0)
+
+    # ... (after your Voucher class) ...
+
+class Rider(db.Model, UserMixin):
+    """
+    Model for delivery riders.
+    """
+    __tablename__ = 'Riders'
+    rider_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    contact_number = db.Column(db.String(50), nullable=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Status for admin to see
+    status = db.Column(db.String(20), nullable=False, default='Offline') # e.g., Offline, Online, Delivering
+    
+    # Link to orders
+    orders = db.relationship('Order', backref='rider', lazy=True)
+
+    # We can re-use the same login/token logic from the Customer model
+    def get_id(self):
+        return str(self.rider_id)
+    
+    @property
+    def is_active(self): return True
+    @property
+    def is_authenticated(self): return True
+    @property
+    def is_anonymous(self): return False
+    
+    def set_password(self, password):
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+
+    def check_password(self, password):
+        return bcrypt.check_password_hash(self.password_hash, password)
+
+    def get_reset_token(self, expires_sec=1800):
+        s = Serializer(current_app.config['SECRET_KEY'])
+        return s.dumps({'rider_id': self.rider_id})
+
+    @staticmethod
+    def verify_reset_token(token, expires_sec=1800):
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token, max_age=expires_sec)
+            rider_id = data.get('rider_id')
+        except Exception:
+            return None
+        return Rider.query.get(rider_id)

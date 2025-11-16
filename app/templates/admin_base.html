@@ -36,6 +36,11 @@
         {% set customer_pages = ['admin_customers', 'admin_edit_customer_page', 'admin_edit_customer'] %}
         <li><a href="{{ url_for('admin_customers') }}" class="{{ 'active' if active_page in customer_pages else '' }}">Customers</a></li>
         
+{% set rider_pages = ['admin_riders', 'admin_add_rider', 'admin_edit_rider'] %}
+        <li><a href="{{ url_for('admin_riders') }}" class="{{ 'active' if active_page in rider_pages else '' }}">Manage Riders</a></li>
+        {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount'] %}
+        <li><a href="{{ url_for('admin_verifications') }}" class="{{ 'active' if active_page in verification_pages else '' }}">Verifications</a></li>
+
         {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount'] %}
     <li>
         <a href="{{ url_for('admin_verifications') }}" class="{{ 'active' if active_page in verification_pages else '' }}">

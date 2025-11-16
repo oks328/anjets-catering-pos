@@ -27,7 +27,7 @@
                         <th>Date</th>
                         <th>Total</th>
                         <th>Status</th>
-                    </tr>
+                        <th>Details</th> </tr>
                 </thead>
                 <tbody>
                     {% for order in orders %}
@@ -45,6 +45,7 @@
                     </td>
                         <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
                         <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
+                        
                         <td>
                             {% if order.status == 'Pending' %}
                                 <span class="status-pending">Pending</span>
@@ -56,7 +57,27 @@
                                 <span>{{ order.status }}</span>
                             {% endif %}
                         </td>
+                        
+                        <td style="font-size: 0.9em; color: #555;">
+                            {% if order.order_type == 'Pickup' and order.status == 'In Progress' %}
+                                Your order is being prepared.
+                            {% elif order.order_type == 'Pickup' and order.status == 'Completed' %}
+                                Order picked up.
+                            {% elif order.order_type == 'Delivery' and order.status == 'In Progress' and order.rider %}
+                                Out for delivery with {{ order.rider.name }}.
+                            {% elif order.order_type == 'Delivery' and order.status == 'In Progress' %}
+                                Your order is being prepared.
+                            {% elif order.status == 'Completed' %}
+                                Order delivered.
+                            {% else %}
+                                Awaiting confirmation.
+                            {% endif %}
+                        </td>
+
                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">No orders found.</td> </tr>
                     {% endfor %}
                 </tbody>
             </table>
