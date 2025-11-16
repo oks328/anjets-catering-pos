@@ -225,12 +225,22 @@ class Rider(db.Model, UserMixin):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    
+    birthdate = db.Column(db.Date, nullable=True) # New field for age check
+
     # Status for admin to see
     status = db.Column(db.String(20), nullable=False, default='Offline') # e.g., Offline, Online, Delivering
     
+    application_status = db.Column(db.String(20), nullable=False, default='Pending') # Tracks: Pending, Approved, Denied
+
+    # Document filenames (Store path relative to UPLOADS_FOLDER)
+    license_file = db.Column(db.String(100), nullable=True)
+    govt_id_file = db.Column(db.String(100), nullable=True)
+    or_cr_file = db.Column(db.String(100), nullable=True)
+    nbi_clearance_file = db.Column(db.String(100), nullable=True)
+
     # Link to orders
     orders = db.relationship('Order', backref='rider', lazy=True)
+    
 
     # We can re-use the same login/token logic from the Customer model
     def get_id(self):

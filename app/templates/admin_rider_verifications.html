@@ -1,0 +1,55 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Rider Verifications{% endblock %}
+
+{% block content %}
+    <h2>Pending Rider Applications</h2>
+    <p>Review and approve/deny new delivery rider applications.</p>
+
+    <div class="card">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Rider Name</th>
+                    <th>Email</th>
+                    <th>Birthdate</th>
+                    <th>Date Applied</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rider in riders %}
+                <tr>
+                    <td><strong>{{ rider.name }}</strong></td>
+                    <td>{{ rider.email }}</td>
+                    <td>
+                        {% if rider.birthdate %}
+                            {{ rider.birthdate.strftime('%Y-%m-%d') }}
+                        {% else %}
+                            <span style="color: red;">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ rider.registration_date.strftime('%Y-%m-%d') }}</td>
+                    <td class="action-buttons">
+                        <a href="{{ url_for('admin_rider_details', rider_id=rider.rider_id) }}" 
+                           class="btn btn-secondary btn-sm"
+                           style="background-color: #17a2b8; border-color: #17a2b8;">
+                           View Documents
+                        </a>
+                        <form method="POST" action="{{ url_for('admin_approve_rider', rider_id=rider.rider_id) }}" style="display:inline;">
+                            <input type="submit" value="Approve" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
+                        </form>
+                        <form method="POST" action="{{ url_for('admin_deny_rider', rider_id=rider.rider_id) }}" style="display:inline;">
+                            <input type="submit" value="Deny" class="btn btn-danger">
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">No riders are awaiting application review.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

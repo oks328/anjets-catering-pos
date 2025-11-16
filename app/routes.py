@@ -66,6 +66,37 @@ def customer_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# app/routes.py
+
+# ... (after save_picture function) ...
+
+def save_rider_document(form_file):
+    """
+    Helper function to save an uploaded rider document.
+    Saves it to 'uploads/riders/documents'.
+    Returns the relative path for database storage.
+    """
+    # 1. Define the full save path
+    doc_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'riders', 'documents')
+    if not os.path.exists(doc_upload_folder):
+        os.makedirs(doc_upload_folder)
+
+    # 2. Create a random, unique filename
+    random_hex = secrets.token_hex(8)
+    _, f_ext = os.path.splitext(form_file.filename)
+    document_fn = random_hex + f_ext
+    document_path = os.path.join(doc_upload_folder, document_fn)
+
+    # 3. Resize and Save the image (reusing PIL logic)
+    output_size = (1000, 1000) # Max 1000x1000 pixels
+    i = Image.open(form_file)
+    i.thumbnail(output_size)
+    i.save(document_path)
+
+    # 4. Return the path relative to 'uploads/'
+    return f"riders/documents/{document_fn}"
+
+# ... (rest of the file) ...
 @app.route('/')
 def client_home():
     """
@@ -2635,20 +2666,26 @@ def admin_edit_customer(customer_id):
         customer=customer
     )
 
-@app.route('/admin/verifications')
+@app.route('/admin/verifications_hub')
 @login_required
-def admin_verifications():
+def admin_verifications_hub():
     """
-    (R)EAD: Show all customers awaiting discount verification.
+    (R)EAD: Show all pending Customer and Rider verifications on one page.
     """
-   # Find customers whose status is 'Pending'
+    # 1. Fetch pending customer discounts (Senior/PWD)
     customers_to_verify = Customer.query.filter(
         Customer.discount_status == 'Pending'
     ).order_by(Customer.registration_date.desc()).all()
 
+    # 2. Fetch pending rider applications
+    riders_to_verify = Rider.query.filter(
+        Rider.application_status == 'Pending'
+    ).order_by(Rider.registration_date.desc()).all()
+
     return render_template(
-        'admin_verifications.html',
-        customers=customers_to_verify
+        'admin_verifications_hub.html', # We will create this new template
+        customers=customers_to_verify,
+        riders=riders_to_verify
     )
 
 @app.route('/admin/approve_discount/<int:customer_id>', methods=['POST'])
@@ -2697,6 +2734,82 @@ def admin_deny_discount(customer_id):
         flash(f"Error denying discount: {e}", 'danger')
 
     return redirect(url_for('admin_verifications'))
+
+# app/routes.py
+
+# ... (around line 990, after the Customer verification routes) ...
+# ===============================================
+# MODULE 5c: RIDER APPLICATION VERIFICATION
+# ===============================================
+
+@app.route('/admin/verifications') # Use the old, familiar route name
+@login_required
+def admin_verifications():
+    """
+    (R)EAD: Show all pending Customer and Rider verifications on one page.
+    """
+    # 1. Fetch pending customer discounts (Senior/PWD)
+    customers_to_verify = Customer.query.filter(
+        Customer.discount_status == 'Pending'
+    ).order_by(Customer.registration_date.desc()).all()
+
+    # 2. Fetch pending rider applications
+    riders_to_verify = Rider.query.filter(
+        Rider.application_status == 'Pending'
+    ).order_by(Rider.registration_date.asc()).all() # Using asc for FIFO
+
+    return render_template(
+        'admin_verifications_hub.html', 
+        customers=customers_to_verify,
+        riders=riders_to_verify
+    )
+@app.route('/admin/rider_verifications/details/<int:rider_id>')
+@login_required
+def admin_rider_details(rider_id):
+    """
+    (R)EAD: Show a rider's profile and uploaded documents for review.
+    """
+    rider = Rider.query.get_or_404(rider_id)
+    # --- FIX: Calculate today's date and pass it as a simple variable ---
+    current_date = date.today() 
+    return render_template('admin_rider_details.html', rider=rider, today=current_date)
+
+
+@app.route('/admin/approve_rider/<int:rider_id>', methods=['POST'])
+@login_required
+def admin_approve_rider(rider_id):
+    """
+    (U)PDATE: Approve a rider's application.
+    """
+    rider = Rider.query.get_or_404(rider_id)
+    rider.application_status = 'Approved'
+
+    try:
+        db.session.commit()
+        flash(f"Approved application for rider {rider.name}. They can now log in.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error approving rider: {e}", 'danger')
+
+    return redirect(url_for('admin_rider_verifications'))
+
+@app.route('/admin/deny_rider/<int:rider_id>', methods=['POST'])
+@login_required
+def admin_deny_rider(rider_id):
+    """
+    (U)PDATE: Deny a rider's application.
+    """
+    rider = Rider.query.get_or_404(rider_id)
+    rider.application_status = 'Denied'
+
+    try:
+        db.session.commit()
+        flash(f"Denied application for rider {rider.name}.", 'warning')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error denying rider: {e}", 'danger')
+
+    return redirect(url_for('admin_rider_verifications'))
 
 # ===============================================
 # MODULE 6: SALES REPORTING
@@ -2827,16 +2940,22 @@ def admin_export_sales_csv():
 # MODULE 7: USER (STAFF) MANAGEMENT (CRUD)
 # ===============================================
 
+# app/routes.py
+
 @app.route('/admin/users', methods=['GET'])
 @login_required
 def admin_users():
     """
-    (R)EAD: Display all staff users.
+    (R)EAD: Display all staff users and now includes all delivery riders.
     """
-    # We query all users except our own, to list them
-    users = User.query.order_by(User.username.asc()).all()
-    return render_template('admin_users.html', users=users)
-
+    # Fetch all staff users
+    staff_users = User.query.order_by(User.username.asc()).all()
+    
+    # Fetch all riders
+    riders = Rider.query.order_by(Rider.name.asc()).all()
+    
+    # Pass both lists to the template
+    return render_template('admin_users.html', staff_users=staff_users, riders=riders)
 
 @app.route('/admin/users/add', methods=['GET', 'POST'])
 @login_required
@@ -2962,18 +3081,32 @@ def rider_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# app/routes.py
+
 @app.route('/delivery/login', methods=['GET', 'POST'])
 def delivery_login():
     """
     (C)REATE: Log in a delivery rider.
+    NOW CHECKS APPLICATION STATUS.
     """
     if 'rider_id' in session:
-        return redirect(url_for('delivery_dashboard')) # We will create this next
+        return redirect(url_for('delivery_dashboard')) 
 
     form = RiderLoginForm()
     if form.validate_on_submit():
         rider = Rider.query.filter_by(email=form.email.data).first()
         if rider and rider.check_password(form.password.data):
+            
+            # --- NEW CHECK: Application Status ---
+            if rider.application_status == 'Pending':
+                flash('Your application is currently pending review. Please wait for an admin to approve it.', 'danger')
+                return redirect(url_for('delivery_login'))
+            elif rider.application_status == 'Denied':
+                flash('Your application has been denied. Please contact an administrator.', 'danger')
+                return redirect(url_for('delivery_login'))
+            # --- END NEW CHECK ---
+            
+            # Password is correct and status is 'Approved'! Log the rider in.
             session['rider_id'] = rider.rider_id
             session['rider_name'] = rider.name
             
@@ -2982,11 +3115,12 @@ def delivery_login():
             db.session.commit()
             
             flash('Login successful. Welcome!', 'success')
-            return redirect(url_for('delivery_dashboard')) # We will create this next
+            return redirect(url_for('delivery_dashboard'))
         else:
             flash('Invalid email or password.', 'danger')
             
     return render_template('delivery_login.html', form=form)
+
 @app.route('/delivery/dashboard')
 @rider_login_required
 def delivery_dashboard():
@@ -3040,39 +3174,57 @@ def delivery_logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('delivery_login'))
 
+# app/routes.py
+
 @app.route('/delivery/register', methods=['GET', 'POST'])
 def delivery_register():
     """
-    (C)REATE: Register a new delivery rider.
+    (C)REATE: Register a new delivery rider and submit application documents.
     """
     if 'rider_id' in session:
         return redirect(url_for('delivery_dashboard'))
 
     form = RiderRegisterForm()
     if form.validate_on_submit():
+        
+        # 1. Save all uploaded documents
+        try:
+            license_fn = save_rider_document(form.license_file.data)
+            govt_id_fn = save_rider_document(form.govt_id_file.data)
+            or_cr_fn = save_rider_document(form.or_cr_file.data)
+            nbi_clearance_fn = save_rider_document(form.nbi_clearance_file.data)
+        except Exception as e:
+            flash(f"Error uploading documents. Please ensure they are valid images. {e}", 'danger')
+            return render_template('delivery_register.html', form=form)
+            
+        # 2. Create the new rider object
         new_rider = Rider(
             name=form.name.data,
             contact_number=form.contact_number.data,
-            email=form.email.data
+            email=form.email.data,
+            birthdate=form.birthdate.data,
+            
+            # Set initial application status and document filenames
+            application_status='Pending', 
+            license_file=license_fn,
+            govt_id_file=govt_id_fn,
+            or_cr_file=or_cr_fn,
+            nbi_clearance_file=nbi_clearance_fn
         )
         new_rider.set_password(form.password.data)
         
+        # 3. Save to DB and Redirect
         try:
             db.session.add(new_rider)
             db.session.commit()
             
-            session['rider_id'] = new_rider.rider_id
-            session['rider_name'] = new_rider.name
-            
-            flash(f"Welcome, {new_rider.name}! Your account has been created.", 'success')
-            return redirect(url_for('delivery_dashboard'))
+            flash(f"Application for {new_rider.name} submitted successfully. Please wait for admin approval.", 'info')
+            return redirect(url_for('delivery_login'))
         except Exception as e:
             db.session.rollback()
             flash(f"Error creating account: {e}", 'danger')
     
     return render_template('delivery_register.html', form=form)
-
-# --- Password Reset Routes for Riders ---
 
 def send_rider_reset_email(rider):
     """

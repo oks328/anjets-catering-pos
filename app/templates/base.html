@@ -70,6 +70,18 @@
         </div>
     </div>
     
+    <div id="clearCartModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-btn" id="clearCartModalCloseBtn">&times;</span>
+            <h4>Confirm Action</h4>
+            <p>Are you sure you want to clear your entire shopping cart? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button type="button" id="clearCartModalCancel" class="btn btn-secondary">Cancel</button>
+                <a href="#" id="clearCartModalConfirm" class="btn btn-danger">Yes, Clear Cart</a>
+            </div>
+        </div>
+    </div>
+    
     <div id="warningModal" class="modal">
         <div class="modal-content">
             <span class="modal-close-btn" id="warningModalCloseBtn">&times;</span>
@@ -114,6 +126,17 @@
                 if (toast.parentElement) closeToast();
             }, 5000); 
         }
+        
+        // --- GLOBAL HELPER: Opens the Custom Clear Cart Modal (Called from client_cart.html) ---
+        window.openClearCartModal = function(url) {
+            const clearCartModal = document.getElementById('clearCartModal');
+            const clearCartModalConfirmBtn = document.getElementById('clearCartModalConfirm');
+            
+            if (clearCartModal && clearCartModalConfirmBtn) {
+                clearCartModalConfirmBtn.href = url; // Set the confirmation button's destination URL
+                clearCartModal.style.display = 'block';
+            }
+        }
 
         // --- Global Page Load & Modal Logic ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -127,9 +150,21 @@
                 {% endif %}
             {% endwith %}
 
-            // 2. Get All Modal Elements
+            // 2. --- Clear Cart Modal Setup ---
+            const clearCartModal = document.getElementById('clearCartModal');
+            const clearCartModalCloseBtn = document.getElementById('clearCartModalCloseBtn');
+            const clearCartModalCancelBtn = document.getElementById('clearCartModalCancel');
+            
+            const closeClearCartModal = () => {
+                if (clearCartModal) clearCartModal.style.display = 'none';
+            }
+
+            if (clearCartModalCloseBtn) clearCartModalCloseBtn.onclick = closeClearCartModal;
+            if (clearCartModalCancelBtn) clearCartModalCancelBtn.onclick = closeClearCartModal;
+
+            // 3. --- Product Modal Setup and Initialization ---
             const modal = document.getElementById('productModal');
-            if (!modal) return; // If no modal on this page, stop.
+            if (!modal) return; 
 
             const closeModalBtn = modal.querySelector('.modal-close-btn');
             const modalProductName = document.getElementById('modalProductName');
@@ -145,16 +180,18 @@
             
             let allVariantsData = [];
 
-            // 3. --- Global Modal Close Logic ---
+            // 4. --- Global Modal Close Logic ---
             const closeProductModal = () => {
                 modal.style.display = 'none';
             }
             closeModalBtn.onclick = closeProductModal;
+            // FIX: Ensure clicking outside closes EITHER the Product or Clear Cart modal
             window.onclick = (event) => {
                 if (event.target == modal) closeProductModal();
+                if (event.target == clearCartModal) closeClearCartModal();
             };
 
-            // 4. --- Global Quantity Stepper Logic ---
+            // 5. --- Global Quantity Stepper Logic ---
             if (modalBtnMinus && modalBtnPlus) {
                 modalBtnMinus.addEventListener('click', () => {
                     let currentVal = parseInt(modalQuantityInput.value);
@@ -168,7 +205,7 @@
                 });
             }
             
-            // 5. --- Global Buffet Counter Logic ---
+            // 6. --- Global Buffet Counter Logic ---
             function updateBuffetCounter() {
                 const selectedVariantId = modalVariantSelect.value;
                 const variantData = allVariantsData.find(v => v.id == selectedVariantId);
@@ -183,8 +220,7 @@
             }
             modalVariantSelect.addEventListener('change', updateBuffetCounter);
 
-            // 6. --- Global Modal Open Logic ---
-            // Find all buttons that should open the modal
+            // 7. --- Global Modal Open Logic (Same as existing) ---
             document.querySelectorAll('.btn-open-product-modal').forEach(button => {
                 button.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -237,18 +273,12 @@
                 });
             }); // end querySelectorAll
 
-            // 7. --- Global Form Submit Logic ---
+            // 8. --- Global Form Submit Logic (Only for Product Modal) ---
             if (modalCartForm) {
-
-                // --- THIS IS THE FIX ---
-                // Check if we are on the buffet page. The buffet script sets this flag to true.
                 if (window.isBuffetPage === true) {
                     // Do nothing. The local script from 'client_buffet_select.html' is in control.
                 } else {
-                    // This is a regular page (Menu, Home), so attach the regular handler.
                     modalCartForm.onsubmit = function(e) {
-                        
-                        // This is for the Menu or Home page
                         e.preventDefault(); 
                         const formData = new FormData(modalCartForm);
 
@@ -270,8 +300,7 @@
                             createToast('An error occurred. Please try again.', 'danger');
                         });
                     }
-                } // --- END OF FIX ---
-
+                }
             } // end if(modalCartForm)
 
         }); // end DOMContentLoaded

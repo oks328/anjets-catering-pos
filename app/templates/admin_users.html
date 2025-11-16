@@ -1,13 +1,14 @@
 {% extends "admin_base.html" %}
 
-{% block title %}Manage Staff Users{% endblock %}
+{% block title %}Manage Staff & Riders{% endblock %}
 
 {% block content %}
-    <h2>Manage Staff Users</h2>
+    <h2>Manage Staff & Riders</h2>
 
     <div class="card">
         <div class="card-header-controls">
-            <div style="flex-grow: 1;"></div> <a href="{{ url_for('admin_add_user') }}" class="btn btn-primary">
+            <h3>Staff Users</h3>
+            <a href="{{ url_for('admin_add_user') }}" class="btn btn-primary">
                 Add New Staff User
             </a>
         </div>
@@ -21,7 +22,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for user in users %}
+                {% for user in staff_users %}
                 <tr>
                     <td>
                         <strong>{{ user.username }}</strong>
@@ -46,6 +47,74 @@
                 {% else %}
                 <tr>
                     <td colspan="3">No staff users found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-header-controls">
+            <h3>Delivery Riders</h3>
+            <a href="{{ url_for('admin_add_rider') }}" class="btn btn-primary">
+                Add New Rider
+            </a>
+        </div>
+        
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Rider Name</th>
+                    <th>Email</th>
+                    <th>Contact #</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rider in riders %}
+                <tr>
+                    <td><strong>{{ rider.name }}</strong></td>
+                    <td>{{ rider.email }}</td>
+                    <td>{{ rider.contact_number }}</td>
+                    <td>
+                        {# Operational Status #}
+                        {% if rider.status == 'Online' %}
+                            <span style="color: #28a745; font-weight: bold;">Online</span>
+                        {% elif rider.status == 'Offline' %}
+                            <span style="color: #6c757d; font-weight: bold;">Offline</span>
+                        {% elif rider.status == 'Delivering' %}
+                            <span style="color: #007bff; font-weight: bold;">Delivering</span>
+                        {% else %}
+                            <span>{{ rider.status }}</span>
+                        {% endif %}
+                        <br>
+                        {# Application Status with Inline Color Logic #}
+                        <span style="font-size: 0.8em; font-weight: bold; color: {{ '#28a745' if rider.application_status == 'Approved' else ('#dc3545' if rider.application_status == 'Denied' else '#ffc107') }};">
+                            ({{ rider.application_status or 'Pending' }})
+                        </span>
+                    </td>
+                    
+                    <td class="action-buttons">
+                        {# Conditional Review Link #}
+                        {% if rider.application_status != 'Approved' %}
+                            <a href="{{ url_for('admin_rider_details', rider_id=rider.rider_id) }}" 
+                               class="btn btn-primary"
+                               style="background-color: #17a2b8; border-color: #17a2b8;">
+                               Review Application
+                            </a>
+                        {% endif %}
+
+                        <a href="{{ url_for('admin_edit_rider', rider_id=rider.rider_id) }}" class="btn btn-secondary">Edit</a>
+                        
+                        <form method="POST" action="{{ url_for('admin_delete_rider', rider_id=rider.rider_id) }}" style="display:inline;" class="delete-form-modal">
+                            <input type="submit" value="Delete" class="btn btn-danger">
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">No riders found.</td>
                 </tr>
                 {% endfor %}
             </tbody>

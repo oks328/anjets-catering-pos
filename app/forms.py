@@ -41,7 +41,7 @@ class AdminLoginForm(FlaskForm):
     """
     username = StringField(
         'Username',
-        validators=[DataRequired(), Length(min=3, max=100)]
+        validators=[DataRequired()]
     )
     password = PasswordField(
         'Password',
@@ -172,7 +172,7 @@ class UserAddForm(FlaskForm):
     )
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=6), password_complexity] # <-- Add it here too
+        validators=[DataRequired(), Length(min=8), password_complexity] # <-- Add it here too
     )
     confirm_password = PasswordField(
         'Confirm Password',
@@ -238,7 +238,7 @@ class CustomerRegisterForm(FlaskForm):
     )
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=6), password_complexity]
+        validators=[DataRequired(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm Password',
@@ -280,7 +280,7 @@ class CustomerEditForm(FlaskForm):
     # Password is optional. If left blank, it won't be changed.
     password = PasswordField(
         'New Password (Optional)',
-        validators=[Optional(), Length(min=6), password_complexity]
+        validators=[Optional(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm New Password',
@@ -346,7 +346,7 @@ class ResetPasswordForm(FlaskForm):
     """
     password = PasswordField(
         'New Password',
-        validators=[DataRequired(), Length(min=6), password_complexity]
+        validators=[DataRequired(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm New Password',
@@ -390,9 +390,25 @@ class RiderRegisterForm(FlaskForm):
         'Email Address',
         validators=[DataRequired(), Email(), rider_email_exists] # Use new validator
     )
+
+    # --- NEW FIELD: Birthdate ---
+    birthdate = DateField('Birthdate', validators=[DataRequired()])
+    
+    # --- NEW DOCUMENT FIELDS (2MB Max Size) ---
+    doc_validators = [
+        DataRequired(message="This document image is required for application."),
+        FileAllowed(['jpg', 'png', 'jpeg'], 'Images only! (jpg, png, jpeg)'),
+        FileSize(max_size=2 * 1024 * 1024) # 2MB max size
+    ]
+    
+    license_file = FileField("1. Valid Driver's License Image", validators=doc_validators)
+    govt_id_file = FileField("2. Government-Issued ID Image (e.g., Passport, UMID)", validators=doc_validators)
+    or_cr_file = FileField("3. Vehicle Official Receipt (OR/CR) Image", validators=doc_validators)
+    nbi_clearance_file = FileField("4. NBI Clearance Image", validators=doc_validators)
+
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=6), password_complexity]
+        validators=[DataRequired(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm Password',
@@ -422,7 +438,7 @@ class RiderResetPasswordForm(FlaskForm):
     """
     password = PasswordField(
         'New Password',
-        validators=[DataRequired(), Length(min=6), password_complexity]
+        validators=[DataRequired(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm New Password',
@@ -454,7 +470,7 @@ class AdminRiderAddForm(FlaskForm):
     )
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=6), password_complexity]
+        validators=[DataRequired(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm Password',
@@ -480,7 +496,7 @@ class AdminRiderEditForm(FlaskForm):
     )
     password = PasswordField(
         'New Password (Optional)',
-        validators=[Optional(), Length(min=6), password_complexity]
+        validators=[Optional(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm New Password',

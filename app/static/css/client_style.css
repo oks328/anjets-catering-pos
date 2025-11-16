@@ -593,6 +593,50 @@ a.btn-checkout {
 
 
 
+.btn-clear-cart:hover {
+    background-color: #f8d7da; /* Light red hover effect */
+    color: #c82333 !important; /* Darker red on hover */
+}
+
+/* app/static/css/client_style.css (Add this block near other button styles) */
+
+/* --- New Style for Clear Cart Button/Link --- */
+.btn-clear-cart {
+    /* Mimics a smaller, bordered button */
+    padding: 0.5rem 1rem; 
+    border: 2px solid #dc3545; /* Red border */
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem; /* Slightly smaller text */
+    text-decoration: none;
+    display: inline-block;
+    font-weight: bold;
+    
+    /* Colors */
+    background-color: white; /* White background */
+    color: #dc3545 !important; /* Red text (using !important to override default link color) */
+    
+    /* Spacing fixes */
+    margin: 0; 
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.btn-clear-cart:hover {
+    background-color: #f8d7da; /* Light red hover effect */
+    color: #c82333 !important; /* Darker red on hover */
+}
+
+/* Style for the destructive button inside the modal */
+.modal-actions .btn-danger {
+    background-color: #dc3545;
+    color: white !important;
+}
+.modal-actions .btn-danger:hover {
+    background-color: #c82333;
+}
+
+
 /* Clear float from voucher form */
 .totals-grid h3:first-of-type {
     margin-top: 1rem;

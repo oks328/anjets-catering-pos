@@ -26,19 +26,17 @@
         {% set product_pages = ['admin_products', 'admin_add_product', 'admin_edit_product', 'admin_product_variants', 'admin_import_products_csv'] %}
         <li><a href="{{ url_for('admin_products') }}" class="{{ 'active' if active_page in product_pages else '' }}">Products</a></li>
         
-        <li><a href="{{ url_for('admin_orders') }}" class="{{ 'active' if active_page == 'admin_orders' else '' }}">Orders</a></li>
+      <li><a href="{{ url_for('admin_orders') }}" class="{{ 'active' if active_page == 'admin_orders' else '' }}">Orders</a></li>
         
         <li><a href="{{ url_for('admin_vouchers') }}" class="{{ 'active' if active_page == 'admin_vouchers' else '' }}">Vouchers</a></li>
 
-        {% set user_pages = ['admin_users', 'admin_add_user', 'admin_edit_user'] %}
-        <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_pages else '' }}">Staff Management</a></li>
+        {% set user_rider_pages = ['admin_users', 'admin_add_user', 'admin_edit_user', 'admin_riders', 'admin_add_rider', 'admin_edit_rider', 'admin_rider_details'] %}
+        <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_rider_pages else '' }}">Staff & Riders</a></li>
         
         {% set customer_pages = ['admin_customers', 'admin_edit_customer_page', 'admin_edit_customer'] %}
         <li><a href="{{ url_for('admin_customers') }}" class="{{ 'active' if active_page in customer_pages else '' }}">Customers</a></li>
         
-{% set rider_pages = ['admin_riders', 'admin_add_rider', 'admin_edit_rider'] %}
-        <li><a href="{{ url_for('admin_riders') }}" class="{{ 'active' if active_page in rider_pages else '' }}">Manage Riders</a></li>
-        {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount'] %}
+        {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount', 'admin_rider_verifications', 'admin_rider_details', 'admin_approve_rider', 'admin_deny_rider'] %}
         <li><a href="{{ url_for('admin_verifications') }}" class="{{ 'active' if active_page in verification_pages else '' }}">Verifications</a></li>
 
         <li><a href="{{ url_for('admin_sales_reports') }}" class="{{ 'active' if active_page == 'admin_sales_reports' else '' }}">Sales Reports</a></li>
