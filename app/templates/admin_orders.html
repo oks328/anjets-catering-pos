@@ -25,6 +25,7 @@
                     <th>Order ID</th>
                     <th>Customer</th>
                     <th>Delivery Info</th>
+                    <th>Special Intructions</th>
                     <th>Date</th>
                     <th>Items</th>
                     <th>Total</th>
@@ -43,6 +44,15 @@
                             <p style="font-size: 0.9em; color: #555;">{{ order.delivery_address }}</p>
                         {% endif %}
                     </td>
+
+                    <td style="font-size: 0.9em; color: #d9534f; font-weight: bold; max-width: 200px;">
+                        {% if order.special_instructions %}
+                            {{ order.special_instructions }}
+                        {% else %}
+                            <span style="color: #6c757d; font-style: italic;">N/A</span>
+                        {% endif %}
+                    </td>
+
                     <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
                     <td class="order-items-list">
                         <ul>
@@ -95,7 +105,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="9">No orders found.</td>
+                    <td colspan="10">No orders found.</td>
                 </tr>
                 {% endfor %}
             </tbody>

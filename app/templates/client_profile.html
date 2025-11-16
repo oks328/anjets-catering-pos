@@ -60,39 +60,21 @@
                 <p style="margin: 0;">Your {{ customer.discount_type or 'Senior/PWD' }} discount will be automatically applied at checkout.</p>
             </div>
 
-        {% elif customer.discount_status == 'Denied' %}
-            <div style="background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 4px;">
-                <strong>Status: Denied</strong>
-                <p style="margin: 0;">Your last submission was not approved. Please upload a new, clear image of your ID.</p>
-            </div>
-            <div class="form-wrapper" style="box-shadow: none; padding: 1rem 0;">
-                <form method="POST" action="{{ url_for('client_upload_id') }}" enctype="multipart/form-data" novalidate>
-                    {{ upload_form.hidden_tag() }}
-                    <div class="form-group">
-                        {{ upload_form.discount_type.label }}
-                        {{ upload_form.discount_type(class="form-control") }}
-                    </div>
-                    <div class="form-group">
-                        {{ upload_form.id_image.label }}
-                        {{ upload_form.id_image(class="form-control") }}
-                    </div>
-                    <div class="form-group">
-                        {{ upload_form.submit(class="btn btn-primary", value="Re-submit for Verification") }}
-                    </div>
-                </form>
-            </div>
-
         {% elif customer.discount_status == 'Pending' %}
              <div style="background: #d1ecf1; color: #0c5460; padding: 1rem; border-radius: 4px;">
                 <strong>Status: Pending Review</strong>
                 <p style="margin: 0;">Your ID has been submitted and is awaiting admin approval.</p>
             </div>
 
-        {% elif is_eligible %}
-            <div style="background: #fff3cd; color: #856404; padding: 1rem; border-radius: 4px;">
-                <strong>Status: Eligible</strong>
-                <p style="margin: 0;">Your birthdate shows you are eligible. Please upload a valid ID to complete verification.</p>
-            </div>
+        {% else %}
+            {% if customer.discount_status == 'Denied' %}
+                <div style="background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 4px;">
+                    <strong>Status: Denied</strong>
+                    <p style="margin: 0;">Your last submission was not approved. Please upload a new, clear image of your ID.</p>
+                </div>
+            {% else %}
+                 <p>If you are a Senior Citizen or PWD, please upload your valid ID for verification.</p>
+            {% endif %}
 
             <div class="form-wrapper" style="box-shadow: none; padding: 1rem 0;">
                 <form method="POST" action="{{ url_for('client_upload_id') }}" enctype="multipart/form-data" novalidate>
@@ -109,13 +91,17 @@
                         {% endfor %}
                     </div>
                     <div class="form-group">
-                        {{ upload_form.submit(class="btn btn-primary") }}
+                        <button type="submit" class="btn btn-primary">
+                            {% if customer.discount_status == 'Denied' %}
+                                Re-submit for Verification
+                            {% else %}
+                                Submit for Verification
+                            {% endif %}
+                        </button>
                     </div>
                 </form>
             </div>
 
-        {% else %}
-            <p>If you are a Senior Citizen (60+) or PWD, please ensure your birthdate is set correctly in your profile. Once eligible, you will be prompted to upload an ID for verification.</p>
         {% endif %}
     </div>
 

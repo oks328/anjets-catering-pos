@@ -239,35 +239,39 @@
 
             // 7. --- Global Form Submit Logic ---
             if (modalCartForm) {
-                modalCartForm.onsubmit = function(e) {
-                    // If window.isBuffetPage is true, the buffet script (on client_buffet_select.html)
-                    // will take over. If it's false, this code will run.
-                    if (window.isBuffetPage) {
-                        return; 
-                    }
-                    
-                    // This is for the Menu or Home page
-                    e.preventDefault(); 
-                    const formData = new FormData(modalCartForm);
 
-                    fetch("{{ url_for('add_to_cart') }}", {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            createToast(data.message, 'success');
-                            closeProductModal(); 
-                        } else {
-                            createToast(data.message, 'danger');
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Error adding to cart:', err);
-                        createToast('An error occurred. Please try again.', 'danger');
-                    });
-                }
+                // --- THIS IS THE FIX ---
+                // Check if we are on the buffet page. The buffet script sets this flag to true.
+                if (window.isBuffetPage === true) {
+                    // Do nothing. The local script from 'client_buffet_select.html' is in control.
+                } else {
+                    // This is a regular page (Menu, Home), so attach the regular handler.
+                    modalCartForm.onsubmit = function(e) {
+                        
+                        // This is for the Menu or Home page
+                        e.preventDefault(); 
+                        const formData = new FormData(modalCartForm);
+
+                        fetch("{{ url_for('add_to_cart') }}", {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                createToast(data.message, 'success');
+                                closeProductModal(); 
+                            } else {
+                                createToast(data.message, 'danger');
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Error adding to cart:', err);
+                            createToast('An error occurred. Please try again.', 'danger');
+                        });
+                    }
+                } // --- END OF FIX ---
+
             } // end if(modalCartForm)
 
         }); // end DOMContentLoaded

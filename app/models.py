@@ -179,6 +179,7 @@ class Order(db.Model):
     delivery_address = db.Column(db.Text, nullable=True)
     delivery_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     rider_id = db.Column(db.Integer, db.ForeignKey('Riders.rider_id'), nullable=True)
+    special_instructions = db.Column(db.Text, nullable=True)
 
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
 

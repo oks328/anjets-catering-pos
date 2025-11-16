@@ -86,7 +86,7 @@
                         {% endif %}
                     </div>
 
-                    <button class="btn btn-secondary btn-add-to-cart" data-product-id="{{ product.product_id }}">
+                    <button class="btn btn-secondary btn-open-product-modal" data-product-id="{{ product.product_id }}">
                         Add
                     </button>
                 </div>
@@ -140,10 +140,7 @@
         // --- Hijack the modal's submit button (for Buffet) ---
         if (modalCartForm) {
             modalCartForm.onsubmit = function(e) {
-                // Only run this if we are on the buffet page
-                if (window.isBuffetPage !== true) {
-                    return;
-                }
+                // This script only runs on this page, so we know it's for the buffet.
                 e.preventDefault(); 
                 const formData = new FormData(modalCartForm);
                 handleFetch(formData);

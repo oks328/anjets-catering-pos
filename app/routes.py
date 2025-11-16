@@ -160,21 +160,13 @@ def client_profile():
     form = CustomerProfileForm(obj=customer) # Pre-fill form
     upload_form = DiscountVerificationForm()
 
-    # --- ADD THIS NEW LOGIC ---
-    is_eligible = False
-    if customer.birthdate:
-        # Calculate age
-        today = date.today()
-        age = today.year - customer.birthdate.year - ((today.month, today.day) < (customer.birthdate.month, customer.birthdate.day))
-        if age >= 60:
-            is_eligible = True
-    # --- END OF NEW LOGIC ---
+    # --- The flawed 'is_eligible' logic block has been removed ---
 
     if form.validate_on_submit():
         # Update the customer's details
         customer.name = form.name.data
         customer.contact_number = form.contact_number.data
-        customer.birthdate = form.birthdate.data # <-- ADD THIS LINE
+        customer.birthdate = form.birthdate.data 
 
         try:
             db.session.commit()
@@ -191,8 +183,7 @@ def client_profile():
         'client_profile.html',
         form=form,
         upload_form=upload_form,
-        customer=customer,         # <-- ADD THIS
-        is_eligible=is_eligible    # <-- ADD THIS
+        customer=customer
     )
 
 @app.route('/my-account/upload-id', methods=['POST'])
@@ -726,6 +717,9 @@ def place_order():
 
     # --- 2. Create the main Order ---
     try:
+        # --- ADD THIS LINE to get the data from the form ---
+        special_instructions = request.form.get('special_instructions')
+
         new_order = Order(
             customer_id=session['customer_id'],
             total_amount=total_price,
@@ -734,7 +728,10 @@ def place_order():
             status="Pending",
             order_type=session.get('order_type', 'Pickup'),
             delivery_address=session.get('delivery_address', 'Store Pickup'),
-            delivery_fee=delivery_fee
+            delivery_fee=delivery_fee,
+            
+            # --- ADD THIS LINE to save the data to the DB ---
+            special_instructions=special_instructions
         )
         db.session.add(new_order)
         db.session.commit()

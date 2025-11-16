@@ -67,20 +67,30 @@
     </div>
 
     <div class="card">
-        <h3>Customer Details</h3>
-        <p>Your order will be placed under this account:</p>
-        <p><strong>Name:</strong> {{ session['customer_name'] }}</p>
-        <div style="margin-top: 1rem;">
-            <p><strong>Order Type:</strong> {{ session.get('order_type') }}</p>
-            {% if session.get('order_type') == 'Delivery' %}
-                <p><strong>Delivering To:</strong> {{ session.get('delivery_address') }}</p>
-            {% endif %}
-        </div>
+        <form id="checkout-form" action="{{ url_for('place_order') }}" method="POST">
+            <h3>Customer Details</h3>
+            <p>Your order will be placed under this account:</p>
+            <p><strong>Name:</strong> {{ session['customer_name'] }}</p>
+            <div style="margin-top: 1rem;">
+                <p><strong>Order Type:</strong> {{ session.get('order_type') }}</p>
+                {% if session.get('order_type') == 'Delivery' %}
+                    <p><strong>Delivering To:</strong> {{ session.get('delivery_address') }}</p>
+                {% endif %}
+            </div>
 
-        <p style="margin-top: 2rem;">By clicking "Confirm Order", you agree to pay the total amount.</p>
-        
-        <form id="checkout-form" action="{{ url_for('place_order') }}" method="POST" style="text-align: right; margin-top: 1rem;">
-            <button type="submit" class="btn-checkout">Confirm Order</button>
+            <div class="form-group" style="margin-top: 2rem;">
+                <label for="special_instructions" style="font-weight: bold; display: block; margin-bottom: 0.5rem; text-align: left;">
+                    Special Instructions (Optional)
+                </label>
+                <textarea name="special_instructions" id="special_instructions" class="form-control" rows="4" 
+                          placeholder="e.g., Please slice the cake, no nuts on the noodles, etc."
+                          style="width: 100%; box-sizing: border-box;"></textarea>
+            </div>
+            <p style="margin-top: 2rem;">By clicking "Confirm Order", you agree to pay the total amount.</p>
+            
+            <div style="text-align: right; margin-top: 1rem;">
+                <button type="submit" class="btn-checkout">Confirm Order</button>
+            </div>
         </form>
     </div>
 
