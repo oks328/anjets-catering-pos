@@ -3,36 +3,62 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-    <h2>Main Dashboard</h2>
-    <p>Welcome back, {{ current_user.username }}!</p>
+    <h2>Dashboard</h2>
+    <p style="margin-top: -1.5rem; margin-bottom: 2rem; color: #6B7280;">
+        Welcome back, {{ current_user.username }}! Here's what's happening today.
+    </p>
 
     <div class="stat-card-row">
         <div class="stat-card">
-            <h4>New Orders Today</h4>
-            <div class="stat-value">{{ orders_today_count }}</div>
+            <div>
+                <h4>New Orders Today</h4>
+                <div class="stat-value">{{ orders_today_count }}</div>
+            </div>
+            <div class="stat-card-icon">
+                <i class="fa-solid fa-cart-shopping"></i>
+            </div>
         </div>
         
         <div class="stat-card">
-            <h4>Total Sales (This Month)</h4>
-            <div class="stat-value stat-value-small">₱{{ "%.2f"|format(total_sales_month) }}</div>
+            <div>
+                <h4>Total Sales (This Month)</h4>
+                <div class="stat-value stat-value-small">₱{{ "%.2f"|format(total_sales_month) }}</div>
+            </div>
+            <div class="stat-card-icon" style="color: #28a745; background: #E0F2E9;">
+                <i class="fa-solid fa-dollar-sign"></i>
+            </div>
         </div>
 
         <div class="stat-card">
-            <h4>Online Riders</h4>
-            <div class="stat-value">{{ online_riders_count }}</div>
+            <div>
+                <h4>Online Riders</h4>
+                <div class="stat-value">{{ online_riders_count }}</div>
+            </div>
+            <div class="stat-card-icon" style="color: #007bff; background: #E0F0FF;">
+                <i class="fa-solid fa-motorcycle"></i>
+            </div>
         </div>
 
         <div class="stat-card">
-            <h4>Pending Verifications</h4>
-            <div class="stat-value">{{ pending_verifications_count }}</div>
+            <div>
+                <h4>Pending Verifications</h4>
+                <div class="stat-value">{{ pending_verifications_count }}</div>
+            </div>
+            <div class="stat-card-icon" style="color: #ffc107; background: #FFF8E1;">
+                <i class="fa-solid fa-user-check"></i>
+            </div>
         </div>
         
         <div class="stat-card">
-            <h4>New Customers (This Month)</h4>
-            <div class="stat-value">{{ new_customers_month_count }}</div>
+            <div>
+                <h4>New Customers (This Month)</h4>
+                <div class="stat-value">{{ new_customers_month_count }}</div>
+            </div>
+            <div class="stat-card-icon" style="color: #6f42c1; background: #F3EFFF;">
+                <i class="fa-solid fa-user-plus"></i>
+            </div>
         </div>
     </div>
-
     <div class="card">
         <h3>Pending Orders</h3>
         <table class="admin-table">
@@ -53,7 +79,8 @@
                     <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
                     <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
                     <td class="action-buttons">
-            <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-secondary btn-sm">Manage</a>                    </td>
+                        <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-primary btn-sm">Manage</a>
+                    </td>
                 </tr>
                 {% else %}
                 <tr>

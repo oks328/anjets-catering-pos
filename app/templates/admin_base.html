@@ -4,65 +4,129 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Anjet's Admin{% endblock %}</title>
+    
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/admin_style.css') }}"
     />
+    
+    <link 
+      rel="stylesheet" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
   </head>
   <body>
-    <header>
-      <h1>Anjet's Catering - Mission Control</h1>
-    </header>
-
-    {% if current_user.is_authenticated %}
     
-    {% set active_page = request.endpoint %}
-    <nav class="admin-nav">
-      <ul>
-        <li><a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if active_page == 'admin_dashboard' else '' }}">Dashboard</a></li>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>Anjet's Catering</h3>
+        </div>
         
-        <li><a href="{{ url_for('admin_categories') }}" class="{{ 'active' if active_page == 'admin_categories' else '' }}">Categories</a></li>
+        {% if current_user.is_authenticated %}
+        {% set active_page = request.endpoint %}
         
-        {% set product_pages = ['admin_products', 'admin_add_product', 'admin_edit_product', 'admin_product_variants', 'admin_import_products_csv'] %}
-        <li><a href="{{ url_for('admin_products') }}" class="{{ 'active' if active_page in product_pages else '' }}">Products</a></li>
-        
-      <li><a href="{{ url_for('admin_orders') }}" class="{{ 'active' if active_page == 'admin_orders' else '' }}">Orders</a></li>
-        
-        <li><a href="{{ url_for('admin_vouchers') }}" class="{{ 'active' if active_page == 'admin_vouchers' else '' }}">Vouchers</a></li>
+        <nav class="sidebar-nav">
+          <ul>
+            <li>
+                <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if active_page == 'admin_dashboard' else '' }}">
+                    <i class="fa-solid fa-table-columns"></i>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            
+            <li>
+                <a href="{{ url_for('admin_categories') }}" class="{{ 'active' if active_page == 'admin_categories' else '' }}">
+                    <i class="fa-solid fa-tags"></i>
+                    <span>Categories</span>
+                </a>
+            </li>
+            
+            {% set product_pages = ['admin_products', 'admin_add_product', 'admin_edit_product', 'admin_product_variants', 'admin_import_products_csv'] %}
+            <li>
+                <a href="{{ url_for('admin_products') }}" class="{{ 'active' if active_page in product_pages else '' }}">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>Products</span>
+                </a>
+            </li>
+            
+            <li>
+                <a href="{{ url_for('admin_orders') }}" class="{{ 'active' if active_page == 'admin_orders' else '' }}">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <span>Orders</span>
+                </a>
+            </li>
+            
+            <li>
+                <a href="{{ url_for('admin_vouchers') }}" class="{{ 'active' if active_page == 'admin_vouchers' else '' }}">
+                    <i class="fa-solid fa-ticket-simple"></i>
+                    <span>Vouchers</span>
+                </a>
+            </li>
+            
+            {% set user_rider_pages = ['admin_users', 'admin_add_user', 'admin_edit_user', 'admin_riders', 'admin_add_rider', 'admin_edit_rider', 'admin_rider_details'] %}
+            <li>
+                <a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_rider_pages else '' }}">
+                    <i class="fa-solid fa-users"></i>
+                    <span>Staff Users</span>
+                </a>
+            </li>
 
-        {% set user_rider_pages = ['admin_users', 'admin_add_user', 'admin_edit_user', 'admin_riders', 'admin_add_rider', 'admin_edit_rider', 'admin_rider_details'] %}
-        <li><a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_rider_pages else '' }}">Staff & Riders</a></li>
+            {% set customer_pages = ['admin_customers', 'admin_edit_customer_page', 'admin_edit_customer'] %}
+            <li>
+                <a href="{{ url_for('admin_customers') }}" class="{{ 'active' if active_page in customer_pages else '' }}">
+                    <i class="fa-solid fa-user-group"></i>
+                    <span>Customers</span>
+                </a>
+            </li>
+            
+            {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount', 'admin_rider_verifications', 'admin_rider_details', 'admin_approve_rider', 'admin_deny_rider'] %}
+            <li>
+                <a href="{{ url_for('admin_verifications') }}" class="{{ 'active' if active_page in verification_pages else '' }}">
+                    <i class="fa-solid fa-user-check"></i>
+                    <span>Verifications</span>
+                </a>
+            </li>
+
+            <li>
+                <a href="{{ url_for('admin_sales_reports') }}" class="{{ 'active' if active_page == 'admin_sales_reports' else '' }}">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Sales Reports</span>
+                </a>
+            </li>
+          </ul>
+        </nav>
+        {% endif %}
+
+        <div class="sidebar-user">
+            <div class="sidebar-user-avatar">
+                {{ current_user.username[0]|upper if current_user.is_authenticated else 'A' }}
+            </div>
+            <div class="sidebar-user-info">
+                {% if current_user.is_authenticated %}
+                    <strong>{{ current_user.username }}</strong>
+                    <a href="{{ url_for('admin_logout') }}">Logout</a>
+                {% else %}
+                    <strong>Not Logged In</strong>
+                    <a href="{{ url_for('admin_login') }}">Log In</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="main-content">
+        <main>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div id="flashedMessages" style="display: none;">
+                        {% for category, message in messages %}
+                            <span data-category="{{ category }}">{{ message | safe }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
         
-        {% set customer_pages = ['admin_customers', 'admin_edit_customer_page', 'admin_edit_customer'] %}
-        <li><a href="{{ url_for('admin_customers') }}" class="{{ 'active' if active_page in customer_pages else '' }}">Customers</a></li>
-        
-        {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount', 'admin_rider_verifications', 'admin_rider_details', 'admin_approve_rider', 'admin_deny_rider'] %}
-        <li><a href="{{ url_for('admin_verifications') }}" class="{{ 'active' if active_page in verification_pages else '' }}">Verifications</a></li>
-
-        <li><a href="{{ url_for('admin_sales_reports') }}" class="{{ 'active' if active_page == 'admin_sales_reports' else '' }}">Sales Reports</a></li>
-        
-        <li><a href="{{ url_for('admin_logout') }}" style="color: #ffc107;">Logout ({{ current_user.username }})</a></li>
-      </ul>
-    </nav>
-    {% endif %}
-
-    <main>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div id="flashedMessages" style="display: none;">
-                    {% for category, message in messages %}
-                        <span data-category="{{ category }}">{{ message | safe }}</span>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-    
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer>&copy; 2025 Anjet's Catering</footer>
-
-
+            {% block content %}{% endblock %}
+        </main>
+    </div>
     <div id="deleteModal" class="modal">
       <div class="modal-content">
         <span class="modal-close-btn">&times;</span>
@@ -101,7 +165,7 @@
 </div>
 
     <div id="toastContainer"></div>
-
+    
     <script>
         document.addEventListener("DOMContentLoaded", () => {
           // Get modal elements
@@ -114,12 +178,12 @@
 
           // Function to close the modal
           const closeModal = () => {
-            modal.style.display = "none";
+            if (modal) modal.style.display = "none";
           };
 
           // Close modal when clicking "Cancel" or "X"
-          cancelBtn.onclick = closeModal;
-          closeBtn.onclick = closeModal;
+          if (cancelBtn) cancelBtn.onclick = closeModal;
+          if (closeBtn) closeBtn.onclick = closeModal;
 
           // Close modal when clicking outside of it
           window.onclick = (event) => {
@@ -146,10 +210,12 @@
           });
 
           // When the user clicks the *real* delete button in the modal...
-          confirmDeleteBtn.addEventListener("click", () => {
-            // ...submit the hidden form
-            modalDeleteForm.submit();
-          });
+          if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener("click", () => {
+              // ...submit the hidden form
+              modalDeleteForm.submit();
+            });
+          }
 
           // --- Toast Notification Script ---
       const toastContainer = document.getElementById('toastContainer');

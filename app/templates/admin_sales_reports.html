@@ -8,6 +8,7 @@
     <div class="card">
         <h3>Filter by Date</h3>
         <form method="GET" action="{{ url_for('admin_sales_reports') }}" class="search-form">
+            
             <div class="form-group" style="flex-grow: 1;">
                 <label for="start_date">Start Date</label>
                 <input type="date" name="start_date" id="start_date" class="form-control" value="{{ start_date or '' }}">
@@ -16,70 +17,71 @@
                 <label for="end_date">End Date</label>
                 <input type="date" name="end_date" id="end_date" class="form-control" value="{{ end_date or '' }}">
             </div>
-            <div class="form-group" style="align-self: flex-end;">
+            
+            <div class="form-group filter-button-group" style="align-self: flex-end;">
                 <button type="submit" class="btn btn-primary">Filter</button>
                 <a href="{{ url_for('admin_sales_reports') }}" class="btn btn-secondary">Clear</a>
             </div>
         </form>
+
+        <hr style="margin-top: 1.5rem; margin-bottom: 2rem; border: none; border-top: 1px solid var(--border-gray);">
+        
+        <div style="text-align: right;">
+            <a href="{{ url_for('admin_export_sales_csv', start_date=start_date, end_date=end_date) }}" class="btn btn-teal">
+                Export Filtered Sales to CSV
+            </a>
+        </div>
     </div>
-    <div style="margin-bottom: 1.5rem; text-align: right;">
-        <a href="{{ url_for('admin_export_sales_csv', start_date=start_date, end_date=end_date) }}" class="btn btn-primary" style="background-color: #17a2b8;">
-            Export Filtered Sales to CSV
-        </a>
+
+    <div class="card">
+        <h3>Top Selling Items ({{ date_range_str }})</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Item Name</th>
+                    <th>Variant</th>
+                    <th>Total Units Sold</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in top_selling_items %}
+                <tr>
+                    <td><strong>#{{ loop.index }}</strong></td>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.size_name }}</td>
+                    <td>{{ item.total_sold }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">No sales data found for this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    <div class="account-container">
-        <section class="card">
-            <h3>Top Selling Items ({{ date_range_str }})</h3>
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Item Name</th>
-                        <th>Variant</th>
-                        <th>Total Units Sold</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in top_selling_items %}
-                    <tr>
-                        <td><strong>#{{ loop.index }}</strong></td>
-                        <td>{{ item.name }}</td>
-                        <td>{{ item.size_name }}</td>
-                        <td>{{ item.total_sold }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="4">No sales data found for this period.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-
-        <section class="card">
-            <h3>Total Sales Per Day ({{ date_range_str }})</h3>
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Total Sales</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for day in sales_by_day %}
-                    <tr>
-                        <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
-                        <td>₱{{ "%.2f"|format(day.total_sales) }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="2">No sales data found for this period.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-
+    <div class="card">
+        <h3>Total Sales Per Day ({{ date_range_str }})</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Total Sales</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in sales_by_day %}
+                <tr>
+                    <td>{{ day.date.strftime('%Y-%m-%d') }}</td>
+                    <td><strong>₱{{ "%.2f"|format(day.total_sales) }}</strong></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="2">No sales data found for this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 {% endblock %}

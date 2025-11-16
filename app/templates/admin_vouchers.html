@@ -8,23 +8,22 @@
     <div class="card" id="add-voucher-card">
         <h3>Add New Voucher</h3>
         <form method="POST" action="{{ url_for('admin_add_voucher') }}" novalidate>
-            {{ add_form.hidden_tag() }} <div class="form-group">
-                {{ add_form.code.label }}
-                {{ add_form.code(class="form-control") }}
-                <p style="font-size: 0.9em; color: #555;">{{ add_form.code.description }}</p>
+            {{ add_form.hidden_tag() }} 
+            
+            <div class="form-group">
+                {{ add_form.code.label(text="Voucher Code") }}
+                {{ add_form.code(class="form-control", placeholder=add_form.code.description) }}
             </div>
 
             <div class="form-group">
-                {{ add_form.discount_percentage.label }}
-                {{ add_form.discount_percentage(class="form-control") }}
-                <p style="font-size: 0.9em; color: #555;">{{ add_form.discount_percentage.description }}</p>
+                {{ add_form.discount_percentage.label(text="Discount Percentage") }}
+                {{ add_form.discount_percentage(class="form-control", placeholder=add_form.discount_percentage.description) }}
             </div>
 
             <div class="form-group">
-            {{ add_form.max_uses.label }}
-            {{ add_form.max_uses(class="form-control") }}
-            <p style="font-size: 0.9em; color: #555;">{{ add_form.max_uses.description }}</p>
-        </div>
+                {{ add_form.max_uses.label(text="Max Uses (Optional)") }}
+                {{ add_form.max_uses(class="form-control", placeholder=add_form.max_uses.description) }}
+            </div>
 
             <div class="form-group form-group-checkbox">
                 {{ add_form.is_active(id="add_is_active") }}
@@ -32,7 +31,7 @@
             </div>
 
             <div class="form-group">
-                {{ add_form.submit(class="btn btn-primary") }}
+                {{ add_form.submit(class="btn btn-info", value="Save Voucher") }}
             </div>
         </form>
     </div>
@@ -64,12 +63,12 @@
                             {{ edit_form.max_uses(class="form-control", value=voucher.max_uses or '') }}
                         </td>
                         <td>
-                        {% if voucher.is_active %}
-                            <span style="color: #155724; font-weight: bold;">Active</span>
-                        {% else %}
-                            <span style="color: #6c757d; font-weight: bold;">Inactive</span>
-                        {% endif %}
-                    </td>
+                            {% if voucher.is_active %}
+                                <span style="color: #28a745; font-weight: bold;">Active</span>
+                            {% else %}
+                                <span style="color: var(--text-gray); font-weight: bold;">Inactive</span>
+                            {% endif %}
+                        </td>
                        <td class="action-buttons">
                             {{ edit_form.submit(class="btn btn-secondary", value="Update") }}
                     </form> 
@@ -78,7 +77,7 @@
                         {% if voucher.is_active %}
                             <input type="submit" value="Deactivate" class="btn btn-danger">
                         {% else %}
-                            <input type="submit" value="Activate" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
+                            <input type="submit" value="Activate" class="btn btn-success">
                         {% endif %}
                     </form>
 
@@ -89,7 +88,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4">No vouchers found. Add one above!</td>
+                    <td colspan="5">No vouchers found. Add one above!</td>
                 </tr>
                 {% endfor %}
             </tbody>

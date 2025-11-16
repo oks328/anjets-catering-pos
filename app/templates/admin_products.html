@@ -1,11 +1,13 @@
-{% extends "admin_base.html" %} {% block title %}Manage Products{% endblock %}
+{% extends "admin_base.html" %}
+{% block title %}Manage Products{% endblock %}
 {% block content %}
 <h2>Manage Menu Products</h2>
 
 <div class="card">
+    
     <div class="card-header-controls">
+        
         <form method="GET" action="{{ url_for('admin_products') }}" class="search-form">
-            
             <select name="category" class="form-control" onchange="this.form.submit()">
                 <option value="">All Categories</option>
                 {% for category in all_categories %}
@@ -19,76 +21,80 @@
             <button type="submit" class="btn btn-primary">Search</button>
         </form>
 
-        <button type="button" id="openCsvImportModal" class="btn btn-secondary" style="background-color: #28a745; border-color: #28a745; color: white;">
-        Import from CSV
-    </button>
-        
-        <a href="{{ url_for('admin_export_products_xml') }}" class="btn btn-secondary" style="background-color: #5bc0de; border-color: #5bc0de; color: white;">
-            Export to XML
-        </a>
+        <div class="action-buttons">
+            <button type="button" id="openCsvImportModal" class="btn btn-success">
+                Import from CSV
+            </button>
+            
+            <a href="{{ url_for('admin_export_products_xml') }}" class="btn btn-info">
+                Export to XML
+            </a>
 
-        <a href="{{ url_for('admin_add_product') }}" class="btn btn-primary">
-            Add New Product
-        </a>
+            <a href="{{ url_for('admin_add_product') }}" class="btn btn-primary">
+                Add New Product
+            </a>
+        </div>
     </div>
 
-<table class="admin-table">
-    <thead>
-      <tr>
-        <th>Image</th>
-        <th>Name</th>
-        <th>Category</th>
-        <th>Prices</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for product in products %}
-      <tr>
-        <td>
-                    <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
-                         alt="{{ product.name }}" 
-                         style="width: 75px; height: 75px; object-fit: cover; border-radius: 4px;">
-                </td>
-        <td><strong>{{ product.name }}</strong></td>
-        <td>{{ product.category.name }}</td>
+    <hr style="margin-top: 1.5rem; margin-bottom: 2rem; border: none; border-top: 1px solid var(--border-gray);">
 
-        <td>
-          {% if product.has_variants %}
-          <a
-            href="{{ url_for('admin_product_variants', product_id=product.product_id) }}"
-            class="btn btn-secondary"
-            >Manage Variants</a
-          >
-          {% else %} {% if product.variants %} ₱{{
-          "%.2f"|format(product.variants[0].price) }} {% else %}
-          <span style="color: red">No price set</span>
-          {% endif %} {% endif %}
-        </td>
+    <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Image</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Prices</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for product in products %}
+          <tr>
+            <td>
+                <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
+                     alt="{{ product.name }}" 
+                     class="admin-table-img">
+            </td>
+            <td><strong>{{ product.name }}</strong></td>
+            <td>{{ product.category.name }}</td>
 
-        <td class="action-buttons">
-          <a
-            href="{{ url_for('admin_edit_product', product_id=product.product_id) }}"
-            class="btn btn-secondary"
-            >Edit</a
-          >
+            <td>
+              {% if product.has_variants %}
+              <a
+                href="{{ url_for('admin_product_variants', product_id=product.product_id) }}"
+                class="btn btn-secondary" 
+                >Manage Variants</a
+              >
+              {% else %} {% if product.variants %} ₱{{
+              "%.2f"|format(product.variants[0].price) }} {% else %}
+              <span style="color: red">No price set</span>
+              {% endif %} {% endif %}
+            </td>
 
-          <form
-            method="POST"
-            action="{{ url_for('admin_delete_product', product_id=product.product_id) }}"
-            style="display: inline"
-            class="delete-form-modal"
-          >
-            <input type="submit" value="Delete" class="btn btn-danger" />
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="5">No products found. Add one!</td>
-      </tr>
-      {% endfor %}
-    </tbody>
+            <td class="action-buttons">
+              <a
+                href="{{ url_for('admin_edit_product', product_id=product.product_id) }}"
+                class="btn btn-secondary"
+                >Edit</a
+              >
+
+              <form
+                method="POST"
+                action="{{ url_for('admin_delete_product', product_id=product.product_id) }}"
+                style="display: inline"
+                class="delete-form-modal"
+              >
+                <input type="submit" value="Delete" class="btn btn-danger" />
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5">No products found. Add one!</td>
+          </tr>
+          {% endfor %}
+        </tbody>
   </table>
 </div>
 {% endblock %}

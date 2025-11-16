@@ -1,42 +1,151 @@
-/* Basic body styling */
+/* --- Root Variables (NEW) --- */
+:root {
+  --primary-color: #FF6B4A; /* New Orange/Coral */
+  --primary-light: #FFF0EC;  /* New Light Orange */
+  --text-dark: #111829;     /* New Dark Text */
+  --text-gray: #6B7280;     /* New Gray Text */
+  --bg-light-gray: #F9FAFB; /* New Main BG */
+  --bg-white: #FFFFFF;
+  --border-gray: #E5E7EB;
+}
+
+/* --- Basic body styling --- */
 body {
   font-family: Arial, sans-serif;
-  background-color: #f4f4f4;
+  background-color: var(--bg-light-gray);
+  color: var(--text-dark);
+  margin: 0;
+  padding: 0;
+  display: flex; /* This is key for the sidebar layout */
+}
+
+/* --- NEW Sidebar Layout --- */
+.sidebar {
+  width: 260px;
+  background-color: var(--bg-white);
+  border-right: 1px solid var(--border-gray);
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column; /* Stacks header, nav, user */
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-gray);
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  color: var(--primary-color);
+  font-size: 1.5rem;
+}
+
+.sidebar-nav {
+  flex-grow: 1; /* Pushes the user profile to the bottom */
+  padding: 1rem 0;
+}
+
+.sidebar-nav ul {
+  list-style: none;
   margin: 0;
   padding: 0;
 }
 
-header {
-  background-color: #ff1111;
-  color: white;
-  padding: 1rem;
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.5rem;
+  text-decoration: none;
+  color: var(--text-gray);
+  font-weight: 500;
+  font-size: 1rem;
+  border-left: 4px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.sidebar-nav a i {
+  width: 20px; /* Aligns icons */
   text-align: center;
 }
 
-main {
-  max-width: 1200px;
-  margin: 2rem auto;
-  padding: 1rem;
+.sidebar-nav a:hover {
+  color: var(--primary-color);
 }
 
-footer {
-  text-align: center;
-  padding: 1rem;
-  background-color: #333;
-  color: white;
-  position: fixed;
-  bottom: 0;
-  width: 100%;
+.sidebar-nav a.active {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  border-left-color: var(--primary-color);
 }
 
-/* Login page specific styles */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-gray);
+}
+
+.sidebar-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  color: var(--bg-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.sidebar-user-info {
+  line-height: 1.4;
+}
+
+.sidebar-user-info strong {
+  display: block;
+  color: var(--text-dark);
+}
+
+.sidebar-user-info a {
+  color: var(--text-gray);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.sidebar-user-info a:hover {
+  color: var(--primary-color);
+}
+
+/* --- NEW Main Content Area --- */
+.main-content {
+  flex-grow: 1; /* Takes up the rest of the space */
+  margin-left: 260px; /* The width of the sidebar */
+  padding: 2rem;
+}
+
+main h2 {
+    font-size: 1.8rem;
+    color: var(--text-dark);
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+/* --- Login page specific styles --- */
+/* (This container is now centered in the .main-content) */
 .login-container {
   max-width: 400px;
   margin: 2rem auto;
   padding: 2rem;
-  background-color: white;
+  background-color: var(--bg-white);
   border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-gray);
 }
 
 .login-container h2 {
@@ -44,6 +153,7 @@ footer {
   margin-bottom: 1.5rem;
 }
 
+/* --- Form & Button Styles (UPDATED) --- */
 .form-group {
   margin-bottom: 1rem;
 }
@@ -51,155 +161,50 @@ footer {
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-dark);
 }
 
 .form-group .form-control {
   width: 100%;
   padding: 0.75rem;
-  box-sizing: border-box; /* Important for 100% width */
-  border: 1px solid #ccc;
+  box-sizing: border-box; 
+  border: 1px solid var(--border-gray);
   border-radius: 4px;
 }
 
 .form-group .btn {
   width: 100%;
-  padding: 0.75rem;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-}
-
-.form-group .btn:hover {
-  background-color: #0056b3;
-}
-
-/* For error messages */
-.error-message {
-  color: #dc3545;
-  font-size: 0.875em;
-}
-
-/* For flash messages */
-.alert {
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 4px;
-}
-.alert-danger {
-  background-color: #f8d7da;
-  color: #721c24;
-}
-.alert-info {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-
-.admin-nav {
-  width: 100%;
-  background-color: #444;
-  border-bottom: 2px solid #007bff;
-}
-
-.admin-nav ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  justify-content: center;
-}
-
-.admin-nav li {
-  position: relative;
-}
-
-.admin-nav a {
-  display: block;
-  padding: 1rem 1.5rem;
-  text-decoration: none;
-  color: white;
-  font-weight: bold;
-}
-
-.admin-nav a:hover,
-.admin-nav a.active {
-  background-color: #555;
-}
-
-/* Page Cards for Forms/Tables */
-.card {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  padding: 2rem;
-  margin-bottom: 2rem;
-  overflow-x: auto;
-}
-
-.card h3 {
-  margin-top: 0;
-  border-bottom: 2px solid #f4f4f4;
-  padding-bottom: 0.5rem;
-}
-
-/* Admin Table */
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-
-.admin-table th,
-.admin-table td {
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  text-align: left;
-  vertical-align: top;
-}
-
-.admin-table th {
-  background-color: #f9f9f9;
-}
-
-.admin-table .form-control {
-  width: 100%;
-  padding: 0.5rem;
-  box-sizing: border-box;
-}
-
-/* Action Buttons */
-.action-buttons {
-  min-width: 180px;
-  white-space: nowrap;
 }
 
 .btn {
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1.25rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  font-weight: 500;
   text-decoration: none;
   display: inline-block;
   margin: 2px;
+  transition: background-color 0.2s ease;
 }
 
+/* NEW Button Colors */
 .btn-primary {
-  background-color: #007bff;
+  background-color: var(--primary-color);
   color: white;
 }
 .btn-primary:hover {
-  background-color: #0056b3;
+  background-color: #E05230; /* Darker orange */
 }
 
 .btn-secondary {
-  background-color: #6c757d;
-  color: white;
+  background-color: #6B7280;  /* Dark Gray (like your image) */
+  color: white;               /* White text */
 }
 .btn-secondary:hover {
-  background-color: #5a6268;
+  background-color: #808792;  /* A slightly lighter gray for hover */
 }
 
 .btn-danger {
@@ -210,113 +215,141 @@ footer {
   background-color: #c82333;
 }
 
-.btn-secondary {
-  background-color: #6c757d;
-  color: white;
-}
-.btn-secondary:hover {
-  background-color: #5a6268;
-}
-
-.card .form-group .btn {
-  width: 100%;
-  display: block;
-  box-sizing: border-box; /* Ensures padding doesn't break layout */
-  text-align: center;
-  margin-bottom: 0.5rem; /* Adds a little space between them */
-}
-
-/* Remove the space after the very last button */
-.card .form-group .btn:last-child {
-  margin-bottom: 0;
-}
-
-/* --- Modal Styles --- */
-.modal {
-  display: none; /* Hidden by default */
-  position: fixed; /* Stay in place */
-  z-index: 1000; /* Sit on top */
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  overflow: auto; /* Enable scroll if needed */
-  background-color: rgba(0, 0, 0, 0.5); /* Black w/ opacity */
-}
-
-.modal-content {
-  background-color: #fefefe;
-  margin: 15% auto; /* 15% from the top and centered */
-  padding: 2rem;
-  border: 1px solid #888;
-  width: 90%;
-  max-width: 500px;
-  border-radius: 8px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  position: relative;
-  animation: animatetop 0.4s;
-}
-
-/* Add Animation */
-@keyframes animatetop {
-  from {
-    top: -300px;
-    opacity: 0;
-  }
-  to {
-    top: 0;
-    opacity: 1;
-  }
-}
-
-.modal-close-btn {
-  color: #aaa;
-  position: absolute;
-  top: 10px;
-  right: 20px;
-  font-size: 28px;
-  font-weight: bold;
-}
-
-.modal-close-btn:hover,
-.modal-close-btn:focus {
-  color: black;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.modal-content h4 {
-  margin-top: 0;
-  font-size: 1.5rem;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 0.5rem;
-}
-
-.modal-actions {
-  margin-top: 1.5rem;
-  text-align: right;
-}
-
-.modal-actions .btn {
-  margin-left: 0.5rem;
-}
-
 .btn-success {
   background-color: #28a745;
-  border-color: #28a745;
   color: white;
 }
 .btn-success:hover {
   background-color: #218838;
-  border-color: #1e7e34;
 }
 
-.alert-success {
-  background-color: #d4edda;
-  color: #155724;
+.btn-info {
+  background-color: #007bff;
+  color: white;
+}
+.btn-info:hover {
+  background-color: #0056b3;
 }
 
-/* --- Toast Notification Styles --- */
+.btn-teal {
+  background-color: #17a2b8; /* This is a common teal color */
+  color: white;
+}
+.btn-teal:hover {
+  background-color: #117a8b; /* A darker teal */
+}
+
+
+/* --- Card (UPDATED) --- */
+.card {
+  background-color: var(--bg-white);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-gray);
+  padding: 2rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.card h3 {
+  margin-top: 0;
+  border-bottom: 1px solid var(--border-gray);
+  padding-bottom: 0.75rem;
+  font-size: 1.25rem;
+}
+
+/* --- Admin Table (UPDATED) --- */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 1rem 1rem; /* Increased padding for more space */
+  border-bottom: 1px solid var(--border-gray);
+  text-align: left;
+  vertical-align: middle; /* <-- This is the fix */
+}
+
+.admin-table th {
+  background-color: var(--bg-light-gray);
+  color: var(--text-gray);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.admin-table .form-control {
+  width: 100%;
+  padding: 0.5rem;
+  box-sizing: border-box;
+}
+
+.action-buttons {
+  min-width: 180px;
+  white-space: nowrap;
+}
+
+.admin-table-img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+  background-color: var(--bg-light-gray);
+  border: 1px solid var(--border-gray);
+}
+
+/* --- Dashboard Stat Cards (NEW) --- */
+.stat-card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background-color: var(--bg-white);
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-gray);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-card h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.stat-card .stat-value {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.stat-card .stat-value-small {
+  font-size: 1.75rem; /* Smaller for currency */
+}
+
+.stat-card-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+/* --- Toast Notification Styles (UPDATED) --- */
 #toastContainer {
   position: fixed;
   bottom: 20px;
@@ -331,37 +364,21 @@ footer {
 .toast {
   padding: 1rem 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   font-size: 1rem;
   font-weight: 500;
-  color: white;
   opacity: 0;
-  transform: translateX(100%);
   animation: slideIn 0.5s forwards, fadeOut 0.5s 4.5s forwards;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-/* Toast Colors (based on our flash categories) */
-.toast-success {
-  background-color: #d4edda;
-  color: #155724;
-}
-.toast-danger {
-  background-color: #f8d7da;
-  color: #721c24;
-}
-.toast-info {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.toast-warning {
-  background-color: #fff3cd;
-  color: #856404;
-}
+.toast-success { background-color: #d4edda; color: #155724; }
+.toast-danger  { background-color: #f8d7da; color: #721c24; }
+.toast-info    { background-color: #d1ecf1; color: #0c5460; }
+.toast-warning { background-color: #fff3cd; color: #856404; }
 
-/* We need to update the close button color to work with the light backgrounds */
 .toast-close-btn {
   margin-left: 1rem;
   color: #888;
@@ -372,29 +389,75 @@ footer {
   border: none;
   padding: 0;
 }
-.toast-close-btn:hover {
-  color: #333;
-}
 
 /* Animations */
 @keyframes slideIn {
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes fadeOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.9);
-  }
+  from { opacity: 1; }
+  to { opacity: 0; transform: scale(0.9); }
 }
 
-/* --- Search Bar Styles --- */
+/* --- Modal Styles (Unchanged, but kept) --- */
+.modal {
+  display: none; 
+  position: fixed; 
+  z-index: 1000; 
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto; 
+  background-color: rgba(0, 0, 0, 0.5); 
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto; 
+  padding: 2rem;
+  border: 1px solid #888;
+  width: 90%;
+  max-width: 500px;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  position: relative;
+  animation: animatetop 0.4s;
+}
+@keyframes animatetop {
+  from { top: -300px; opacity: 0; }
+  to { top: 0; opacity: 1; }
+}
+.modal-close-btn {
+  color: #aaa;
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+}
+.modal-close-btn:hover,
+.modal-close-btn:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
+.modal-content h4 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.5rem;
+}
+.modal-actions {
+  margin-top: 1.5rem;
+  text-align: right;
+}
+.modal-actions .btn {
+  margin-left: 0.5rem;
+}
+
+/* --- Search Bar & Header Controls (NEW) --- */
 .search-form {
   margin-bottom: 1rem;
   display: flex;
@@ -409,40 +472,46 @@ footer {
   flex-shrink: 0; /* Prevents the button from shrinking */
 }
 
-/* --- Card Header Controls (Search/Add Button) --- */
 .card-header-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
     gap: 1rem;
-    flex-wrap: wrap;
+    flex-wrap: wrap; /* Allows controls to stack on small screens */
 }
 
 .card-header-controls .search-form {
     flex-grow: 1;
     margin-bottom: 0;
-    background-color: transparent !important;
-    padding: 0 !important;
 }
 
-.card-header-controls .btn-primary {
+.card-header-controls .action-buttons {
     flex-shrink: 0;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap; /* Allows buttons to stack */
 }
 
-/* --- Search Form Filter Styles --- */
 .search-form select.form-control {
-    flex-grow: 0; /* Don't grow like the search bar */
+    flex-grow: 0;
     flex-shrink: 0;
-    width: 200px; /* Give it a defined width */
+    width: auto; /* Let it size to content */
+    min-width: 150px;
 }
 
-/* --- Order Management Styles --- */
+/* --- Other Styles (Restyled for new theme) --- */
 .filter-tabs {
     margin-bottom: 1.5rem;
     display: flex;
     gap: 10px;
 }
+
+/*
+  .filter-tabs .btn-secondary { ... }
+  .filter-tabs .btn-primary { ... }
+  (This block was intentionally removed to use default button styles)
+*/
 
 .status-form {
     display: flex;
@@ -459,7 +528,6 @@ footer {
     font-size: 0.875rem;
 }
 
-/* Re-using client-side style for order items */
 .order-items-list ul {
     list-style: none;
     padding-left: 0;
@@ -470,37 +538,95 @@ footer {
     padding: 2px 0;
 }
 .order-items-list .variant-name {
-    color: #666;
+    color: var(--text-gray);
 }
 
-/* --- Admin Dashboard Styles --- */
-.stat-card-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+/* --- NEW: Custom Checkbox Styles --- */
+.form-group-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.stat-card {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+/* Hide the default browser checkbox */
+.form-group-checkbox input[type="checkbox"] {
+  display: none;
 }
 
-.stat-card h4 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1rem;
-    color: #666;
-    text-transform: uppercase;
+/* Create the custom toggle switch */
+.form-group-checkbox label {
+  cursor: pointer;
+  color: var(--text-dark);
+  font-weight: 500;
+  position: relative;
+  padding-left: 50px; /* Space for the switch */
+  line-height: 28px; /* Vertically center with switch */
 }
 
-.stat-card .stat-value {
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: #333;
+/* The switch background */
+.form-group-checkbox label::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px; /* Adjust vertical position */
+  width: 42px;
+  height: 24px;
+  background-color: var(--border-gray);
+  border-radius: 12px;
+  transition: background-color 0.2s ease;
 }
 
-.stat-card .stat-value-small {
-    font-size: 2rem; /* Smaller for currency */
+/* The switch toggle circle */
+.form-group-checkbox label::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 5px; /* Adjust vertical position */
+  width: 18px;
+  height: 18px;
+  background-color: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+/* The "ON" state */
+.form-group-checkbox input[type="checkbox"]:checked + label::before {
+  background-color: var(--primary-color);
+}
+
+.form-group-checkbox input[type="checkbox"]:checked + label::after {
+  transform: translateX(18px);
+}
+
+/* --- NEW: Sales Report Filter Buttons --- */
+.filter-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 120px; /* Give a fixed width to the container */
+  flex-shrink: 0; /* Don't let it shrink */
+}
+
+.filter-button-group .btn {
+  width: 100%; /* Make buttons fill the container */
+  box-sizing: border-box; /* Include padding in width */
+  text-align: center; /* Center text for <a> tag button */
+}
+
+/* --- NEW: Fix for placeholder font --- */
+.form-group .form-control::placeholder {
+  font-family: Arial, sans-serif;
+  color: #9CA3AF; /* A light gray */
+  opacity: 1; /* Firefox needs this */
+}
+
+.form-group .form-control:-ms-input-placeholder { /* IE 10-11 */
+  font-family: Arial, sans-serif;
+  color: #9CA3AF;
+}
+
+.form-group .form-control::-ms-input-placeholder { /* Edge */
+  font-family: Arial, sans-serif;
+  color: #9CA3AF;
 }

@@ -3,13 +3,15 @@
 {% block title %}Manage Orders{% endblock %}
 
 {% block content %}
-    <h2>Manage Customer Orders</h2>
-
-    <div style="margin-bottom: 1.5rem; text-align: right;">
-    <a href="{{ url_for('admin_export_orders_json') }}" class="btn btn-primary" style="background-color: #007bff;">
-        Export All Orders to JSON
-    </a>
-</div>
+    <div class="card-header-controls">
+        <h2>Manage Customer Orders</h2>
+        
+        <div class="action-buttons">
+            <a href="{{ url_for('admin_export_orders_json') }}" class="btn btn-info">
+                <i class="fa-solid fa-download"></i> Export All Orders to JSON
+            </a>
+        </div>
+    </div>
 
     <div class="filter-tabs">
         <a href="{{ url_for('admin_orders') }}" class="btn {{ 'btn-primary' if not current_filter else 'btn-secondary' }}">All</a>
@@ -25,12 +27,11 @@
                     <th>Order ID</th>
                     <th>Customer</th>
                     <th>Delivery Info</th>
-                    <th>Special Intructions</th>
                     <th>Date</th>
                     <th>Items</th>
                     <th>Total</th>
                     <th>Status</th>
-                    <th>Assigned Rider</th> <th>Actions</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -41,19 +42,12 @@
                     <td>
                         <strong>{{ order.order_type }}</strong>
                         {% if order.order_type == 'Delivery' %}
-                            <p style="font-size: 0.9em; color: #555;">{{ order.delivery_address }}</p>
-                        {% endif %}
-                    </td>
-
-                    <td style="font-size: 0.9em; color: #d9534f; font-weight: bold; max-width: 200px;">
-                        {% if order.special_instructions %}
-                            {{ order.special_instructions }}
-                        {% else %}
-                            <span style="color: #6c757d; font-style: italic;">N/A</span>
+                            <p style="font-size: 0.9em; color: var(--text-gray);">{{ order.delivery_address }}</p>
                         {% endif %}
                     </td>
 
                     <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
+                    
                     <td class="order-items-list">
                         <ul>
                             {% for item in order.items %}
@@ -64,48 +58,30 @@
                             {% endfor %}
                         </ul>
                     </td>
-                    <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
+                    
+                    <td><strong>₱{{ "%.2f"|format(order.final_amount) }}</strong></td>
+                    
                     <td>
-                        <form action="{{ url_for('admin_update_order_status', order_id=order.order_id, status=current_filter) }}" method="POST" class="status-form">
+                        <form action="{{ url_for('admin_update_order_status', order_id=order.order_id, status=current_filter) }}" method="POST" class="status-form" id="form-status-{{ order.order_id }}">
                             <select name="status" class="form-control" style="min-width: 140px;">
                                 <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>Pending</option>
                                 <option value="In Progress" {% if order.status == 'In Progress' %}selected{% endif %}>In Progress</option>
                                 <option value="Completed" {% if order.status == 'Completed' %}selected{% endif %}>Completed</option>
                             </select>
-                            <button type="submit" class="btn btn-secondary btn-sm">Update</button>
-                        </form>
+                            </form>
                     </td>
 
-                    <td>
-                        {% if order.order_type == 'Pickup' %}
-                            <span style="color: #6c757d; font-style: italic;">N/A (Pickup)</span>
-                        
-                        {% elif order.rider_id %}
-                            <strong>{{ order.rider.name }}</strong>
-                        
-                        {% elif order.status == 'Pending' %}
-                            <form method="POST" action="{{ url_for('admin_assign_rider', order_id=order.order_id) }}" class="status-form">
-                                <select name="rider_id" class="form-control" style="min-width: 150px;">
-                                    <option value="">Select a rider...</option>
-                                    {% for rider in available_riders %}
-                                        <option value="{{ rider.rider_id }}">{{ rider.name }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit" class="btn btn-primary btn-sm">Assign</button>
-                            </form>
-                        {% else %}
-                            <span style="color: #6c757d; font-style: italic;">N/A</span>
-                        {% endif %}
-                    </td>
                     <td class="action-buttons">
+                        <button type="submit" form="form-status-{{ order.order_id }}" class="btn btn-secondary btn-sm">Update</button>
+                        
                         <form action="{{ url_for('admin_delete_order', order_id=order.order_id, status=current_filter) }}" method="POST" class="delete-form-modal" style="display:inline;">
-                            <input type="submit" value="Delete" class="btn btn-danger">
+                            <input type="submit" value="Delete" class="btn btn-danger btn-sm">
                         </form>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10">No orders found.</td>
+                    <td colspan="8">No orders found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
