@@ -14,18 +14,22 @@
             <a href="{{ url_for('client_home') }}">Anjet's Catering</a>
         </div>
         
-        {% set active_page = request.endpoint %}
+       {% set active_page = request.endpoint %}
         <nav class="client-nav">
             <ul>
                 <li><a href="{{ url_for('client_home') }}" class="{{ 'active' if active_page == 'client_home' else '' }}">Home</a></li>
                 
+                {# These links are now visible to everyone #}
+                <li><a href="{{ url_for('client_menu') }}" class="{{ 'active' if active_page == 'client_menu' else '' }}">Menu</a></li>
+                <li><a href="{{ url_for('buffet_wizard_start') }}" class="{{ 'active' if active_page == 'buffet_wizard_start' else '' }}">Build a Buffet</a></li>
+
                 {% if 'customer_id' in session %}
-                    <li><a href="{{ url_for('client_menu') }}" class="{{ 'active' if active_page == 'client_menu' else '' }}">Menu</a></li>
-                    <li><a href="{{ url_for('buffet_wizard_start') }}" class="{{ 'active' if active_page == 'buffet_wizard_start' else '' }}">Build a Buffet</a></li>
+                    {# Logged-in users see Cart, Account, and Logout #}
                     <li><a href="{{ url_for('client_cart') }}" class="{{ 'active' if active_page in ['client_cart', 'client_checkout'] else '' }}">Cart</a></li>
                     <li><a href="{{ url_for('client_my_account') }}" class="{{ 'active' if active_page in ['client_my_account', 'client_profile'] else '' }}">My Account</a></li>
                     <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
                 {% else %}
+                    {# Logged-out users see Login #}
                     <li><a href="{{ url_for('client_account_page') }}" class="{{ 'active' if active_page in ['client_account_page', 'client_register_page'] else '' }}">Login/Register</a></li>
                 {% endif %}
             </ul>
@@ -162,6 +166,7 @@
             if (clearCartModalCloseBtn) clearCartModalCloseBtn.onclick = closeClearCartModal;
             if (clearCartModalCancelBtn) clearCartModalCancelBtn.onclick = closeClearCartModal;
 
+            
             // 3. --- Product Modal Setup and Initialization ---
             const modal = document.getElementById('productModal');
             if (!modal) return; 
@@ -185,6 +190,7 @@
                 modal.style.display = 'none';
             }
             closeModalBtn.onclick = closeProductModal;
+            
             // FIX: Ensure clicking outside closes EITHER the Product or Clear Cart modal
             window.onclick = (event) => {
                 if (event.target == modal) closeProductModal();
@@ -291,6 +297,12 @@
                             if (data.status === 'success') {
                                 createToast(data.message, 'success');
                                 closeProductModal(); 
+                            
+                            } else if (data.status === 'login_required') {
+                                // NEW: Redirect to login page
+                                createToast('You must log in to add items to your cart.', 'danger');
+                                window.location.href = data.url; 
+                            
                             } else {
                                 createToast(data.message, 'danger');
                             }

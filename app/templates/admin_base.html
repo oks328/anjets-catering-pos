@@ -63,7 +63,7 @@
                 </a>
             </li>
             
-            {% set user_rider_pages = ['admin_users', 'admin_add_user', 'admin_edit_user', 'admin_riders', 'admin_add_rider', 'admin_edit_rider', 'admin_rider_details'] %}
+            {% set user_rider_pages = ['admin_users', 'admin_add_user', 'admin_edit_user'] %}
             <li>
                 <a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_rider_pages else '' }}">
                     <i class="fa-solid fa-users"></i>
@@ -79,7 +79,7 @@
                 </a>
             </li>
             
-            {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount', 'admin_rider_verifications', 'admin_rider_details', 'admin_approve_rider', 'admin_deny_rider'] %}
+            {% set verification_pages = ['admin_verifications', 'admin_approve_discount', 'admin_deny_discount'] %}
             <li>
                 <a href="{{ url_for('admin_verifications') }}" class="{{ 'active' if active_page in verification_pages else '' }}">
                     <i class="fa-solid fa-user-check"></i>

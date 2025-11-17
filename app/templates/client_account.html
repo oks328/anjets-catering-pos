@@ -9,7 +9,6 @@
         <ul>
             <li><a href="{{ url_for('client_my_account') }}" class="active">Order History</a></li>
             <li><a href="{{ url_for('client_profile') }}">My Profile</a></li>
-            <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
         </ul>
     </aside>
 
@@ -27,7 +26,8 @@
                         <th>Date</th>
                         <th>Total</th>
                         <th>Status</th>
-                        <th>Details</th> </tr>
+                        <th>Receipt</th> 
+                    </tr>
                 </thead>
                 <tbody>
                     {% for order in orders %}
@@ -39,6 +39,27 @@
                                 <li>
                                     {{ item.quantity }}x {{ item.product.name }}
                                     <span class="variant-name">({{ item.variant.size_name }})</span>
+                                    
+                                    {% set customer_id = session['customer_id'] %}
+                                    {% set product_id = item.product.product_id %}
+                                    
+                                    {# Check 1: Only show if order is completed #}
+                                    {% if order.status == 'Completed' %}
+                                    
+                                        {# Check 2: Has the user already reviewed this item? #}
+                                        {% if has_reviewed_product(customer_id, product_id) %}
+                                            <span style="font-size: 0.75rem; color: #28a745; margin-left: 0.5rem;">
+                                                (Reviewed)
+                                            </span>
+                                        {% else %}
+                                            <a href="{{ url_for('client_review_product', product_id=product_id) }}" 
+                                               class="btn btn-secondary btn-sm"
+                                               style="padding: 0.2rem 0.5rem; margin-left: 0.5rem; font-size: 0.75rem;">
+                                                Review
+                                            </a>
+                                        {% endif %}
+                                        
+                                    {% endif %}
                                 </li>
                             {% endfor %}
                         </ul>
@@ -58,20 +79,12 @@
                             {% endif %}
                         </td>
                         
-                        <td style="font-size: 0.9em; color: #555;">
-                            {% if order.order_type == 'Pickup' and order.status == 'In Progress' %}
-                                Your order is being prepared.
-                            {% elif order.order_type == 'Pickup' and order.status == 'Completed' %}
-                                Order picked up.
-                            {% elif order.order_type == 'Delivery' and order.status == 'In Progress' and order.rider %}
-                                Out for delivery with {{ order.rider.name }}.
-                            {% elif order.order_type == 'Delivery' and order.status == 'In Progress' %}
-                                Your order is being prepared.
-                            {% elif order.status == 'Completed' %}
-                                Order delivered.
-                            {% else %}
-                                Awaiting confirmation.
-                            {% endif %}
+                        <td class="action-buttons">
+                            <a href="{{ url_for('client_view_receipt', order_id=order.order_id) }}" 
+                               class="btn btn-secondary" 
+                               style="padding: 0.5rem 1rem; margin: 0; background-color: #17a2b8; color: white;">
+                               View Receipt
+                            </a>
                         </td>
 
                     </tr>
@@ -82,6 +95,12 @@
                 </tbody>
             </table>
         {% endif %}
+
+        <div style="text-align: right; margin-top: 2rem;">
+            <a href="{{ url_for('client_home') }}" class="btn btn-secondary">
+                &larr; Continue Shopping
+            </a>
+        </div>
     </section>
 </div>
 {% endblock %}

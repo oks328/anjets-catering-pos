@@ -2,14 +2,12 @@ from app import db, bcrypt
 from datetime import datetime
 from flask_login import UserMixin
 from flask_bcrypt import Bcrypt
-from itsdangerous import URLSafeTimedSerializer as Serializer # <-- ADD THIS
-from flask import current_app # <-- ADD THIS
+from itsdangerous import URLSafeTimedSerializer as Serializer
+from flask import current_app 
 
 bcrypt = Bcrypt()
 
 # This file defines the Python classes for our database tables.
-# These are called "models".
-# db.Model is the base class from SQLAlchemy.
 
 class Category(db.Model):
     """
@@ -40,6 +38,7 @@ class Product(db.Model):
     image_file = db.Column(db.String(100), nullable=False, default='default.jpg')
 
     variants = db.relationship('ProductVariant', backref='product', lazy=True, cascade="all, delete-orphan")
+    reviews = db.relationship('Review', backref='product', lazy=True) # Keep Review relationship
 
 class ProductVariant(db.Model):
     """
@@ -50,10 +49,9 @@ class ProductVariant(db.Model):
     variant_id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('Products.product_id'), nullable=False)
     size_name = db.Column(db.String(50), nullable=False, default='Regular')
-    # --- FIX WAS HERE ---
     price = db.Column(db.Numeric(10, 2), nullable=False)
 
-class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
+class Customer(db.Model, UserMixin): 
     """
     Model for client-facing website users.
     """
@@ -65,13 +63,12 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
     password_hash = db.Column(db.String(255), nullable=False)
     registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     address = db.Column(db.Text, nullable=True)
+    landmark = db.Column(db.String(255), nullable=True) # <-- Ensure this is correctly defined
     birthdate = db.Column(db.Date, nullable=True)
-    discount_type = db.Column(db.String(50), nullable=True) # e.g., 'Senior', 'PWD'
-    id_image_file = db.Column(db.String(100), nullable=True) # Filename of uploaded ID
+    discount_type = db.Column(db.String(50), nullable=True) 
+    id_image_file = db.Column(db.String(100), nullable=True)
     is_verified_discount = db.Column(db.Boolean, default=False, nullable=False)
-    
-    # --- ADD THIS LINE ---
-    discount_status = db.Column(db.String(20), nullable=True, default=None) # Can be 'Pending', 'Approved', or 'Denied'
+    discount_status = db.Column(db.String(20), nullable=True, default=None) 
 
     orders = db.relationship('Order', backref='customer', lazy=True)
 
@@ -80,40 +77,26 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
         return str(self.customer_id)
     
     @property
-    def is_active(self):
-        """Required by flask-login"""
-        return True
+    def is_active(self): return True
 
     @property
-    def is_authenticated(self):
-        """Required by flask-login"""
-        return True
+    def is_authenticated(self): return True
 
     @property
-    def is_anonymous(self):
-        """Required by flask-login"""
-        return False
+    def is_anonymous(self): return False
     
     def set_password(self, password):
-        """Hashes and sets the user's password."""
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
     def check_password(self, password):
-        """Checks if the provided password matches the hash."""
         return bcrypt.check_password_hash(self.password_hash, password)
 
     def get_reset_token(self, expires_sec=1800):
-        """
-        Generates a password reset token valid for 30 minutes.
-        """
         s = Serializer(current_app.config['SECRET_KEY'])
         return s.dumps({'customer_id': self.customer_id})
 
     @staticmethod
     def verify_reset_token(token, expires_sec=1800):
-        """
-        Verifies the reset token and returns the Customer object if valid.
-        """
         s = Serializer(current_app.config['SECRET_KEY'])
         try:
             data = s.loads(token, max_age=expires_sec)
@@ -121,7 +104,8 @@ class Customer(db.Model, UserMixin): # <-- ADDED UserMixin
         except Exception:
             return None
         return Customer.query.get(customer_id)
-class User(db.Model, UserMixin): # <-- Note the change here
+
+class User(db.Model, UserMixin): 
     """
     Model for secure admin/staff logins.
     """
@@ -131,54 +115,32 @@ class User(db.Model, UserMixin): # <-- Note the change here
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='Admin')
 
-    # New methods for flask-login
-    def get_id(self):
-        """Required by flask-login"""
-        return str(self.user_id)
-    
-    @property
-    def is_active(self):
-        """Required by flask-login"""
-        return True
-
-    @property
-    def is_authenticated(self):
-        """Required by flask-login"""
-        return True
-
-    @property
-    def is_anonymous(self):
-        """Required by flask-login"""
-        return False
-    
-    # New methods for password hashing
+    def get_id(self): return str(self.user_id)
+    def is_active(self): return True
+    def is_authenticated(self): return True
+    def is_anonymous(self): return False
     def set_password(self, password):
-        """Hashes and sets the user's password."""
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-
     def check_password(self, password):
-        """Checks if the provided password matches the hash."""
         return bcrypt.check_password_hash(self.password_hash, password)
 
 class Order(db.Model):
     """
     Model for a single customer order.
+    Rider fields removed for Admin-only delivery.
     """
     __tablename__ = 'Orders'
     order_id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('Customers.customer_id'), nullable=False)
     order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    # --- FIX WAS HERE ---
     total_amount = db.Column(db.Numeric(10, 2), nullable=False)
-    # --- FIX WAS HERE ---
     discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
-    # --- FIX WAS HERE ---
     final_amount = db.Column(db.Numeric(10, 2), nullable=False)
     status = db.Column(db.String(50), nullable=False, default='Pending')
     order_type = db.Column(db.String(50), nullable=False, default='Pickup')
     delivery_address = db.Column(db.Text, nullable=True)
     delivery_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
-    rider_id = db.Column(db.Integer, db.ForeignKey('Riders.rider_id'), nullable=True)
+    # rider_id column REMOVED
     special_instructions = db.Column(db.Text, nullable=True)
 
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
@@ -195,7 +157,6 @@ class OrderItem(db.Model):
     product = db.relationship('Product')
     variant = db.relationship('ProductVariant')
     quantity = db.Column(db.Integer, nullable=False)
-    # --- FIX WAS HERE ---
     price_per_item = db.Column(db.Numeric(10, 2), nullable=False)
 
 class Voucher(db.Model):
@@ -205,70 +166,28 @@ class Voucher(db.Model):
     __tablename__ = 'Vouchers'
     voucher_id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(50), unique=True, nullable=False)
-    # --- FIX WAS HERE ---
     discount_percentage = db.Column(db.Numeric(5, 2), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-
-    max_uses = db.Column(db.Integer, nullable=True) # null = infinite uses
+    max_uses = db.Column(db.Integer, nullable=True) 
     current_uses = db.Column(db.Integer, nullable=False, default=0)
 
-    # ... (after your Voucher class) ...
+# app/models.py (Replace the entire Review class)
 
-class Rider(db.Model, UserMixin):
+class Review(db.Model):
     """
-    Model for delivery riders.
+    Model for customer product reviews.
     """
-    __tablename__ = 'Riders'
-    rider_id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    contact_number = db.Column(db.String(50), nullable=True)
-    email = db.Column(db.String(255), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    birthdate = db.Column(db.Date, nullable=True) # New field for age check
-
-    # Status for admin to see
-    status = db.Column(db.String(20), nullable=False, default='Offline') # e.g., Offline, Online, Delivering
+    __tablename__ = 'Reviews'
+    review_id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('Products.product_id'), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('Customers.customer_id'), nullable=False)
     
-    application_status = db.Column(db.String(20), nullable=False, default='Pending') # Tracks: Pending, Approved, Denied
-
-    # Document filenames (Store path relative to UPLOADS_FOLDER)
-    license_file = db.Column(db.String(100), nullable=True)
-    govt_id_file = db.Column(db.String(100), nullable=True)
-    or_cr_file = db.Column(db.String(100), nullable=True)
-    nbi_clearance_file = db.Column(db.String(100), nullable=True)
-
-    # Link to orders
-    orders = db.relationship('Order', backref='rider', lazy=True)
+    # Review data
+    rating = db.Column(db.Integer, nullable=False) 
+    comment = db.Column(db.Text, nullable=True)
+    review_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
-
-    # We can re-use the same login/token logic from the Customer model
-    def get_id(self):
-        return str(self.rider_id)
-    
-    @property
-    def is_active(self): return True
-    @property
-    def is_authenticated(self): return True
-    @property
-    def is_anonymous(self): return False
-    
-    def set_password(self, password):
-        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-
-    def check_password(self, password):
-        return bcrypt.check_password_hash(self.password_hash, password)
-
-    def get_reset_token(self, expires_sec=1800):
-        s = Serializer(current_app.config['SECRET_KEY'])
-        return s.dumps({'rider_id': self.rider_id})
-
-    @staticmethod
-    def verify_reset_token(token, expires_sec=1800):
-        s = Serializer(current_app.config['SECRET_KEY'])
-        try:
-            data = s.loads(token, max_age=expires_sec)
-            rider_id = data.get('rider_id')
-        except Exception:
-            return None
-        return Rider.query.get(rider_id)
+    # Relationships: ONLY DEFINE THE FOREIGN KEY
+    # The backref in the Product model handles the product property.
+    # We only need to explicitly define the customer relationship here.
+    customer = db.relationship('Customer')

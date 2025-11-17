@@ -3,11 +3,11 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField, DateField
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField, DateField, IntegerField
 from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
-from app.models import Customer, Rider
-from wtforms import IntegerField
+from app.models import Customer
+# The Rider model import has been removed.
 
 
 def password_complexity(form, field):
@@ -28,13 +28,8 @@ def email_exists(form, field):
     if customer:
         raise ValidationError('That email address is already in use. Please log in.')
     
-def rider_email_exists(form, field):
-    """
-    Check if a rider's email already exists.
-    """
-    rider = Rider.query.filter_by(email=field.data).first()
-    if rider:
-        raise ValidationError('That email address is already in use.')
+# The 'rider_email_exists' validator has been removed.
+
 class AdminLoginForm(FlaskForm):
     """
     Form for admin users to log in.
@@ -45,7 +40,6 @@ class AdminLoginForm(FlaskForm):
     )
     password = PasswordField(
         'Password',
-        # This is the corrected 'validators=' list
         validators=[DataRequired(), password_complexity] 
     )
     submit = SubmitField('Log In')
@@ -65,7 +59,6 @@ class CategoryForm(FlaskForm):
     )
     submit = SubmitField('Save Category')
 
-    # ... CategoryForm is above ...
 
 class ProductForm(FlaskForm):
     """
@@ -89,7 +82,6 @@ class ProductForm(FlaskForm):
     )
 
     # This price is for SIMPLE products (when has_variants is False)
-    # 'Optional()' means it's not required
     price = DecimalField(
         'Price (if no variants)',
         places=2,
@@ -146,7 +138,6 @@ class VoucherForm(FlaskForm):
         default=True
     )
 
-    # --- ADD THIS FIELD ---
     max_uses = IntegerField(
         'Max Uses (Optional)',
         validators=[Optional(), NumberRange(min=1)],
@@ -158,13 +149,11 @@ class VoucherForm(FlaskForm):
 class UserAddForm(FlaskForm):
     """
     Form for admin to add a new staff user.
-    Password is required.
     """
     username = StringField(
         'Username',
         validators=[DataRequired(), Length(min=4, max=100)]
     )
-    # We'll add a dropdown for role, e.g., 'Admin' or 'Staff'
     role = SelectField(
         'Account Type (Role)',
         choices=[('Admin', 'Admin'), ('Staff', 'Staff')],
@@ -172,7 +161,7 @@ class UserAddForm(FlaskForm):
     )
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=8), password_complexity] # <-- Add it here too
+        validators=[DataRequired(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm Password',
@@ -184,7 +173,6 @@ class UserAddForm(FlaskForm):
 class UserEditForm(FlaskForm):
     """
     Form for admin to edit an existing staff user.
-    Password is optional (only if they want to change it).
     """
     username = StringField(
         'Username',
@@ -195,18 +183,15 @@ class UserEditForm(FlaskForm):
         choices=[('Admin', 'Admin'), ('Staff', 'Staff')],
         validators=[DataRequired()]
     )
-    # 'Optional()' validator allows this field to be blank
     password = PasswordField(
         'New Password (Optional)',
-        validators=[Optional(), Length(min=8), password_complexity] # <-- ADDED HERE
+        validators=[Optional(), Length(min=8), password_complexity]
     )
     confirm_password = PasswordField(
         'Confirm New Password',
         validators=[EqualTo('password', message='Passwords must match.')]
     )
     submit = SubmitField('Update User')
-
-    # ... UserEditForm is above ...
 
 class CustomerRegisterForm(FlaskForm):
     """
@@ -216,37 +201,28 @@ class CustomerRegisterForm(FlaskForm):
         'Full Name',
         validators=[DataRequired(), Length(min=3, max=255)]
     )
-    contact_number = StringField(
-        'Contact Number',
-        validators=[
-            DataRequired(),
-            # FIX 1: Enforce exactly 11 digits
-            Length(min=11, max=11, message="Contact number must be exactly 11 digits."),
-            # FIX 2: Enforce numbers-only
-            Regexp(r'^[0-9]+$', message="Contact number must contain only digits.")
-        ]
-    )
+    # ... (contact_number) ...
+    
     address = TextAreaField(
         'Address',
         validators=[DataRequired(), Length(min=10, max=500)],
         description="Please enter your full delivery address."
     )
+
+    # --- ADD THIS NEW FIELD ---
+    landmark = StringField(
+        'Landmark (Optional)',
+        validators=[Optional(), Length(max=255)],
+        description="e.g., Near 7-Eleven, Blue Gate, etc."
+    )
+
     birthdate = DateField('Birthdate (Optional)', validators=[Optional()])
     email = StringField(
         'Email Address',
         validators=[DataRequired(), Email(), email_exists] # email_exists checks for duplicates
     )
-    password = PasswordField(
-        'Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
-    )
-    confirm_password = PasswordField(
-        'Confirm Password',
-        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
-    )
-    submit = SubmitField('Create Account')
-
-
+    # ... (password fields, etc.) ...
+    
 class CustomerLoginForm(FlaskForm):
     """
     Form for existing customers to log in.
@@ -277,7 +253,6 @@ class CustomerEditForm(FlaskForm):
         'Email Address',
         validators=[DataRequired(), Email()]
     )
-    # Password is optional. If left blank, it won't be changed.
     password = PasswordField(
         'New Password (Optional)',
         validators=[Optional(), Length(min=8), password_complexity]
@@ -300,10 +275,7 @@ class CustomerProfileForm(FlaskForm):
         'Contact Number',
         validators=[DataRequired(), Length(min=7, max=20)]
     )
-    
-    # --- ADD THIS FIELD ---
     birthdate = DateField('Birthdate', validators=[Optional()])
-    
     submit = SubmitField('Update Profile')
 
 class DiscountVerificationForm(FlaskForm):
@@ -354,152 +326,21 @@ class ResetPasswordForm(FlaskForm):
     )
     submit = SubmitField('Reset Password')
 
-    # --- NEW FORMS FOR RIDER ---
-
-class RiderLoginForm(FlaskForm):
+class ReviewForm(FlaskForm):
     """
-    Form for delivery riders to log in.
+    Form for submitting a short product review.
     """
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email()]
-    )
-    password = PasswordField(
-        'Password',
-        validators=[DataRequired()]
-    )
-    submit = SubmitField('Log In')
-
-class RiderRegisterForm(FlaskForm):
-    """
-    Form for new riders to register.
-    """
-    name = StringField(
-        'Full Name',
-        validators=[DataRequired(), Length(min=3, max=255)]
-    )
-    contact_number = StringField(
-        'Contact Number',
+    # 1 to 5 stars
+    rating = IntegerField(
+        'Rating (1-5 Stars)', 
         validators=[
-            DataRequired(),
-            Length(min=11, max=11, message="Contact number must be exactly 11 digits."),
-            Regexp(r'^[0-9]+$', message="Contact number must contain only digits.")
+            DataRequired(), 
+            NumberRange(min=1, max=5, message="Rating must be between 1 and 5.")
         ]
     )
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email(), rider_email_exists] # Use new validator
+    comment = TextAreaField(
+        'Short Comment (Optional)',
+        validators=[Length(max=200)], # Limiting the length as requested
+        description="Max 200 characters."
     )
-
-    # --- NEW FIELD: Birthdate ---
-    birthdate = DateField('Birthdate', validators=[DataRequired()])
-    
-    # --- NEW DOCUMENT FIELDS (2MB Max Size) ---
-    doc_validators = [
-        DataRequired(message="This document image is required for application."),
-        FileAllowed(['jpg', 'png', 'jpeg'], 'Images only! (jpg, png, jpeg)'),
-        FileSize(max_size=2 * 1024 * 1024) # 2MB max size
-    ]
-    
-    license_file = FileField("1. Valid Driver's License Image", validators=doc_validators)
-    govt_id_file = FileField("2. Government-Issued ID Image (e.g., Passport, UMID)", validators=doc_validators)
-    or_cr_file = FileField("3. Vehicle Official Receipt (OR/CR) Image", validators=doc_validators)
-    nbi_clearance_file = FileField("4. NBI Clearance Image", validators=doc_validators)
-
-    password = PasswordField(
-        'Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
-    )
-    confirm_password = PasswordField(
-        'Confirm Password',
-        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
-    )
-    submit = SubmitField('Create Account')
-
-class RiderRequestResetForm(FlaskForm):
-    """
-    Form for rider to request a password reset email.
-    """
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email()]
-    )
-    submit = SubmitField('Request Password Reset')
-
-    def validate_email(self, email):
-        # Check the Rider table
-        rider = Rider.query.filter_by(email=email.data).first()
-        if rider is None:
-            raise ValidationError('There is no account with that email.')
-
-class RiderResetPasswordForm(FlaskForm):
-    """
-    Form for rider to enter their new password.
-    """
-    password = PasswordField(
-        'New Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
-    )
-    confirm_password = PasswordField(
-        'Confirm New Password',
-        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
-    )
-    submit = SubmitField('Reset Password')
-
-    # --- ADD THESE FORMS FOR ADMIN TO MANAGE RIDERS ---
-
-class AdminRiderAddForm(FlaskForm):
-    """
-    Form for admin to add a new rider.
-    """
-    name = StringField(
-        'Full Name',
-        validators=[DataRequired(), Length(min=3, max=255)]
-    )
-    contact_number = StringField(
-        'Contact Number',
-        validators=[
-            DataRequired(),
-            Length(min=11, max=11, message="Contact number must be exactly 11 digits."),
-            Regexp(r'^[0-9]+$', message="Contact number must contain only digits.")
-        ]
-    )
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email(), rider_email_exists]
-    )
-    password = PasswordField(
-        'Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
-    )
-    confirm_password = PasswordField(
-        'Confirm Password',
-        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
-    )
-    submit = SubmitField('Create Rider Account')
-
-class AdminRiderEditForm(FlaskForm):
-    """
-    Form for admin to edit a rider's details.
-    """
-    name = StringField(
-        'Full Name',
-        validators=[DataRequired(), Length(min=3, max=255)]
-    )
-    contact_number = StringField(
-        'Contact Number',
-        validators=[DataRequired(), Length(min=11, max=11)]
-    )
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email()]
-    )
-    password = PasswordField(
-        'New Password (Optional)',
-        validators=[Optional(), Length(min=8), password_complexity]
-    )
-    confirm_password = PasswordField(
-        'Confirm New Password',
-        validators=[EqualTo('password', message='Passwords must match.')]
-    )
-    submit = SubmitField('Update Rider Account')
+    submit = SubmitField('Submit Review')

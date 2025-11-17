@@ -52,9 +52,16 @@
                             {% endif %}
                         </div>
                         
-                        <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
-                            Add to Cart
-                        </button>
+                        {# This is the only button logic, wrapped in a login check #}
+                        {% if 'customer_id' in session %}
+                            <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
+                                Add to Cart
+                            </button>
+                        {% else %}
+                            <a href="{{ url_for('client_account_page') }}" class="btn btn-primary">
+                                Add to Cart
+                            </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

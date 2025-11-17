@@ -6,16 +6,16 @@
 <div class="cart-container">
     <h2 style="margin-bottom: 2rem;">Your Shopping Cart</h2>
 
-    <a href="{{ url_for('clear_cart') }}" 
-       onclick="return confirm('Are you sure you want to clear your entire cart? This action cannot be undone.');"
-       class="btn-clear-cart">
-        Clear Entire Cart
-    </a>
-
     {% if not cart_items %}
         <p>Your cart is empty.</p>
         <a href="{{ url_for('client_menu') }}" class="btn btn-primary">Start Shopping</a>
     {% else %}
+        <a href="#" 
+           onclick="openClearCartModal('{{ url_for('clear_cart') }}'); return false;"
+           class="btn-clear-cart">
+            Clear Entire Cart
+        </a>
+
         <table class="cart-table">
             <thead>
                 <tr>
@@ -34,11 +34,10 @@
                             <img src="{{ url_for('static', filename='uploads/products/' + item.image) }}" alt="{{ item.name }}">
                             <div>
                                 <a href="#">{{ item.name }}</a>
-
                                 <span class="variant-name">{{ item.variant_name }}</span>
                                 {% if item.is_buffet_item %}
-    <span class="variant-name" style="color: #007bff; font-weight: bold;">(Buffet Item)</span>
-{% endif %}
+                                    <span class="variant-name" style="color: #007bff; font-weight: bold;">(Buffet Item)</span>
+                                {% endif %}
                                 </div>
                         </div>
                     </td>
@@ -46,8 +45,8 @@
                     <td>
                         <form action="{{ url_for('update_cart_quantity') }}" method="POST" class="quantity-form">
                             <input type="hidden" name="variant_id" value="{{ item.variant_id }}">
-                            <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="form-control-sm">
-                            <button type="submit" class="btn btn-primary btn-sm">Update</button>
+                            <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="form-control-sm"
+                                   onchange="this.form.submit()">
                         </form>
                     </td>
                     <td>₱{{ "%.2f"|format(item.line_total) }}</td>
@@ -61,58 +60,68 @@
             </tbody>
         </table>
     
-    {% if customer and not customer.is_verified_discount %}
+        {% if customer and not customer.is_verified_discount %}
+            {% if available_vouchers %}
+            <div class="available-vouchers" style="margin: 1.5rem 0;">
+                <h5 style="margin-bottom: 0.5rem;">Available Vouchers:</h5>
+                {% for voucher in available_vouchers %}
+                    <button type="button" class="btn btn-secondary" onclick="applyVoucherCode('{{ voucher.code }}')">
+                        {{ voucher.code }} ({{ voucher.discount_percentage|int }}% off)
+                    </button>
+                {% endfor %}
+            </div>
+            {% endif %}
 
-        {% if available_vouchers %}
-        <div class="available-vouchers" style="margin: 1.5rem 0;">
-            <h5 style="margin-bottom: 0.5rem;">Available Vouchers:</h5>
-            {% for voucher in available_vouchers %}
-                <button type="button" class="btn btn-secondary" onclick="applyVoucherCode('{{ voucher.code }}')">
-                    {{ voucher.code }} ({{ voucher.discount_percentage|int }}% off)
-                </button>
-            {% endfor %}
-        </div>
+            <div class="voucher-container">
+                        <form action="{{ url_for('apply_voucher') }}" method="POST" class="voucher-form" id="voucherForm">
+                            <label for="voucher_code">Have a discount code?</label>
+                            <div class="voucher-input-group">
+                                <input type="text" id="voucherCodeInput" name="voucher_code" class="form-control" placeholder="Enter code" value="{{ session.get('voucher_code', '') }}">
+                                <button type="submit" class="btn btn-secondary">Apply</button>
+                            </div>
+                        </form>
+                </div>
+        
         {% endif %}
 
-        <div class="voucher-container">
-                    <form action="{{ url_for('apply_voucher') }}" method="POST" class="voucher-form" id="voucherForm">
-                        <label for="voucher_code">Have a discount code?</label>
-                        <div class="voucher-input-group">
-                            <input type="text" id="voucherCodeInput" name="voucher_code" class="form-control" placeholder="Enter code" value="{{ session.get('voucher_code', '') }}">
-                            <button type="submit" class="btn btn-secondary">Apply</button>
-                        </div>
-                    </form>
+        <div class="cart-summary-container">
+            {# This div is intentionally left empty to push totals to the right #}
+            <div class="voucher-container" style="visibility: hidden;"></div> 
+
+            <div class="cart-totals">
+                <div class="totals-grid">
+                    <span>À La Carte Subtotal:</span>
+                    <span>₱{{ "%.2f"|format(ala_carte_subtotal) }}</span>
+
+                    <span>Buffet Subtotal:</span>
+                    <span>₱{{ "%.2f"|format(buffet_subtotal) }}</span>
+
+                    {% if voucher_discount_amt > 0 %}
+                        <span style="color: #28a745; font-weight: bold;">Voucher ({{ session.get('voucher_code') }}):</span>
+                        <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(voucher_discount_amt) }}</span>
+                    {% endif %}
+
+                    {% if senior_discount_amt > 0 %}
+                        <span style="color: #28a745; font-weight: bold;">Senior Discount (20%):</span>
+                        <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(senior_discount_amt) }}</span>
+                    {% endif %}
+
+                    {% if pwd_discount_amt > 0 %}
+                        <span style="color: #28a745; font-weight: bold;">PWD Discount (Capped):</span>
+                        <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(pwd_discount_amt) }}</span>
+                    {% endif %}
+
+                    <span class="total-label">Total:</span>
+                    <span class="total-value">₱{{ "%.2f"|format(final_total) }}</span>
+                </div>
+
+                <a href="{{ url_for('client_checkout_options') }}" class="btn-checkout">Proceed to Checkout</a>
             </div>
-    
-    {% endif %}
-
-       <div class="totals-grid">
-                <span>À La Carte Subtotal:</span>
-                <span>₱{{ "%.2f"|format(ala_carte_subtotal) }}</span>
-
-                <span>Buffet Subtotal:</span>
-                <span>₱{{ "%.2f"|format(buffet_subtotal) }}</span>
-
-                {% if voucher_discount_amt > 0 %}
-                    <span style="color: #28a745; font-weight: bold;">Voucher ({{ session.get('voucher_code') }}):</span>
-                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(voucher_discount_amt) }}</span>
-                {% endif %}
-
-                {% if senior_discount_amt > 0 %}
-                <span style="color: #28a745; font-weight: bold;">Senior/PWD Discount (20%):</span>
-                <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(senior_discount_amt) }}</span>
-                {% endif %}
-
-                <span class="total-label">Total:</span>
-                <span class="total-value">₱{{ "%.2f"|format(final_total) }}</span>
-            </div>
-
-            <a href="{{ url_for('client_checkout_options') }}" class="btn-checkout">Proceed to Checkout</a>
         </div>
-    </div>
     {% endif %}
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
     function applyVoucherCode(code) {

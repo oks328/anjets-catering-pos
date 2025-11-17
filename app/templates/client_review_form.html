@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Review {{ product.name }}{% endblock %}
+
+{% block content %}
+
+<div class="form-container">
+    <div class="form-wrapper">
+        <h2>Review: {{ product.name }}</h2>
+        <p style="text-align: center; margin-bottom: 1.5rem;">Share your experience with this food item.</p>
+        
+        <form method="POST" action="{{ url_for('client_review_product', product_id=product.product_id) }}" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <div class="form-group">
+                {{ form.rating.label }}
+                {{ form.rating(class="form-control hidden-rating-input", style="display:none;") }} 
+                
+                <div id="star-rating-widget" style="font-size: 2.5rem; cursor: pointer; text-align: center; line-height: 1.1;">
+                    <span data-rating="1">★</span>
+                    <span data-rating="2">★</span>
+                    <span data-rating="3">★</span>
+                    <span data-rating="4">★</span>
+                    <span data-rating="5">★</span>
+                </div>
+                <p style="text-align: center; font-style: italic; color: #555;">Click a star to rate.</p>
+                
+                {% for error in form.rating.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ form.comment.label }}
+                {{ form.comment(class="form-control", rows=4, placeholder=form.comment.description) }}
+                {% for error in form.comment.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group" style="margin-top: 2rem;">
+                {{ form.submit(class="btn btn-primary", value="Submit Review") }}
+                <a href="{{ url_for('client_my_account') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ratingInput = document.querySelector('.hidden-rating-input');
+        const stars = document.querySelectorAll('#star-rating-widget span');
+
+        function setRating(ratingValue) {
+            // Set the actual value that gets submitted
+            ratingInput.value = ratingValue;
+            
+            stars.forEach(star => {
+                const currentStarRating = parseInt(star.dataset.rating);
+                if (currentStarRating <= ratingValue) {
+                    star.style.color = '#ffc107'; // Yellow/Gold
+                } else {
+                    star.style.color = '#ccc'; // Gray
+                }
+            });
+        }
+
+        // Initialize stars to 5/5 on load
+        if (!ratingInput.value) {
+            setRating(5); 
+        }
+
+        stars.forEach(star => {
+            star.addEventListener('click', function() {
+                setRating(parseInt(this.dataset.rating));
+            });
+            // Optional: Hover effect for better UX
+            star.addEventListener('mouseover', function() {
+                stars.forEach(s => {
+                    if (parseInt(s.dataset.rating) <= parseInt(this.dataset.rating)) {
+                        s.style.color = '#ffeb3b'; // Lighter yellow on hover
+                    } else {
+                        s.style.color = '#ccc';
+                    }
+                });
+            });
+            star.addEventListener('mouseout', function() {
+                setRating(parseInt(ratingInput.value)); // Revert to selected rating
+            });
+        });
+    });
+</script>
+{% endblock %}

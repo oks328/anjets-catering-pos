@@ -25,12 +25,12 @@
             <thead>
                 <tr>
                     <th>Order ID</th>
-                    <th>Customer</th>
-                    <th>Delivery Info</th>
+                    <th>Customer Info</th>
+                    <th>Delivery Info / Landmark</th>
                     <th>Date</th>
                     <th>Items</th>
                     <th>Total</th>
-                    <th>Status & Assignment</th>
+                    <th>Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -38,7 +38,10 @@
                 {% for order in orders %}
                 <tr>
                     <td><strong>#{{ order.order_id }}</strong></td>
-                    <td>{{ order.customer.name }}</td>
+                    <td>
+                        <strong>{{ order.customer.name }}</strong>
+                        <p style="font-size: 0.9em; color: var(--text-gray);">Contact: {{ order.customer.contact_number }}</p>
+                    </td>
                     <td>
                         <strong>{{ order.order_type }}</strong>
                         {% if order.order_type == 'Delivery' %}
@@ -69,22 +72,6 @@
                                 <option value="In Progress" {% if order.status == 'In Progress' %}selected{% endif %}>In Progress</option>
                                 <option value="Completed" {% if order.status == 'Completed' %}selected{% endif %}>Completed</option>
                             </select>
-
-                            {% if order.order_type == 'Delivery' %}
-                                <div style="margin-top: 0.5rem;">
-                                    <label for="rider-{{ order.order_id }}" style="font-size: 0.9em; font-weight: 500;">Assign Rider:</label>
-                                    <select name="rider_id" id="rider-{{ order.order_id }}" class="form-control">
-                                        
-                                        <option value="">
-                                            -- {{ 'Current: ' + order.rider.name if order.rider else 'Select Rider' }} --
-                                        </option>
-                                        
-                                        {% for rider in available_riders %}
-                                            <option value="{{ rider.rider_id }}">{{ rider.name }} (Online)</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            {% endif %}
                             
                         </form>
                     </td>

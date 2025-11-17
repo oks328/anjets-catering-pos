@@ -20,6 +20,11 @@ body {
     align-items: center;
     border-bottom: 2px solid #eee;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    
+    /* --- ADD THESE 3 LINES --- */
+    position: sticky;
+    top: 0;
+    z-index: 1000; /* Ensures it stays on top of other content */
 }
 
 .client-header .logo a {
@@ -1048,3 +1053,79 @@ a.btn-checkout {
     text-align: center;
 }
 
+/* =============================================== */
+/* --- Responsive Mobile Styles --- */
+/* =============================================== */
+
+/* This code applies to any screen 768px wide or smaller (most phones) */
+@media (max-width: 768px) {
+
+    /* 1. Fix the Header/Navigation */
+    .client-header {
+        flex-direction: column; /* Stack logo and nav links */
+        gap: 1rem;
+        position: static; /* Disable sticky header on mobile to prevent layout issues */
+    }
+
+    .client-nav ul {
+        flex-direction: column; /* Stack nav links vertically */
+        gap: 0.5rem;
+        width: 100%;
+        align-items: center; /* Center-align the links */
+    }
+    
+    .client-nav li {
+        width: 100%;
+        text-align: center;
+    }
+
+    /* 2. Fix 2-Column Layouts (like My Account) */
+    .account-container {
+        grid-template-columns: 1fr; /* Change from 2 columns to 1 */
+    }
+
+    /* 3. Reduce global padding */
+    .client-main {
+        padding: 0 1rem; /* Reduce side padding */
+        margin-top: 1rem;
+    }
+
+    /* 4. Make Tables scroll horizontally */
+    /* This prevents wide tables (like order history) from breaking the page */
+    .account-content,
+    .cart-container {
+        overflow-x: auto; 
+    }
+
+    /* 5. Adjust form and wizard containers */
+    .form-container,
+    .wizard-container,
+    .checkout-options-container {
+        margin: 1rem auto;
+        padding: 0;
+    }
+    
+    .form-wrapper, .card {
+        padding: 1.5rem;
+    }
+
+    /* 6. Stack cart summary */
+    .cart-summary-container {
+        flex-direction: column; /* Stack voucher and totals */
+        gap: 1rem;
+    }
+
+    .cart-totals {
+        text-align: left; /* Align totals left on mobile */
+    }
+
+    .totals-grid {
+        justify-content: start; /* Align grid to the left */
+    }
+    
+    /* 7. Adjust modal */
+    .modal-content {
+        margin: 20% auto; /* Give more space from top */
+        width: 95%;
+    }
+}

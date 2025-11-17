@@ -7,28 +7,27 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, date
-from sqlalchemy import func
+from sqlalchemy import func, cast, Integer
 from PIL import Image
 from xml.dom import minidom
 from flask import make_response, jsonify
 from flask import current_app as app
 from flask import render_template, redirect, url_for, flash, request, session, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
-# We only need to import the models once
-from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem, Rider
-from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm, RiderLoginForm, RiderRegisterForm, RiderRequestResetForm, RiderResetPasswordForm, AdminRiderAddForm, AdminRiderEditForm
+from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem, Review # Rider removed
+from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm, ReviewForm # All Rider forms removed
 from functools import wraps
 from flask_mail import Message
 from app import mail
 from app.forms import RequestResetForm, ResetPasswordForm
+from flask import make_response, jsonify, current_app as app, render_template, redirect, url_for, flash, request, session, jsonify, current_app, get_flashed_messages
+
 
 def get_category_choices():
     """
     Helper function to get all categories for the product form dropdown.
     """
-    # We query the database for all categories
     categories = Category.query.filter_by(is_active=True).all()
-    # We format them as a list of (value, label) tuples
     return [(c.category_id, c.name) for c in categories]
 
 def save_picture(form_picture):
@@ -36,20 +35,14 @@ def save_picture(form_picture):
     Helper function to save an uploaded picture.
     Resizes it and returns the unique filename.
     """
-    # 1. Create a random, unique filename
     random_hex = secrets.token_hex(8)
-    # Get the file extension (e.g., '.jpg')
     _, f_ext = os.path.splitext(form_picture.filename)
     picture_fn = random_hex + f_ext
-    # 2. Define the full save path
     picture_path = os.path.join(app.config['UPLOAD_FOLDER'], 'products', picture_fn)
 
-    # 3. Resize the image to save space
-    output_size = (800, 800) # Max 800x800 pixels
+    output_size = (800, 800) 
     i = Image.open(form_picture)
     i.thumbnail(output_size)
-
-    # 4. Save the resized image
     i.save(picture_path)
 
     return picture_fn
@@ -66,45 +59,31 @@ def customer_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# app/routes.py
+# ===============================================
+# HELPER: Check if review exists (NEW)
+# ===============================================
 
-# ... (after save_picture function) ...
-
-def save_rider_document(form_file):
+def has_reviewed_product(customer_id, product_id):
     """
-    Helper function to save an uploaded rider document.
-    Saves it to 'uploads/riders/documents'.
-    Returns the relative path for database storage.
+    Checks only if a customer has already submitted a review for this product.
+    Returns True if a review exists, False otherwise.
     """
-    # 1. Define the full save path
-    doc_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'riders', 'documents')
-    if not os.path.exists(doc_upload_folder):
-        os.makedirs(doc_upload_folder)
+    return Review.query.filter_by(
+        customer_id=customer_id,
+        product_id=product_id
+    ).first() is not None
 
-    # 2. Create a random, unique filename
-    random_hex = secrets.token_hex(8)
-    _, f_ext = os.path.splitext(form_file.filename)
-    document_fn = random_hex + f_ext
-    document_path = os.path.join(doc_upload_folder, document_fn)
 
-    # 3. Resize and Save the image (reusing PIL logic)
-    output_size = (1000, 1000) # Max 1000x1000 pixels
-    i = Image.open(form_file)
-    i.thumbnail(output_size)
-    i.save(document_path)
+# ===============================================
+# CLIENT-SIDE ROUTES
+# ===============================================
 
-    # 4. Return the path relative to 'uploads/'
-    return f"riders/documents/{document_fn}"
-
-# ... (rest of the file) ...
 @app.route('/')
 def client_home():
     """
     Client-facing homepage.
     Now fetches top 3 popular products.
     """
-
-    # This query finds the top 3 selling product_ids
     top_product_ids = db.session.query(
             OrderItem.product_id,
             func.sum(OrderItem.quantity).label('total_sold')
@@ -113,7 +92,6 @@ def client_home():
          .limit(3)\
          .all()
 
-    # Get the full product objects for those IDs
     product_ids = [pid for pid, total in top_product_ids]
     popular_products = Product.query.filter(Product.product_id.in_(product_ids)).all()
 
@@ -122,707 +100,61 @@ def client_home():
         popular_products=popular_products
     )
 
-# THIS FUNCTION WAS MISSING
 @app.route('/menu')
-@customer_login_required
 def client_menu():
     """
     Client-facing Menu page.
     Shows ACTIVE categories and products.
     Can be filtered by category_id.
+    NOW includes average product ratings.
     """
-    # Get the category_id from the URL (e.g., /menu?category_id=1)
     category_id = request.args.get('category_id', type=int)
-
-    # Fetch all ACTIVE categories for the tabs
     categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
-
     selected_category = None
 
-    # Base query for products, joining with Category to filter
     product_query = Product.query.join(Category).filter(Category.is_active==True)
 
     if category_id:
-        # If a category is selected, filter the product query
         product_query = product_query.filter(Product.category_id==category_id)
         selected_category = Category.query.get(category_id)
 
-    # Execute the query
     products = product_query.order_by(Product.name.asc()).all()
+    
+    product_ids = [p.product_id for p in products]
+    
+    ratings_query = db.session.query(
+        Review.product_id,
+        func.avg(Review.rating).label('average_rating'),
+        func.count(Review.review_id).label('review_count')
+    ).filter(Review.product_id.in_(product_ids))\
+     .group_by(Review.product_id)\
+     .all()
+     
+    ratings_map = {item.product_id: {'avg': float(item.average_rating), 'count': item.review_count} for item in ratings_query}
 
     return render_template(
         'client_menu.html',
         categories=categories,
         products=products,
-        selected_category=selected_category
+        selected_category=selected_category,
+        ratings_map=ratings_map
     )
 
-@app.route('/my-account')
-@customer_login_required
-def client_my_account():
+
+# app/routes.py (Add these functions back into the file)
+
+def has_reviewed_product(customer_id, product_id):
     """
-    (R)EAD: Display the customer's account page.
-    Shows their profile and order history.
+    Checks only if a customer has already submitted a review for this product.
+    Returns True if a review exists, False otherwise.
     """
-    customer_id = session['customer_id']
+    return Review.query.filter_by(
+        customer_id=customer_id,
+        product_id=product_id
+    ).first() is not None
 
-    # --- UPDATED QUERY ---
-    # We use joinedload(Order.rider) to efficiently fetch the rider's
-    # information in the same query, preventing database slowdowns.
-    orders = Order.query\
-        .options(db.joinedload(Order.rider))\
-        .filter_by(customer_id=customer_id)\
-        .order_by(Order.order_date.desc())\
-        .all()
 
-    return render_template(
-        'client_account.html',
-        orders=orders
-    )
-
-@app.route('/my-account/profile', methods=['GET', 'POST'])
-@customer_login_required
-def client_profile():
-    """
-    (R)EAD and (U)PDATE the customer's own profile.
-    NOW INCLUDES logic for discount verification.
-    """
-    customer = Customer.query.get_or_404(session['customer_id'])
-    form = CustomerProfileForm(obj=customer) # Pre-fill form
-    upload_form = DiscountVerificationForm()
-
-    # --- The flawed 'is_eligible' logic block has been removed ---
-
-    if form.validate_on_submit():
-        # Update the customer's details
-        customer.name = form.name.data
-        customer.contact_number = form.contact_number.data
-        customer.birthdate = form.birthdate.data 
-
-        try:
-            db.session.commit()
-            # Update the session name in case they changed it
-            session['customer_name'] = customer.name
-            flash('Your profile has been updated.', 'success')
-            return redirect(url_for('client_profile'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error updating profile: {e}", 'danger')
-
-    # Show the pre-filled form on a GET request
-    return render_template(
-        'client_profile.html',
-        form=form,
-        upload_form=upload_form,
-        customer=customer
-    )
-
-@app.route('/my-account/upload-id', methods=['POST'])
-@customer_login_required
-def client_upload_id():
-    """
-    (C)REATE: Process the ID upload form for discount verification.
-    """
-    form = DiscountVerificationForm()
-    customer = Customer.query.get_or_404(session['customer_id'])
-
-    if form.validate_on_submit():
-        # 1. Save the uploaded image file
-        if form.id_image.data:
-            try:
-                # We'll re-use the save_picture function, but we should
-                # create a new folder for these uploads to keep them separate.
-                # Let's modify the function call slightly.
-
-                # First, define the new upload path
-                id_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'ids')
-                if not os.path.exists(id_upload_folder):
-                    os.makedirs(id_upload_folder)
-
-                # Now, save the picture there
-                random_hex = secrets.token_hex(8)
-                _, f_ext = os.path.splitext(form.id_image.data.filename)
-                picture_fn = random_hex + f_ext
-                picture_path = os.path.join(id_upload_folder, picture_fn)
-
-                output_size = (800, 800) # Max 800x800 pixels
-                i = Image.open(form.id_image.data)
-                i.thumbnail(output_size)
-                i.save(picture_path)
-
-                # Save the *relative* path to the database
-                customer.id_image_file = f"ids/{picture_fn}"
-
-            except Exception as e:
-                flash(f'Error uploading image: {e}', 'danger')
-                return redirect(url_for('client_profile'))
-# 2. Update the customer's record
-        customer.discount_type = form.discount_type.data
-        customer.is_verified_discount = False # Set to False, pending admin review
-        customer.discount_status = 'Pending'  # <-- ADD THIS LINE
-
-        try:
-            db.session.commit()
-            flash('Your ID has been submitted for verification.', 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error submitting ID: {e}", 'danger')
-
-    else:
-        # Handle form validation errors
-        for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"Error in {field}: {error}", 'danger')
-
-    return redirect(url_for('client_profile'))
-
-# ===============================================
-# CLIENT-SIDE: SHOPPING CART
-# ===============================================
-
-@app.route('/cart/add', methods=['POST'])
-@customer_login_required
-def add_to_cart():
-    """
-    Add a product to the user's session cart.
-    Now handles variant_id and quantity.
-    NOW RETURNS JSON for a fetch() request.
-    """
-    cart = session.get('cart', {})
-    
-    # Get all data from the modal form
-    product_id = request.form.get('product_id')
-    variant_id = request.form.get('variant_id')
-    
-    try:
-        quantity = int(request.form.get('quantity', 1))
-        if quantity < 1:
-            quantity = 1
-    except:
-        quantity = 1
-        
-    if not variant_id:
-        # Return JSON error
-        return jsonify({'status': 'error', 'message': 'No product size selected.'}), 400
-        
-    # Get the specific variant to get its name and price
-    variant = ProductVariant.query.get(variant_id)
-    if not variant:
-        # Return JSON error
-        return jsonify({'status': 'error', 'message': 'Could not find that product option.'}), 404
-
-    product = variant.product # Get the parent product
-    
-    # Use variant_id as the key in the cart
-    if variant_id in cart:
-        # If item is already in cart, just add to its quantity
-        cart[variant_id]['quantity'] += quantity
-    else:
-        # If new, add it to the cart
-        cart[variant_id] = {
-            'product_id': product.product_id,
-            'name': product.name,
-            'variant_name': variant.size_name,
-            'price': float(variant.price),
-            'image': product.image_file,
-            'quantity': quantity
-        }
-    
-    session['cart'] = cart
-    
-    print("Updated Cart:", session['cart'])
-    
-    # Return JSON success
-    message = f"Added {quantity} x {product.name} ({variant.size_name}) to cart!"
-    return jsonify({'status': 'success', 'message': message})
-
-@app.route('/product_details/<int:product_id>')
-def product_details(product_id):
-    """
-    API endpoint to get product details (especially variants) as JSON.
-    NOW INCLUDES current quantity in the buffet cart.
-    """
-    product = Product.query.get_or_404(product_id)
-
-    # Get the buffet cart from the session
-    buffet_cart = session.get('buffet_package', {})
-
-    variants_data = []
-    for variant in product.variants:
-        # Check if this variant is in the cart and get its quantity
-        current_quantity = buffet_cart.get(str(variant.variant_id), {}).get('quantity', 0)
-
-        variants_data.append({
-            'id': variant.variant_id,
-            'size': variant.size_name,
-            'price': float(variant.price),
-            'current_quantity': current_quantity # Add the count
-        })
-
-    return jsonify({
-        'id': product.product_id,
-        'name': product.name,
-        'has_variants': product.has_variants,
-        'variants': variants_data
-    })
-
-@app.route('/cart')
-@customer_login_required
-def client_cart():
-    """
-    (R)EAD: Display the user's shopping cart with smart totals.
-    NOW INCLUDES SENIOR/PWD DISCOUNT LOGIC.
-    """
-    cart_session = session.get('cart', {})
-    cart_items = []
-
-    ala_carte_subtotal = 0.0
-    buffet_subtotal = 0.0
-
-    for item_id, item_data in cart_session.items():
-        # ... (this loop is the same) ...
-        if 'name' not in item_data or 'price' not in item_data:
-            continue
-
-        quantity = item_data['quantity']
-        price = item_data['price']
-        line_total = float(price) * quantity
-
-        if item_data.get('is_buffet_item', False):
-            buffet_subtotal += line_total
-        else:
-            ala_carte_subtotal += line_total
-
-        cart_items.append({
-            'product_id': item_data['product_id'],
-            'variant_id': item_id,
-            'name': item_data['name'],
-            'variant_name': item_data['variant_name'],
-            'image': item_data['image'],
-            'price': float(price),
-            'quantity': quantity,
-            'line_total': line_total,
-            'is_buffet_item': item_data.get('is_buffet_item', False)
-        })
-
-    # --- NEW DISCOUNT LOGIC ---
-
-    # 1. Get the logged-in customer
-    customer = Customer.query.get(session['customer_id'])
-
-    # 2. Initialize all discounts
-    voucher_discount_amt = 0.0
-    senior_discount_amt = 0.0
-
-    # 3. Check if customer is verified
-    if customer and customer.is_verified_discount:
-        # They are verified! Apply 20% discount on ala_carte items
-        senior_discount_amt = (ala_carte_subtotal + buffet_subtotal) * 0.20
-
-        # IMPORTANT: Clear any regular vouchers, as this replaces them
-        if 'voucher_code' in session:
-            session.pop('voucher_code', None)
-            session.pop('discount_percentage', None)
-            flash("Your verified Senior/PWD discount has replaced the voucher.", 'info')
-    else:
-        # They are not verified, so check for a regular voucher
-        voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-
-    # 4. Final Totals
-    total_price = ala_carte_subtotal + buffet_subtotal
-    # Add all possible discounts together
-    total_discount_amount = voucher_discount_amt + senior_discount_amt
-    final_total = total_price - total_discount_amount
-
-    # --- END OF NEW LOGIC ---
-
-    # (This is the query we added for Feature 2, it stays the same)
-    available_vouchers = Voucher.query.filter(
-        Voucher.is_active == True,
-        (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
-    ).all()
-
-    return render_template(
-        'client_cart.html', 
-        cart_items=cart_items, 
-        total_price=total_price,
-        ala_carte_subtotal=ala_carte_subtotal,
-        buffet_subtotal=buffet_subtotal,
-        voucher_discount_amt=voucher_discount_amt,
-        senior_discount_amt=senior_discount_amt,  # <-- ADD THIS
-        total_discount_amount=total_discount_amount,
-        final_total=final_total,
-        available_vouchers=available_vouchers,
-        customer=customer                        # <-- ADD THIS
-    )
-
-@app.route('/cart/clear')
-@customer_login_required
-def clear_cart():
-    """
-    Clear the entire shopping cart and all discounts.
-    """
-    session.pop('cart', None)
-    session.pop('voucher_code', None)
-    session.pop('discount_percentage', None)
-    flash("Cart has been cleared.", 'info')
-    return redirect(url_for('client_cart'))
-
-@app.route('/cart/remove/<string:variant_id>')
-@customer_login_required
-def remove_from_cart(variant_id):
-    """
-    Remove an item from the shopping cart.
-    """
-    cart = session.get('cart', {})
-
-    # Use .pop() to remove the item if it exists
-    item_data = cart.pop(variant_id, None) 
-
-    if item_data:
-        flash(f"Removed {item_data['name']} ({item_data['variant_name']}) from cart.", 'info')
-
-    # Save the modified cart back to the session
-    session['cart'] = cart
-
-    return redirect(url_for('client_cart'))
-
-@app.route('/cart/update', methods=['POST'])
-@customer_login_required
-def update_cart_quantity():
-    """
-    Update the quantity of an item in the cart.
-    """
-    cart = session.get('cart', {})
-
-    # Get the new data from the form
-    variant_id = request.form.get('variant_id')
-    try:
-        quantity = int(request.form.get('quantity'))
-        if quantity < 1:
-            quantity = 1 # Minimum quantity is 1
-    except:
-        quantity = 1 # Default to 1 if something goes wrong
-
-    # Update the cart if the item exists
-    if variant_id in cart:
-        cart[variant_id]['quantity'] = quantity
-        flash(f"Updated {cart[variant_id]['name']} quantity.", 'success')
-
-    session['cart'] = cart
-
-    return redirect(url_for('client_cart'))
-
-@app.route('/cart/apply_voucher', methods=['POST'])
-@customer_login_required
-def apply_voucher():
-    """
-    Apply a voucher code to the cart.
-    NOW CHECKS USAGE LIMITS.
-    """
-    code = request.form.get('voucher_code')
-    
-    if not code:
-        flash("Please enter a voucher code.", 'danger')
-        return redirect(url_for('client_cart'))
-
-    # Check the database for the voucher
-    voucher = Voucher.query.filter_by(code=code, is_active=True).first()
-    
-    if voucher:
-        # --- ADD THIS CHECK ---
-        # Check if the voucher has a max_uses limit and if it's been reached
-        if voucher.max_uses is not None and voucher.current_uses >= voucher.max_uses:
-            flash("This voucher code has reached its maximum usage limit.", 'danger')
-            session.pop('voucher_code', None)
-            session.pop('discount_percentage', None)
-            return redirect(url_for('client_cart'))
-        # --- END OF CHECK ---
-
-        # Found a valid, active voucher! Save it to the session.
-        session['voucher_code'] = voucher.code
-        session['discount_percentage'] = float(voucher.discount_percentage)
-        flash(f"Voucher '{voucher.code}' applied successfully!", 'success')
-    else:
-        # No valid voucher found
-        session.pop('voucher_code', None)
-        session.pop('discount_percentage', None)
-        flash("Invalid or expired voucher code.", 'danger')
-        
-    return redirect(url_for('client_cart'))
-
-@app.route('/checkout')
-@customer_login_required
-def client_checkout():
-    """
-    (R)EAD: Display the FINAL checkout page with ALL totals.
-    NOW INCLUDES SENIOR/PWD DISCOUNT LOGIC.
-    """
-    cart_session = session.get('cart', {})
-    if not cart_session:
-        flash("Your cart is empty.", 'info')
-        return redirect(url_for('client_cart'))
-
-    if 'order_type' not in session:
-        flash("Please select your delivery or pickup option first.", 'info')
-        return redirect(url_for('client_checkout_options'))
-
-    # --- Recalculate totals just like in the cart ---
-    cart_items = []
-    ala_carte_subtotal = 0.0
-    buffet_subtotal = 0.0
-    total_price = 0.0
-
-    for item_id, item_data in cart_session.items():
-        if 'name' not in item_data or 'price' not in item_data:
-            continue
-
-        quantity = item_data['quantity']
-        price = item_data['price']
-        line_total = float(price) * quantity
-        total_price += line_total
-
-        if item_data.get('is_buffet_item', False):
-            buffet_subtotal += line_total
-        else:
-            ala_carte_subtotal += line_total
-
-        cart_items.append({
-            'product_id': item_data['product_id'],
-            'variant_id': item_id,
-            'name': item_data['name'],
-            'variant_name': item_data['variant_name'],
-            'image': item_data['image'],
-            'price': float(price),
-            'quantity': quantity,
-            'line_total': line_total,
-            'is_buffet_item': item_data.get('is_buffet_item', False)
-        })
-
-    # --- NEW DISCOUNT LOGIC (mirroring client_cart) ---
-
-    # 1. Get the logged-in customer
-    customer = Customer.query.get(session['customer_id'])
-
-    # 2. Initialize discounts
-    voucher_discount_amt = 0.0
-    senior_discount_amt = 0.0
-    delivery_fee = session.get('delivery_fee', 0.0)
-
-    # 3. Check if customer is verified
-    if customer and customer.is_verified_discount:
-        # They are verified! Apply 20% global discount
-        senior_discount_amt = (ala_carte_subtotal + buffet_subtotal) * 0.20
-    else:
-        # They are not verified, so check for a regular voucher
-        voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-
-    # 4. Final Totals
-    total_discount_amount = voucher_discount_amt + senior_discount_amt
-    final_total = (total_price - total_discount_amount) + delivery_fee
-    # --- END OF NEW LOGIC ---
-
-    return render_template(
-        'client_checkout.html',
-        cart_items=cart_items,
-        total_price=total_price,
-        # We removed buffet_discount_amt, so no need to pass it
-        voucher_discount_amt=voucher_discount_amt,
-        senior_discount_amt=senior_discount_amt, # <-- Pass new discount
-        delivery_fee=delivery_fee,
-        total_discount_amount=total_discount_amount,
-        final_total=final_total
-    )
-
-@app.route('/checkout/options', methods=['GET'])
-@customer_login_required
-def client_checkout_options():
-    """
-    (R)EAD: Show the page for selecting Delivery or Pickup.
-    """
-    cart_session = session.get('cart', {})
-    if not cart_session:
-        flash("Your cart is empty.", 'info')
-        return redirect(url_for('client_cart'))
-
-    # Get the customer's default address to pre-fill the form
-    customer = Customer.query.get(session['customer_id'])
-    default_address = customer.address
-
-    return render_template(
-        'client_checkout_options.html',
-        default_address=default_address
-    )
-
-@app.route('/checkout/save_options', methods=['POST'])
-@customer_login_required
-def save_checkout_options():
-    """
-    (C)REATE: Save the chosen delivery options to the session.
-    """
-    cart_session = session.get('cart', {})
-    if not cart_session:
-        flash("Your cart is empty.", 'info')
-        return redirect(url_for('client_cart'))
-
-    order_type = request.form.get('order_type')
-    delivery_address = request.form.get('delivery_address')
-
-    if order_type == 'Delivery':
-        if not delivery_address:
-            # If they chose delivery but left the address blank
-            flash("Please provide a delivery address.", 'danger')
-            return redirect(url_for('client_checkout_options'))
-        
-        session['delivery_fee'] = 100.00
-        session['order_type'] = 'Delivery'
-        session['delivery_address'] = delivery_address
-    else:
-        # It's a Pickup
-        session['delivery_fee'] = 0.00
-        session['order_type'] = 'Pickup'
-        session['delivery_address'] = 'Store Pickup'
-
-    # Send them to the final review page
-    return redirect(url_for('client_checkout'))
-
-@app.route('/checkout/place_order', methods=['POST'])
-@customer_login_required
-def place_order():
-    """
-    (C)REATE: Create the order in the database.
-    NOW INCLUDES SENIOR/PWD DISCOUNT LOGIC.
-    """
-    cart_session = session.get('cart', {})
-    if not cart_session:
-        return jsonify({'status': 'error', 'message': "Your cart is empty. Please try again."}), 400
-
-    # Create a copy of the cart for validation and processing
-    valid_cart_items = {} 
-    ala_carte_subtotal = 0.0
-    buffet_subtotal = 0.0
-    total_price = 0.0
-
-    for item_id, item_data in cart_session.items():
-        if 'product_id' not in item_data or 'price' not in item_data:
-            continue
-
-        valid_cart_items[item_id] = item_data
-        line_total = float(item_data['price']) * item_data['quantity']
-        total_price += line_total
-
-        if item_data.get('is_buffet_item', False):
-            buffet_subtotal += line_total
-        else:
-            ala_carte_subtotal += line_total
-
-    if not valid_cart_items:
-        return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
-
-    # --- NEW DISCOUNT LOGIC (mirroring client_cart) ---
-
-    # 1. Get the logged-in customer
-    customer = Customer.query.get(session['customer_id'])
-
-    # 2. Initialize discounts
-    voucher_discount_amt = 0.0
-    senior_discount_amt = 0.0
-    delivery_fee = session.get('delivery_fee', 0.0)
-
-    # 3. Check if customer is verified
-    if customer and customer.is_verified_discount:
-        # They are verified! Apply 20% global discount
-        senior_discount_amt = (ala_carte_subtotal + buffet_subtotal) * 0.20
-    else:
-        # They are not verified, so check for a regular voucher
-        voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-
-    # 4. Final Totals
-    total_discount_amount = voucher_discount_amt + senior_discount_amt # Removed buffet_discount_amt
-    final_total = (total_price - total_discount_amount) + delivery_fee
-    # --- END OF NEW LOGIC ---
-
-
-    # --- 2. Create the main Order ---
-    try:
-        # --- ADD THIS LINE to get the data from the form ---
-        special_instructions = request.form.get('special_instructions')
-
-        new_order = Order(
-            customer_id=session['customer_id'],
-            total_amount=total_price,
-            discount_amount=total_discount_amount, # <-- This is now correct
-            final_amount=final_total,            # <-- This is now correct
-            status="Pending",
-            order_type=session.get('order_type', 'Pickup'),
-            delivery_address=session.get('delivery_address', 'Store Pickup'),
-            delivery_fee=delivery_fee,
-            
-            # --- ADD THIS LINE to save the data to the DB ---
-            special_instructions=special_instructions
-        )
-        db.session.add(new_order)
-        db.session.commit()
-
-        # --- 3. Create the OrderItems (using the VALID list) ---
-        for item_key, item_data in valid_cart_items.items():
-
-            # Determine the REAL variant ID
-            real_variant_id = item_data.get('variant_id', item_key)
-
-            # Now, check if the key is a string (e.g., 'buffet_2')
-            if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
-                final_variant_id = int(real_variant_id.split('_')[1])
-            else:
-                final_variant_id = int(real_variant_id)
-
-            # --- Now create the OrderItem ---
-            new_item = OrderItem(
-                order_id=new_order.order_id,
-                product_id=item_data['product_id'],
-                variant_id=final_variant_id,
-                quantity=item_data['quantity'],
-                price_per_item=item_data['price'] 
-            )
-            db.session.add(new_item)
-
-        # --- This is the logic from Feature 1 (Increment Voucher) ---
-        if session.get('voucher_code'):
-            # Find the voucher that was used
-            voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
-            if voucher_to_update:
-                # Increment its use count
-                voucher_to_update.current_uses += 1
-                db.session.add(voucher_to_update)
-        # --- End of voucher logic ---
-
-        db.session.commit() # Commit new items and voucher update
-
-        # --- 4. Clear the cart AND ALL checkout session data ---
-        session.pop('cart', None)
-        session.pop('voucher_code', None)
-        session.pop('discount_percentage', None)
-        # session.pop('buffet_discount_percentage', None) # <-- This is already removed
-        session.pop('delivery_fee', None)
-        session.pop('order_type', None)
-        session.pop('delivery_address', None)
-        session.pop('buffet_package', None)
-        session.pop('buffet_recommendations', None)
-        session.pop('buffet_sequence', None)
-
-        # --- SUCCESS RETURN: Return JSON status and the URL to redirect to ---
-        return jsonify({
-            'status': 'success',
-            'message': f"Order #{new_order.order_id} has been placed successfully!",
-            'redirect_url': url_for('client_my_account')
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'status': 'error', 'message': f"DB Error: {e}"}), 500
+# app/routes.py (Add this function back into the CATEGORY MANAGEMENT section)
 
 @app.route('/admin/categories/add', methods=['POST'])
 @login_required
@@ -851,6 +183,33 @@ def admin_add_category():
         flash('Error: Could not add category. Please check form.', 'danger')
 
     return redirect(url_for('admin_categories') + '#add-category-card')
+
+# app/routes.py (Add this function back, e.g., after client_my_account)
+
+@app.route('/my-account/order/<int:order_id>/receipt')
+@customer_login_required
+def client_view_receipt(order_id):
+    """
+    Renders a printable receipt for a specific order.
+    """
+    # 1. Fetch the order and related data (customer, items, products, variants)
+    order = Order.query.options(
+        db.joinedload(Order.customer),
+        db.joinedload(Order.items).joinedload(OrderItem.product),
+        db.joinedload(Order.items).joinedload(OrderItem.variant)
+    ).filter_by(order_id=order_id).first_or_404()
+
+    # 2. Security Check: Ensure the order belongs to the logged-in customer
+    if order.customer_id != session['customer_id']:
+        flash("You do not have permission to view that receipt.", 'danger')
+        return redirect(url_for('client_my_account'))
+
+    # 3. Render the receipt template (which you should have already created)
+    return render_template(
+        'client_receipt.html', 
+        order=order
+    )
+# app/routes.py (Add this function back, e.g., before admin_dashboard)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -884,15 +243,678 @@ def admin_login():
     # If it's a 'GET' request or form validation failed, show the login page
     return render_template('admin_login.html', form=form)
 
+@app.route('/my-account')
+@customer_login_required
+def client_my_account():
+    """
+    (R)EAD: Display the customer's account page.
+    Shows their profile and order history.
+    """
+    customer_id = session['customer_id']
+
+    # Removed db.joinedload(Order.rider) since riders are gone
+    orders = Order.query\
+        .filter_by(customer_id=customer_id)\
+        .order_by(Order.order_date.desc())\
+        .all()
+
+    return render_template(
+        'client_account.html',
+        orders=orders,
+        has_reviewed_product=has_reviewed_product # Pass the helper function
+    )
+
+@app.route('/my-account/profile', methods=['GET', 'POST'])
+@customer_login_required
+def client_profile():
+    """
+    (R)EAD and (U)PDATE the customer's own profile.
+    NOW revokes senior discount if birthdate is changed.
+    """
+    customer = Customer.query.get_or_404(session['customer_id'])
+    form = CustomerProfileForm(obj=customer) 
+    upload_form = DiscountVerificationForm()
+
+    if form.validate_on_submit():
+        # Get the new birthdate from the form
+        new_birthdate = form.birthdate.data
+        profile_updated_message = 'Your profile has been updated.'
+
+        # --- NEW LOGIC: Auto-revoke discount if age changes ---
+        if new_birthdate:
+            today = date.today()
+            age = today.year - new_birthdate.year - ((today.month, today.day) < (new_birthdate.month, new_birthdate.day))
+            
+            # Check if they are currently verified as a Senior
+            if customer.is_verified_discount and customer.discount_type == 'Senior':
+                if age < 60:
+                    # They are no longer a senior, revoke the discount!
+                    customer.is_verified_discount = False
+                    customer.discount_status = None # Reset status
+                    customer.discount_type = None
+                    customer.id_image_file = None # Clear the old ID
+                    flash('Your Senior discount has been revoked as your new birthdate makes you ineligible.', 'warning')
+                    # Change the success message so it doesn't conflict
+                    profile_updated_message = 'Your profile and discount status have been updated.'
+        # --- END NEW LOGIC ---
+
+        # Update the customer's details
+        customer.name = form.name.data
+        customer.contact_number = form.contact_number.data
+        customer.birthdate = new_birthdate # Save the new birthdate
+
+        customer.landmark = form.landmark.data
+        try:
+            db.session.commit()
+            session['customer_name'] = customer.name
+            
+            # Check if a warning was just flashed. If not, flash the success message.
+            if 'warning' not in [m[0] for m in get_flashed_messages(with_categories=True)]:
+                 flash(profile_updated_message, 'success')
+                 
+            return redirect(url_for('client_profile'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating profile: {e}", 'danger')
+
+    # This handles GET requests AND POST requests that fail validation
+    return render_template(
+        'client_profile.html',
+        form=form,
+        upload_form=upload_form,
+        customer=customer
+    )
+
+@app.route('/my-account/upload-id', methods=['POST'])
+@customer_login_required
+def client_upload_id():
+    """
+    (C)REATE: Process the ID upload form for discount verification.
+    """
+    form = DiscountVerificationForm()
+    customer = Customer.query.get_or_404(session['customer_id'])
+
+    if form.validate_on_submit():
+        if form.id_image.data:
+            try:
+                id_upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'ids')
+                if not os.path.exists(id_upload_folder):
+                    os.makedirs(id_upload_folder)
+
+                random_hex = secrets.token_hex(8)
+                _, f_ext = os.path.splitext(form.id_image.data.filename)
+                picture_fn = random_hex + f_ext
+                picture_path = os.path.join(id_upload_folder, picture_fn)
+
+                output_size = (800, 800)
+                i = Image.open(form.id_image.data)
+                i.thumbnail(output_size)
+                i.save(picture_path)
+
+                customer.id_image_file = f"ids/{picture_fn}"
+
+            except Exception as e:
+                flash(f'Error uploading image: {e}', 'danger')
+                return redirect(url_for('client_profile'))
+
+        customer.discount_type = form.discount_type.data
+        customer.is_verified_discount = False 
+        customer.discount_status = 'Pending'  
+
+        try:
+            db.session.commit()
+            flash('Your ID has been submitted for verification.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error submitting ID: {e}", 'danger')
+
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"Error in {field}: {error}", 'danger')
+
+    return redirect(url_for('client_profile'))
+
+@app.route('/review/product/<int:product_id>', methods=['GET', 'POST'])
+@customer_login_required
+def client_review_product(product_id):
+    """
+    Renders the review form for a specific product and processes submission.
+    """
+    product = Product.query.get_or_404(product_id)
+    customer_id = session['customer_id']
+    form = ReviewForm()
+
+    # Check 1: Prevent submission if already reviewed (using the new helper)
+    if has_reviewed_product(customer_id, product_id):
+        flash("You have already submitted a review for this product.", 'danger')
+        return redirect(url_for('client_my_account'))
+    
+    # Check 2: Ensure the product was bought in a COMPLETED order
+    has_bought = db.session.query(OrderItem.order_item_id)\
+        .join(Order)\
+        .filter(
+            Order.customer_id == customer_id,
+            OrderItem.product_id == product_id,
+            Order.status == 'Completed'
+        ).first()
+
+    if not has_bought:
+        flash("You can only review products from completed orders that you purchased.", 'danger')
+        return redirect(url_for('client_my_account'))
+
+    if form.validate_on_submit():
+        new_review = Review(
+            product_id=product_id,
+            customer_id=customer_id,
+            rating=form.rating.data,
+            comment=form.comment.data
+        )
+
+        try:
+            db.session.add(new_review)
+            db.session.commit()
+            flash(f"Thank you for reviewing {product.name}!", 'success')
+            return redirect(url_for('client_my_account'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error submitting review: {e}", 'danger')
+            
+    return render_template(
+        'client_review_form.html',
+        form=form,
+        product=product
+    )
+
 # ===============================================
-# CLIENT-SIDE: CUSTOMER ACCOUNTS
+# CLIENT-SIDE: SHOPPING CART & ORDERING
+# ===============================================
+@app.route('/cart/add', methods=['POST'])
+def add_to_cart():
+    """
+    Add a product to the user's session cart.
+    NOW checks for login status.
+    """
+    # --- NEW: Manual Login Check ---
+    if 'customer_id' not in session:
+        return jsonify({'status': 'login_required', 'url': url_for('client_account_page')})
+    # --- End New Check ---
+
+    cart = session.get('cart', {})
+    
+    # Get all data from the modal form
+    product_id = request.form.get('product_id')
+    # ... (rest of the function remains the same)
+    variant_id = request.form.get('variant_id')
+    
+    try:
+        quantity = int(request.form.get('quantity', 1))
+        if quantity < 1:
+            quantity = 1
+    except:
+        quantity = 1
+        
+    if not variant_id:
+        return jsonify({'status': 'error', 'message': 'No product size selected.'}), 400
+        
+    variant = ProductVariant.query.get(variant_id)
+    if not variant:
+        return jsonify({'status': 'error', 'message': 'Could not find that product option.'}), 404
+
+    product = variant.product 
+    
+    if variant_id in cart:
+        cart[variant_id]['quantity'] += quantity
+    else:
+        cart[variant_id] = {
+            'product_id': product.product_id,
+            'name': product.name,
+            'variant_name': variant.size_name,
+            'price': float(variant.price),
+            'image': product.image_file,
+            'quantity': quantity
+        }
+    
+    session['cart'] = cart
+    
+    message = f"Added {quantity} x {product.name} ({variant.size_name}) to cart!"
+    return jsonify({'status': 'success', 'message': message})
+
+@app.route('/product_details/<int:product_id>')
+def product_details(product_id):
+    product = Product.query.get_or_404(product_id)
+
+    buffet_cart = session.get('buffet_package', {})
+
+    variants_data = []
+    for variant in product.variants:
+        current_quantity = buffet_cart.get(str(variant.variant_id), {}).get('quantity', 0)
+
+        variants_data.append({
+            'id': variant.variant_id,
+            'size': variant.size_name,
+            'price': float(variant.price),
+            'current_quantity': current_quantity
+        })
+
+    return jsonify({
+        'id': product.product_id,
+        'name': product.name,
+        'has_variants': product.has_variants,
+        'variants': variants_data
+    })
+
+@app.route('/cart')
+@customer_login_required
+def client_cart():
+    """
+    (R)EAD: Display the user's shopping cart with smart totals.
+    NOW INCLUDES separate PWD (capped) and Senior (full) logic.
+    """
+    cart_session = session.get('cart', {})
+    cart_items = []
+
+    ala_carte_subtotal = 0.0
+    buffet_subtotal = 0.0
+    total_price = 0.0
+
+    for item_id, item_data in cart_session.items():
+        if 'name' not in item_data or 'price' not in item_data:
+            continue
+        quantity = item_data['quantity']
+        price = item_data['price']
+        line_total = float(price) * quantity
+        total_price += line_total
+        if item_data.get('is_buffet_item', False):
+            buffet_subtotal += line_total
+        else:
+            ala_carte_subtotal += line_total
+        cart_items.append({
+            'product_id': item_data['product_id'],
+            'variant_id': item_id, 'name': item_data['name'],
+            'variant_name': item_data['variant_name'], 'image': item_data['image'],
+            'price': float(price), 'quantity': quantity,
+            'line_total': line_total, 'is_buffet_item': item_data.get('is_buffet_item', False)
+        })
+
+    customer = Customer.query.get(session['customer_id'])
+
+    # --- NEW: Separate Discount Logic ---
+    voucher_discount_amt = 0.0
+    senior_discount_amt = 0.0
+    pwd_discount_amt = 0.0
+    subtotal = ala_carte_subtotal + buffet_subtotal
+
+    if customer and customer.is_verified_discount:
+        # Clear any regular vouchers
+        if 'voucher_code' in session:
+            session.pop('voucher_code', None)
+            session.pop('discount_percentage', None)
+            flash(f"Your verified {customer.discount_type} discount has replaced the voucher.", 'info')
+
+        if customer.discount_type == 'Senior':
+            # Senior logic: 20% off total
+            senior_discount_amt = subtotal * 0.20
+        
+        elif customer.discount_type == 'PWD':
+            # PWD logic: 20% off total, but capped at ₱150
+            pwd_discount_amt = subtotal * 0.20
+            if pwd_discount_amt > 150.00:
+                pwd_discount_amt = 150.00
+            
+    else:
+        # No verified discount, check for regular voucher
+        voucher_discount_perc = session.get('discount_percentage', 0.0)
+        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    # --- END NEW LOGIC ---
+
+    total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
+    final_total = total_price - total_discount_amount
+
+    available_vouchers = Voucher.query.filter(
+        Voucher.is_active == True,
+        (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
+    ).all()
+
+    return render_template(
+        'client_cart.html', 
+        cart_items=cart_items, 
+        total_price=total_price,
+        ala_carte_subtotal=ala_carte_subtotal,
+        buffet_subtotal=buffet_subtotal,
+        voucher_discount_amt=voucher_discount_amt,
+        senior_discount_amt=senior_discount_amt,
+        pwd_discount_amt=pwd_discount_amt, # <-- Pass new discount
+        total_discount_amount=total_discount_amount,
+        final_total=final_total,
+        available_vouchers=available_vouchers,
+        customer=customer
+    )
+
+@app.route('/cart/clear')
+@customer_login_required
+def clear_cart():
+    session.pop('cart', None)
+    session.pop('voucher_code', None)
+    session.pop('discount_percentage', None)
+    flash("Cart has been cleared.", 'info')
+    return redirect(url_for('client_cart'))
+
+@app.route('/cart/remove/<string:variant_id>')
+@customer_login_required
+def remove_from_cart(variant_id):
+    cart = session.get('cart', {})
+
+    item_data = cart.pop(variant_id, None) 
+
+    if item_data:
+        flash(f"Removed {item_data['name']} ({item_data['variant_name']}) from cart.", 'info')
+
+    session['cart'] = cart
+
+    return redirect(url_for('client_cart'))
+
+@app.route('/cart/update', methods=['POST'])
+@customer_login_required
+def update_cart_quantity():
+    cart = session.get('cart', {})
+
+    variant_id = request.form.get('variant_id')
+    try:
+        quantity = int(request.form.get('quantity'))
+        if quantity < 1:
+            quantity = 1
+    except:
+        quantity = 1
+
+    if variant_id in cart:
+        cart[variant_id]['quantity'] = quantity
+        flash(f"Updated {cart[variant_id]['name']} quantity.", 'success')
+
+    session['cart'] = cart
+
+    return redirect(url_for('client_cart'))
+
+@app.route('/cart/apply_voucher', methods=['POST'])
+@customer_login_required
+def apply_voucher():
+    code = request.form.get('voucher_code')
+    
+    if not code:
+        flash("Please enter a voucher code.", 'danger')
+        return redirect(url_for('client_cart'))
+
+    voucher = Voucher.query.filter_by(code=code, is_active=True).first()
+    
+    if voucher:
+        if voucher.max_uses is not None and voucher.current_uses >= voucher.max_uses:
+            flash("This voucher code has reached its maximum usage limit.", 'danger')
+            session.pop('voucher_code', None)
+            session.pop('discount_percentage', None)
+            return redirect(url_for('client_cart'))
+
+        session['voucher_code'] = voucher.code
+        session['discount_percentage'] = float(voucher.discount_percentage)
+        flash(f"Voucher '{voucher.code}' applied successfully!", 'success')
+    else:
+        session.pop('voucher_code', None)
+        session.pop('discount_percentage', None)
+        flash("Invalid or expired voucher code.", 'danger')
+        
+    return redirect(url_for('client_cart'))
+
+@app.route('/checkout')
+@customer_login_required
+def client_checkout():
+    """
+    (R)EAD: Display the FINAL checkout page with ALL totals.
+    NOW INCLUDES separate PWD (capped) and Senior (full) logic.
+    """
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        flash("Your cart is empty.", 'info')
+        return redirect(url_for('client_cart'))
+    if 'order_type' not in session:
+        flash("Please select your delivery or pickup option first.", 'info')
+        return redirect(url_for('client_checkout_options'))
+
+    cart_items = []
+    ala_carte_subtotal = 0.0
+    buffet_subtotal = 0.0
+    total_price = 0.0
+
+    for item_id, item_data in cart_session.items():
+        if 'name' not in item_data or 'price' not in item_data:
+            continue
+        quantity = item_data['quantity']
+        price = item_data['price']
+        line_total = float(price) * quantity
+        total_price += line_total
+        if item_data.get('is_buffet_item', False):
+            buffet_subtotal += line_total
+        else:
+            ala_carte_subtotal += line_total
+        cart_items.append({
+            'product_id': item_data['product_id'],
+            'variant_id': item_id, 'name': item_data['name'],
+            'variant_name': item_data['variant_name'], 'image': item_data['image'],
+            'price': float(price), 'quantity': quantity,
+            'line_total': line_total, 'is_buffet_item': item_data.get('is_buffet_item', False)
+        })
+
+    customer = Customer.query.get(session['customer_id'])
+
+    # --- NEW: Separate Discount Logic ---
+    voucher_discount_amt = 0.0
+    senior_discount_amt = 0.0
+    pwd_discount_amt = 0.0
+    delivery_fee = session.get('delivery_fee', 0.0)
+    subtotal = ala_carte_subtotal + buffet_subtotal
+
+    if customer and customer.is_verified_discount:
+        if customer.discount_type == 'Senior':
+            senior_discount_amt = subtotal * 0.20
+        elif customer.discount_type == 'PWD':
+            pwd_discount_amt = subtotal * 0.20
+            if pwd_discount_amt > 150.00:
+                pwd_discount_amt = 150.00
+    else:
+        voucher_discount_perc = session.get('discount_percentage', 0.0)
+        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    # --- END NEW LOGIC ---
+
+    total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
+    final_total = (total_price - total_discount_amount) + delivery_fee
+
+    return render_template(
+        'client_checkout.html',
+        cart_items=cart_items,
+        total_price=total_price,
+        voucher_discount_amt=voucher_discount_amt,
+        senior_discount_amt=senior_discount_amt,
+        pwd_discount_amt=pwd_discount_amt, # <-- Pass new discount
+        delivery_fee=delivery_fee,
+        total_discount_amount=total_discount_amount,
+        final_total=final_total
+    )
+
+@app.route('/checkout/options', methods=['GET'])
+@customer_login_required
+def client_checkout_options():
+    """
+    (R)EAD: Show the page for selecting Delivery or Pickup.
+    """
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        flash("Your cart is empty.", 'info')
+        return redirect(url_for('client_cart'))
+
+    # Get the customer's default address to pre-fill the form
+    customer = Customer.query.get(session['customer_id'])
+    default_address = customer.address
+
+    return render_template(
+        'client_checkout_options.html',
+        default_address=default_address,
+        customer=customer  # <-- This is the variable the template needs
+    )
+
+@app.route('/checkout/save_options', methods=['POST'])
+@customer_login_required
+def save_checkout_options():
+    """
+    (C)REATE: Save the chosen delivery options (with landmark) to the session.
+    """
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        flash("Your cart is empty.", 'info')
+        return redirect(url_for('client_cart'))
+
+    order_type = request.form.get('order_type')
+    delivery_address = request.form.get('delivery_address')
+    landmark = request.form.get('landmark') # <-- GET LANDMARK
+
+    if order_type == 'Delivery':
+        if not delivery_address:
+            flash("Please provide a delivery address.", 'danger')
+            return redirect(url_for('client_checkout_options'))
+        
+        # Combine the address and landmark
+        full_address = delivery_address
+        if landmark:
+            full_address += f" (Landmark: {landmark})"
+
+        session['delivery_fee'] = 100.00
+        session['order_type'] = 'Delivery'
+        session['delivery_address'] = full_address # <-- SAVE COMBINED ADDRESS
+    
+    else:
+        # It's a Pickup
+        session['delivery_fee'] = 0.00
+        session['order_type'] = 'Pickup'
+        session['delivery_address'] = 'Store Pickup'
+
+    # Send them to the final review page
+    return redirect(url_for('client_checkout'))
+
+@app.route('/checkout/place_order', methods=['POST'])
+@customer_login_required
+def place_order():
+    """
+    (C)REATE: Create the order in the database.
+    NOW INCLUDES separate PWD (capped) and Senior (full) logic.
+    """
+    cart_session = session.get('cart', {})
+    if not cart_session:
+        return jsonify({'status': 'error', 'message': "Your cart is empty. Please try again."}), 400
+
+    valid_cart_items = {} 
+    ala_carte_subtotal = 0.0
+    buffet_subtotal = 0.0
+    total_price = 0.0
+
+    for item_id, item_data in cart_session.items():
+        if 'product_id' not in item_data or 'price' not in item_data:
+            continue
+        valid_cart_items[item_id] = item_data
+        line_total = float(item_data['price']) * item_data['quantity']
+        total_price += line_total
+        if item_data.get('is_buffet_item', False):
+            buffet_subtotal += line_total
+        else:
+            ala_carte_subtotal += line_total
+    if not valid_cart_items:
+        return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
+
+    customer = Customer.query.get(session['customer_id'])
+
+    # --- NEW: Separate Discount Logic ---
+    voucher_discount_amt = 0.0
+    senior_discount_amt = 0.0
+    pwd_discount_amt = 0.0
+    delivery_fee = session.get('delivery_fee', 0.0)
+    subtotal = ala_carte_subtotal + buffet_subtotal
+
+    if customer and customer.is_verified_discount:
+        if customer.discount_type == 'Senior':
+            senior_discount_amt = subtotal * 0.20
+        elif customer.discount_type == 'PWD':
+            pwd_discount_amt = subtotal * 0.20
+            if pwd_discount_amt > 150.00:
+                pwd_discount_amt = 150.00
+    else:
+        voucher_discount_perc = session.get('discount_percentage', 0.0)
+        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
+    # --- END NEW LOGIC ---
+
+    total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
+    final_total = (total_price - total_discount_amount) + delivery_fee
+
+    try:
+        special_instructions = request.form.get('special_instructions')
+        new_order = Order(
+            customer_id=session['customer_id'],
+            total_amount=total_price,
+            discount_amount=total_discount_amount, # This now includes all discounts
+            final_amount=final_total,
+            status="Pending",
+            order_type=session.get('order_type', 'Pickup'),
+            delivery_address=session.get('delivery_address', 'Store Pickup'),
+            delivery_fee=delivery_fee,
+            special_instructions=special_instructions
+        )
+        db.session.add(new_order)
+        db.session.commit()
+
+        for item_key, item_data in valid_cart_items.items():
+            real_variant_id = item_data.get('variant_id', item_key)
+            if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
+                final_variant_id = int(real_variant_id.split('_')[1])
+            else:
+                final_variant_id = int(real_variant_id)
+            new_item = OrderItem(
+                order_id=new_order.order_id,
+                product_id=item_data['product_id'],
+                variant_id=final_variant_id,
+                quantity=item_data['quantity'],
+                price_per_item=item_data['price'] 
+            )
+            db.session.add(new_item)
+
+        if session.get('voucher_code'):
+            voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
+            if voucher_to_update:
+                voucher_to_update.current_uses += 1
+                db.session.add(voucher_to_update)
+
+        db.session.commit()
+
+        session.pop('cart', None)
+        session.pop('voucher_code', None)
+        session.pop('discount_percentage', None)
+        session.pop('delivery_fee', None)
+        session.pop('order_type', None)
+        session.pop('delivery_address', None)
+        session.pop('buffet_package', None)
+        session.pop('buffet_recommendations', None)
+        session.pop('buffet_sequence', None)
+
+        return jsonify({
+            'status': 'success',
+            'message': f"Order #{new_order.order_id} has been placed successfully!",
+            'redirect_url': url_for('client_my_account')
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': f"DB Error: {e}"}), 500
+
+# ===============================================
+# CLIENT-SIDE: CUSTOMER ACCOUNTS (Login/Register/Reset)
 # ===============================================
 
 @app.route('/account', methods=['GET'])
 def client_account_page():
-    """
-    (R)EAD: Display the login form.
-    """
     if 'customer_id' in session:
         return redirect(url_for('client_home'))
 
@@ -905,9 +927,6 @@ def client_account_page():
 
 @app.route('/register', methods=['GET'])
 def client_register_page():
-    """
-    (R)EAD: Display the register form.
-    """
     if 'customer_id' in session:
         return redirect(url_for('client_home'))
 
@@ -920,32 +939,25 @@ def client_register_page():
 
 @app.route('/logout')
 def client_logout():
-    """
-    Log the customer out by clearing their session data.
-    """
-    # Remove customer info from the session
     session.pop('customer_id', None)
     session.pop('customer_name', None)
-
-    # We can also clear the whole cart, or leave it. Let's leave it for now.
+    session.pop('cart', None)
+    session.pop('voucher_code', None)
+    session.pop('discount_percentage', None)
 
     flash("You have been logged out.", 'info')
     return redirect(url_for('client_home'))
 
 @app.route('/register', methods=['POST'])
 def client_register():
-    """
-    (C)REATE: Process the customer registration form.
-    """
-    # We only need the register_form
     register_form = CustomerRegisterForm()
 
     if register_form.validate_on_submit():
-        # ... (all the logic to create a user is the same) ...
         new_customer = Customer(
             name=register_form.name.data,
             contact_number=register_form.contact_number.data,
             address=register_form.address.data,
+            landmark=register_form.landmark.data, # <-- ADDED LANDMARK
             email=register_form.email.data,
             birthdate=register_form.birthdate.data
         )
@@ -963,8 +975,6 @@ def client_register():
             db.session.rollback()
             flash(f"Error creating account: {e}", 'danger')
 
-    # --- THIS IS THE FIX ---
-    # If form fails, re-render the REGISTER page with the errors
     return render_template(
         'client_register.html',
         register_form=register_form
@@ -972,10 +982,7 @@ def client_register():
 
 @app.route('/login', methods=['POST'])
 def client_login():
-    """
-    (U)PDATE: Process the customer login form.
-    """
-    login_form = CustomerLoginForm() # To process
+    login_form = CustomerLoginForm()
 
     if login_form.validate_on_submit():
         customer = Customer.query.filter_by(email=login_form.email.data).first()
@@ -989,23 +996,16 @@ def client_login():
         else:
             flash("Invalid email or password. Please try again.", 'danger')
 
-    # --- THIS IS THE FIX ---
-    # If form fails, re-render the LOGIN page with the errors
     return render_template(
         'client_login.html',
         login_form=login_form
     )
+
 def send_async_email(app, msg):
-    """
-    New helper function to send email in a thread with app context.
-    """
     with app.app_context():
         mail.send(msg)
 
 def send_reset_email(customer):
-    """
-    Helper function to send the password reset email.
-    """
     token = customer.get_reset_token()
     msg = Message(
         'Password Reset Request',
@@ -1014,25 +1014,14 @@ def send_reset_email(customer):
     )
     msg.html = render_template('reset_email.html', customer=customer, token=token)
     
-    # Use a thread to send email in the background
     from threading import Thread
-    
-    # Get the real app object (not the proxy)
     app = current_app._get_current_object() 
-    
-    # Pass the app and the message to our new async function
     thread = Thread(target=send_async_email, args=(app, msg))
     thread.start()
     return thread
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
-# ... (rest of your routes) ...
-
-@app.route('/forgot-password', methods=['GET', 'POST'])
 def client_forgot_password():
-    """
-    (C)REATE: Show form to request a password reset.
-    """
     if 'customer_id' in session:
         return redirect(url_for('client_home'))
     
@@ -1041,7 +1030,6 @@ def client_forgot_password():
         customer = Customer.query.filter_by(email=form.email.data).first()
         if customer:
             send_reset_email(customer)
-        # Security: Don't reveal if an email exists or not
         flash('If an account exists with that email, a reset link has been sent.', 'info')
         return redirect(url_for('client_account_page'))
 
@@ -1049,9 +1037,6 @@ def client_forgot_password():
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def client_reset_token(token):
-    """
-    (U)PDATE: Process the password reset form using the token.
-    """
     if 'customer_id' in session:
         return redirect(url_for('client_home'))
     
@@ -1071,77 +1056,52 @@ def client_reset_token(token):
 
 # ===============================================
 # CLIENT-SIDE: BUFFET WIZARD
+# (Routes are kept as they do not depend on Rider)
 # ===============================================
 
 @app.route('/buffet-builder', methods=['GET'])
-@customer_login_required
 def buffet_wizard_start():
-    """
-    (R)EAD: Show Step 1 of the buffet wizard:
-    Ask for guest count AND category checklist.
-    """
-    # --- NEW: Fetch all active categories for the checklist ---
     categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
-
     return render_template(
         'client_buffet_step1.html',
-        categories=categories  # <-- Pass the categories to the template
+        categories=categories
     )
 
 @app.route('/buffet-builder/reco', methods=['POST'])
-@customer_login_required
 def buffet_wizard_reco():
-    """
-    (C)REATE: Processes guest count AND a dynamic category list.
-    Redirects user to the first selection page.
-    """
     try:
         guest_count = int(request.form.get('guest_count'))
         if guest_count < 1:
             guest_count = 1
     except:
-        guest_count = 30 # Default if something goes wrong
+        guest_count = 30
 
-    # --- NEW DYNAMIC LOGIC ---
-    # 1. Get the list of checked categories from the form
     selected_categories = request.form.getlist('categories')
 
     if not selected_categories:
         flash("Please select at least one category to include in your buffet.", 'danger')
         return redirect(url_for('buffet_wizard_start'))
 
-    # 2. Dynamically build the recommendations dictionary
     recommendations = {}
     for category_name in selected_categories:
-        # We'll use a simple rule for all categories for now
-        # You can customize this later (e.g., if category_name == 'Noodles')
         if category_name in ['Noodles', 'Dessert']:
-            count = (guest_count + 14) // 15 # Serves 15
+            count = (guest_count + 14) // 15
         else:
-            count = (guest_count + 9) // 10 # Serves 10
+            count = (guest_count + 9) // 10
 
         recommendations[category_name] = count
-    # --- END OF DYNAMIC LOGIC ---
 
-    # 3. Initialize Session State
     session['buffet_recommendations'] = recommendations
     session['buffet_guest_count'] = guest_count
-    session['buffet_package'] = {} # This will store the final selected items
+    session['buffet_package'] = {}
 
-    # 4. The wizard sequence is now the list the user selected
     session['buffet_sequence'] = selected_categories
 
-    # 5. Redirect to the *first* category in their custom list
     return redirect(url_for('buffet_wizard_select', category_name=selected_categories[0]))
 
 @app.route('/buffet-builder/select/<string:category_name>', methods=['GET', 'POST'])
 @customer_login_required
 def buffet_wizard_select(category_name):
-    """
-    (R)EAD: Show the selection page for a specific category (Step 3).
-    NOW INCLUDES "Back" button logic and "Final Step" detection.
-    """
-    # 1. Check Session State
     recommendations = session.get('buffet_recommendations')
     wizard_sequence = session.get('buffet_sequence')
 
@@ -1149,46 +1109,37 @@ def buffet_wizard_select(category_name):
         flash("Your buffet session has expired. Please start over.", 'danger')
         return redirect(url_for('buffet_wizard_start'))
 
-    # 2. Get the current category object
     category_obj = Category.query.filter_by(name=category_name, is_active=True).first_or_404()
 
-    # 3. Get the required count for this page
     required_count = recommendations.get(category_name, 0)
 
-    # 4. Get all active products in this category
     products = Product.query.filter_by(category_id=category_obj.category_id)\
                             .order_by(Product.name.asc()).all()
 
-    # 5. Get current selections for the tracker (and display list)
     buffet_package = session.get('buffet_package', {})
         
-        # NEW: Filter the items that belong to THIS page's category
     current_selections = []
     current_count = 0
     for variant_id, item_data in buffet_package.items():
         if item_data['category'] == category_name:
-            item_data['variant_id'] = variant_id # Add the ID for the remove button
+            item_data['variant_id'] = variant_id
             current_selections.append(item_data)
             current_count += item_data['quantity']
 
-    # 6. --- NEW LOGIC for Back/Next buttons ---
     current_index = wizard_sequence.index(category_name)
 
-    # Check for PREVIOUS step
     if current_index > 0:
         previous_category = wizard_sequence[current_index - 1]
         previous_url = url_for('buffet_wizard_select', category_name=previous_category)
     else:
-        previous_url = url_for('buffet_wizard_start') # Go back to Step 1
+        previous_url = url_for('buffet_wizard_start')
 
-    # Check for NEXT step
     is_final_category = (current_index == len(wizard_sequence) - 1)
     if is_final_category:
-        next_url = url_for('buffet_wizard_checkout') # Go to Review Page
+        next_url = url_for('buffet_wizard_checkout')
     else:
         next_category = wizard_sequence[current_index + 1]
         next_url = url_for('buffet_wizard_select', category_name=next_category)
-    # --- END OF NEW LOGIC ---
 
     return render_template(
         'client_buffet_select.html',
@@ -1198,38 +1149,29 @@ def buffet_wizard_select(category_name):
         current_count=current_count,
         current_selections=current_selections,
         next_url=next_url,
-        previous_url=previous_url,         # <-- Pass Back button URL
-        is_final_category=is_final_category # <-- Pass final step check
+        previous_url=previous_url,
+        is_final_category=is_final_category
     )
 
 @app.route('/buffet-builder/checkout', methods=['GET'])
 @customer_login_required
 def buffet_wizard_checkout():
-    """
-    (R)EAD: Show final summary with an editable cart.
-    Now includes total price calculation.
-    """
     buffet_package = session.get('buffet_package', {})
     
-    # --- NEW: Calculate Total Price ---
     total_price = 0.0
     for item_data in buffet_package.values():
         total_price += float(item_data['price']) * item_data['quantity']
-    # --- END OF NEW LOGIC ---
     
     return render_template(
         'client_buffet_checkout.html',
         buffet_package=buffet_package,
-        total_price=total_price  # <-- Pass the new total
+        total_price=total_price
     )
 
 
 @app.route('/buffet/commit_package', methods=['POST'])
 @customer_login_required
 def buffet_commit_package():
-    """
-    (C)REATE: Commits the final selected buffet package to the main cart.
-    """
     buffet_package = session.get('buffet_package', {})
     if not buffet_package:
         flash("Buffet package is empty. Please start over.", 'danger')
@@ -1237,13 +1179,8 @@ def buffet_commit_package():
 
     main_cart = session.get('cart', {})
 
-    # Loop through the temporary package and add to the main cart
     for variant_id, item_data in buffet_package.items():
-
-        # --- THIS IS THE NEW LOGIC ---
         if variant_id in main_cart and not main_cart[variant_id].get('is_buffet_item', False):
-            # COLLISION! The main cart has this item as À LA CARTE.
-            # We must create a new, unique key for the BUFFET version.
             new_key = f"buffet_{variant_id}"
 
             if new_key in main_cart:
@@ -1251,35 +1188,31 @@ def buffet_commit_package():
             else:
                 main_cart[new_key] = {
                     'product_id': item_data['product_id'],
-                    'name': item_data['product_name'], # <-- This is the fix
+                    'name': item_data['product_name'], 
                     'variant_id': variant_id,
                     'variant_name': item_data['variant_name'],
                     'price': item_data['price'],
                     'image': item_data['image'],
                     'quantity': item_data['quantity'],
-                    'is_buffet_item': True # Tag as a buffet item
+                    'is_buffet_item': True
                 }
         else:
-            # No collision. Add/stack normally using the variant_id as the key.
             if variant_id in main_cart:
                 main_cart[variant_id]['quantity'] += item_data['quantity']
             else:
                 main_cart[variant_id] = {
                     'product_id': item_data['product_id'],
-                    'name': item_data['product_name'], # <-- This is the fix
+                    'name': item_data['product_name'],
                     'variant_id': variant_id,
                     'variant_name': item_data['variant_name'],
                     'price': item_data['price'],
                     'image': item_data['image'],
                     'quantity': item_data['quantity'],
-                    'is_buffet_item': True # Tag as a buffet item
+                    'is_buffet_item': True
                 }
-        # --- END OF NEW LOGIC ---
 
-    # Save the updated main cart
     session['cart'] = main_cart
 
-    # Clear the temporary buffet data
     session.pop('buffet_package', None)
     session.pop('buffet_recommendations', None)
     session.pop('buffet_sequence', None)
@@ -1291,41 +1224,31 @@ def buffet_commit_package():
 @app.route('/buffet/remove/<string:variant_id>')
 @customer_login_required
 def buffet_remove_item(variant_id):
-    """
-    (D)ELETE: Remove an item from the temporary 'buffet_package'.
-    """
     buffet_package = session.get('buffet_package', {})
     
-    # Use .pop() to remove the item if it exists
     item_data = buffet_package.pop(variant_id, None) 
     
     if item_data:
         flash(f"Removed {item_data['product_name']} from your buffet.", 'info')
     
-    # Save the modified package back to the session
     session['buffet_package'] = buffet_package
     
-    # Redirect back to the review page
     return redirect(url_for('buffet_wizard_checkout'))
 
 
 @app.route('/buffet/update', methods=['POST'])
 @customer_login_required
 def buffet_update_quantity():
-    """
-    (U)PDATE: Update the quantity of an item in the 'buffet_package'.
-    """
     buffet_package = session.get('buffet_package', {})
     variant_id = request.form.get('variant_id')
     
     try:
         quantity = int(request.form.get('quantity'))
         if quantity < 1:
-            quantity = 1 # Minimum quantity is 1
+            quantity = 1
     except:
-        quantity = 1 # Default to 1
+        quantity = 1
     
-    # Update the package if the item exists
     if variant_id in buffet_package:
         buffet_package[variant_id]['quantity'] = quantity
         flash(f"Updated {buffet_package[variant_id]['product_name']} quantity.", 'success')
@@ -1337,11 +1260,6 @@ def buffet_update_quantity():
 @app.route('/buffet/add_item', methods=['POST'])
 @customer_login_required
 def buffet_add_item():
-    """
-    (C)REATE: Add an item to the temporary 'buffet_cart' in the session.
-    Now includes a check for exceeding recommendations.
-    """
-    # 1. Get data from the form
     variant_id = request.form.get('variant_id')
     force_add = request.form.get('force', 'false').lower() == 'true'
     try:
@@ -1349,14 +1267,12 @@ def buffet_add_item():
     except:
         quantity = 1
 
-    # 2. Get the temporary cart and recommendations
     buffet_cart = session.get('buffet_package', {})
     recommendations = session.get('buffet_recommendations', {})
 
     if not variant_id:
         return jsonify({'status': 'error', 'message': 'No variant selected.'}), 400
 
-    # 3. Get item details
     variant = ProductVariant.query.get(variant_id)
     if not variant:
         return jsonify({'status': 'error', 'message': 'Item not found.'}), 404
@@ -1364,7 +1280,6 @@ def buffet_add_item():
     product = variant.product
     category_name = product.category.name
 
-    # 4. Check if we are over the limit AND not forcing it
     current_category_count = 0
     for item in buffet_cart.values():
         if item['category'] == category_name:
@@ -1379,13 +1294,11 @@ def buffet_add_item():
             'message': f"You've selected {potential_new_count} {category_name} items, but we only recommend {recommended_count}. Add anyway?"
         })
 
-    # 5. Add the item to the buffet_cart
     if variant_id in buffet_cart:
         buffet_cart[variant_id]['quantity'] += quantity
     else:
-        # If new, add it to the buffet_cart
         buffet_cart[variant_id] = {
-            'product_id': product.product_id,  # <-- ADD THIS LINE
+            'product_id': product.product_id,
             'product_name': product.name,
             'variant_name': variant.size_name,
             'quantity': quantity,
@@ -1396,7 +1309,6 @@ def buffet_add_item():
     
     session['buffet_package'] = buffet_cart
     
-    # 6. Calculate the new counts for the tracker
     new_counts = {}
     total_items = 0
     for cat in recommendations.keys():
@@ -1408,7 +1320,6 @@ def buffet_add_item():
             new_counts[item_cat] += item['quantity']
         total_items += item['quantity']
         
-    # 7. Send the new counts back to the JavaScript
     return jsonify({
         'status': 'success',
         'message': f"Added {product.name} ({variant.size_name})",
@@ -1419,9 +1330,6 @@ def buffet_add_item():
 @app.route('/buffet/remove_item/<string:variant_id>/<string:category_name>')
 @customer_login_required
 def buffet_remove_item_from_package(variant_id, category_name):
-    """
-    (D)ELETE: Remove a specific item (variant_id) from the current buffet package.
-    """
     buffet_package = session.get('buffet_package', {})
     
     if variant_id in buffet_package:
@@ -1430,110 +1338,58 @@ def buffet_remove_item_from_package(variant_id, category_name):
     
     session['buffet_package'] = buffet_package
     
-    # Redirect back to the current category selection page
     return redirect(url_for('buffet_wizard_select', category_name=category_name))
 
 @app.route('/buffet/review')
 @customer_login_required
 def buffet_review_and_add():
-    """
-    (U)PDATE: Move all items from the 'buffet_cart' to the main 'cart'.
-    Also applies a 10% buffet discount.
-    """
-    buffet_cart = session.get('buffet_cart', {})
-    if not buffet_cart:
-        flash("Your buffet is empty. Please add some items.", 'danger')
-        return redirect(url_for('buffet_wizard_start'))
-
-    main_cart = session.get('cart', {})
-    items_added_count = 0
-
-    # Loop through the buffet cart and add each item to the main cart
-    for variant_id, item_data in buffet_cart.items():
-        
-        # --- FIX: Skip any corrupted items that are missing the product_id key ---
-        if 'product_id' not in item_data:
-            print(f"Skipping corrupted buffet item with variant_id: {variant_id}")
-            continue 
-        
-        if variant_id in main_cart:
-            # If item is already in main cart, just add the quantity
-            main_cart[variant_id]['quantity'] += item_data['quantity']
-        else:
-            # If new, add the full item data
-            main_cart[variant_id] = {
-                'product_id': item_data['product_id'],
-                'name': item_data['product_name'],
-                'variant_name': item_data['variant_name'],
-                'price': item_data['price'],
-                'image': item_data['image'],
-                'quantity': item_data['quantity']
-            }
-        items_added_count += item_data['quantity']
-            
-    # --- Apply the Buffet Discount ---
-    session['buffet_discount_percentage'] = 10.0
-    
-    # Save the updated main cart
-    session['cart'] = main_cart
-    
-    # Clear the temporary buffet data
-    session.pop('buffet_cart', None)
-    session.pop('buffet_recommendations', None)
-    
-    if items_added_count > 0:
-        flash("Success! Your buffet has been added to the cart with a 10% discount!", 'success')
-    else:
-        # If the cart was just full of corrupted items, let the user know
-        flash("No valid items were added. Please try rebuilding your buffet.", 'warning')
-
+    # This route is deprecated by commit_package, but kept for compatibility.
     return redirect(url_for('client_cart'))
+
+# ===============================================
+# ADMIN-SIDE ROUTES (Rider management removed)
+# ===============================================
 
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
-    """
-    (R)EAD: The main admin dashboard page with business stats.
-    """
-    # --- Stats Calculation ---
-
     # 1. Get "New Orders Today"
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     orders_today_count = Order.query.filter(Order.order_date >= today_start).count()
 
     # 2. Get "Total Sales this Month"
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    # func.sum(Order.final_amount) adds up the 'final_amount' column
     total_sales_month_query = db.session.query(func.sum(Order.final_amount)).filter(Order.order_date >= month_start).scalar()
-    total_sales_month = total_sales_month_query or 0.0 # Set to 0 if no sales
+    total_sales_month = total_sales_month_query or 0.0
 
     # 3. Get "New Customer Registrations" this month
-    new_customers_month_count = Customer.query.filter(Customer.registration_date >= month_start).count() # Assumes a registration_date, let's add that
+    new_customers_month_count = Customer.query.filter(Customer.registration_date >= month_start).count()
 
     # 4. Get recent 5 pending orders
     recent_pending_orders = Order.query.filter_by(status='Pending').order_by(Order.order_date.asc()).limit(5).all()
+
+    # NOTE: Online Riders/Pending Verifications stats removed since Riders are deleted.
 
     return render_template(
         'admin_dashboard.html',
         orders_today_count=orders_today_count,
         total_sales_month=total_sales_month,
         new_customers_month_count=new_customers_month_count,
-        recent_pending_orders=recent_pending_orders
+        recent_pending_orders=recent_pending_orders,
+        online_riders_count=0, # Hardcoded 0
+        pending_verifications_count=0 # Hardcoded 0
     )
 
 
 @app.route('/admin/logout')
 @login_required
 def admin_logout():
-    """
-    Handle logging the admin user out.
-    """
     logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('admin_login'))
 
 # ===============================================
-# MODULE 1: ORDER MANAGEMENT (CRUD)
+# MODULE 1: ORDER MANAGEMENT (Simplified)
 # ===============================================
 
 @app.route('/admin/orders')
@@ -1541,90 +1397,41 @@ def admin_logout():
 def admin_orders():
     """
     (R)EAD: Display all customer orders.
+    Rider assignment UI removed.
     """
-    # Get the filter status from the URL (e.g., /admin/orders?status=Pending)
     status_filter = request.args.get('status')
-
-    # --- THIS LINE WAS LIKELY DELETED ---
-    # Start the base query
     order_query = Order.query.join(Customer).order_by(Order.order_date.desc())
-    # --- END OF MISSING LINE ---
 
     if status_filter:
-        # Apply the filter if one is provided
         order_query = order_query.filter(Order.status == status_filter)
 
-    # This is the line that was causing the error
     orders = order_query.all()
     
-    # Get all riders who are currently 'Online'
-    available_riders = Rider.query.filter_by(status='Online').all()
+    # available_riders list is removed since there are no riders.
 
     return render_template(
         'admin_orders.html', 
         orders=orders, 
         current_filter=status_filter,
-        available_riders=available_riders
+        available_riders=[] # Pass empty list
     )
 
 @app.route('/admin/orders/update_status/<int:order_id>', methods=['POST'])
 @login_required
 def admin_update_order_status(order_id):
     """
-    (U)PDATE: Update an order's status AND/OR assign a rider.
+    (U)PDATE: Update an order's status (Admin-only).
+    Rider assignment logic removed.
     """
     order = Order.query.get_or_404(order_id)
     new_status = request.form.get('status')
-    new_rider_id_str = request.form.get('rider_id')
-
+    
     try:
-        rider_assigned = False
-        status_changed = False
-
-        # --- 1. Handle Rider Assignment ---
-        if new_rider_id_str:
-            rider_id = int(new_rider_id_str)
-            new_rider = Rider.query.get(rider_id)
-
-            if new_rider and new_rider.status == 'Online':
-                # Free up the *old* rider if there was one and it's a different person
-                if order.rider_id and order.rider_id != rider_id:
-                    old_rider = Rider.query.get(order.rider_id)
-                    if old_rider: 
-                        old_rider.status = 'Online'
-                
-                # Assign the new rider
-                order.rider_id = new_rider.rider_id
-                order.status = 'In Progress' # Assigning a rider automatically moves it to 'In Progress'
-                new_rider.status = 'Delivering'
-                
-                flash(f"Order #{order.order_id} assigned to {new_rider.name}.", 'success')
-                rider_assigned = True
-            else:
-                flash(f"Rider {new_rider.name if new_rider else ''} is not available.", 'danger')
-
-        # --- 2. Handle Status Change ---
-        # Only run if a rider wasn't *just* assigned (which auto-sets status)
-        if not rider_assigned and new_status and new_status != order.status:
-            
-            # Case A: Order is being Completed
-            if new_status == 'Completed':
-                if order.rider and order.rider.status == 'Delivering':
-                    order.rider.status = 'Online' # Free the rider
-            
-            # Case B: Order is being set back to Pending
-            elif new_status == 'Pending':
-                if order.rider and order.rider.status == 'Delivering':
-                    order.rider.status = 'Online' # Free the rider
-                order.rider_id = None # Un-assign the rider
-            
-            # Case C: Any other status change
+        if new_status and new_status != order.status:
             order.status = new_status
             flash(f"Order #{order.order_id} status updated to '{new_status}'.", 'success')
-            status_changed = True
-        
-        if not rider_assigned and not status_changed and not new_rider_id_str:
-            flash("No changes were made.", 'info')
+        else:
+             flash("No status change submitted.", 'info')
 
         db.session.commit()
 
@@ -1632,7 +1439,6 @@ def admin_update_order_status(order_id):
         db.session.rollback()
         flash(f"Error updating order: {e}", 'danger')
 
-    # Redirect back to the orders page, preserving any filter
     current_filter = request.args.get('status')
     if current_filter:
         return redirect(url_for('admin_orders', status=current_filter))
@@ -1642,16 +1448,11 @@ def admin_update_order_status(order_id):
 @app.route('/admin/orders/delete/<int:order_id>', methods=['POST'])
 @login_required
 def admin_delete_order(order_id):
-    """
-    (D)ELETE: Delete an order.
-    """
     order = Order.query.get_or_404(order_id)
     
     try:
-        # First, delete all associated OrderItems
         OrderItem.query.filter_by(order_id=order.order_id).delete()
         
-        # Now delete the main Order
         db.session.delete(order)
         db.session.commit()
         flash(f"Order #{order.order_id} has been deleted.", 'success')
@@ -1667,11 +1468,7 @@ def admin_delete_order(order_id):
 @app.route('/admin/export/orders_json')
 @login_required
 def admin_export_orders_json():
-    """
-    (R)EAD: Generate and download a JSON file of all orders.
-    """
     try:
-        # 1. Fetch all orders with their customer and items
         orders = Order.query.options(
             db.joinedload(Order.customer),
             db.joinedload(Order.items).joinedload(OrderItem.product),
@@ -1680,7 +1477,6 @@ def admin_export_orders_json():
 
         all_orders_data = []
 
-        # 2. Manually build a list of dictionaries
         for order in orders:
             order_data = {
                 'order_id': order.order_id,
@@ -1705,7 +1501,6 @@ def admin_export_orders_json():
 
             all_orders_data.append(order_data)
 
-        # 3. Create the JSON file download response
         response = make_response(jsonify(all_orders_data))
         response.headers["Content-Disposition"] = "attachment; filename=orders_export.json"
         response.headers["Content-type"] = "application/json"
@@ -1716,28 +1511,21 @@ def admin_export_orders_json():
         flash(f"An error occurred while generating the JSON: {e}", 'danger')
         return redirect(url_for('admin_orders'))
 
-
 # ===============================================
-# MODULE 3: CATEGORY MANAGEMENT (CRUD)
+# MODULE 3: CATEGORY MANAGEMENT
 # ===============================================
 
 @app.route('/admin/categories', methods=['GET'])
 @login_required
 def admin_categories():
-    """
-    (R)EAD: Display all categories and show forms.
-    """
-    # Get the search query from the URL
     search_query = request.args.get('search')
     
     add_form = CategoryForm()
-    edit_form = CategoryForm() # We use the same form for editing
+    edit_form = CategoryForm()
     
-    # Start the base query
     category_query = Category.query
     
     if search_query:
-        # If there is a search, filter the query
         category_query = category_query.filter(Category.name.ilike(f'%{search_query}%'))
         
     categories = category_query.order_by(Category.name.asc()).all()
@@ -1747,18 +1535,14 @@ def admin_categories():
         add_form=add_form,
         edit_form=edit_form,
         categories=categories,
-        search_query=search_query  # Pass the query back to the template
+        search_query=search_query
     )
 
 @app.route('/admin/products/toggle/<int:product_id>', methods=['POST'])
 @login_required
 def admin_toggle_product_status(product_id):
-    """
-    (U)PDATE: Toggle the is_active status of a product.
-    """
     product = Product.query.get_or_404(product_id)
 
-    # This is the "soft delete" logic
     product.is_active = not product.is_active
 
     try:
@@ -1776,17 +1560,12 @@ def admin_toggle_product_status(product_id):
 @app.route('/admin/categories/edit/<int:category_id>', methods=['POST'])
 @login_required
 def admin_edit_category(category_id):
-    """
-    (U)PDATE: Process the edit category form.
-    """
     category = Category.query.get_or_404(category_id)
     edit_form = CategoryForm()
 
     if edit_form.validate_on_submit():
-        # Update the category's fields
         category.name = edit_form.name.data
         category.description = edit_form.description.data
-        # We no longer set 'is_active' here
 
         try:
             db.session.commit()
@@ -1802,12 +1581,8 @@ def admin_edit_category(category_id):
 @app.route('/admin/categories/toggle/<int:category_id>', methods=['POST'])
 @login_required
 def admin_toggle_category_status(category_id):
-    """
-    (U)PDATE: Toggle the is_active status of a category.
-    """
     category = Category.query.get_or_404(category_id)
 
-    # This is the "soft delete" logic
     category.is_active = not category.is_active
 
     try:
@@ -1824,67 +1599,51 @@ def admin_toggle_category_status(category_id):
 
 
 # ===============================================
-# MODULE 2: PRODUCT MANAGEMENT (CRUD)
+# MODULE 2: PRODUCT MANAGEMENT
 # ===============================================
 
 @app.route('/admin/products', methods=['GET'])
 @login_required
 def admin_products():
-    """
-    (R)EAD: Display all products.
-    """
-    # Get query params from the URL
     search_query = request.args.get('search')
     selected_category_id = request.args.get('category', type=int)
     
-    # Get all categories for the filter dropdown
-    # We get all categories, including inactive ones, for admin filtering
     all_categories = Category.query.order_by(Category.name.asc()).all()
     
-    # Start the base query
     product_query = Product.query
     
-    # Apply category filter if one is selected
     if selected_category_id:
         product_query = product_query.filter_by(category_id=selected_category_id)
     
-    # Apply search filter if there is one
     if search_query:
         product_query = product_query.filter(Product.name.ilike(f'%{search_query}%'))
         
-    # Execute the final query
     products = product_query.order_by(Product.name.asc()).all()
     
     return render_template(
         'admin_products.html', 
         products=products,
-        all_categories=all_categories, # Pass categories to template
-        selected_category_id=selected_category_id, # Pass the selected ID back
+        all_categories=all_categories,
+        selected_category_id=selected_category_id,
         search_query=search_query
     )
 
 @app.route('/admin/products/add', methods=['GET', 'POST'])
 @login_required
 def admin_add_product():
-    """
-    (C)REATE: Add a new product.
-    """
     form = ProductForm()
-    # Set the choices for the category dropdown
     form.category.choices = get_category_choices()
 
     if form.validate_on_submit():
 
-        image_filename = 'default.jpg' # Default
+        image_filename = 'default.jpg'
         if form.image.data:
-            # If a new image is uploaded, save it
             try:
                 image_filename = save_picture(form.image.data)
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('admin_add_product'))
             
-        # Create new product object
         new_product = Product(
             category_id=form.category.data,
             name=form.name.data,
@@ -1893,16 +1652,13 @@ def admin_add_product():
         )
         db.session.add(new_product)
 
-        # --- Handle price for simple (non-variant) products ---
         if not new_product.has_variants:
             if form.price.data is None:
-                # If no variants and no price, flash an error
                 flash('Error: A simple product (no variants) must have a price.', 'danger')
                 return redirect(url_for('admin_add_product'))
 
-            # Create the single "Regular" variant
             simple_variant = ProductVariant(
-                product=new_product, # Link to the product
+                product=new_product,
                 size_name="Regular",
                 price=form.price.data
             )
@@ -1916,7 +1672,6 @@ def admin_add_product():
             db.session.rollback()
             flash(f"Error adding product: {e}", 'danger')
 
-    # This is for the GET request (showing the form)
     return render_template(
         'admin_product_form.html',
         form=form,
@@ -1928,48 +1683,38 @@ def admin_add_product():
 @app.route('/admin/products/edit/<int:product_id>', methods=['GET', 'POST'])
 @login_required
 def admin_edit_product(product_id):
-    """
-    (U)PDATE: Edit an existing product.
-    """
     product = Product.query.get_or_404(product_id)
-    form = ProductForm(obj=product) # 'obj=product' pre-fills the form
+    form = ProductForm(obj=product)
     form.category.choices = get_category_choices()
 
     if form.validate_on_submit():
 
         if form.image.data:
-            # A new image was uploaded. Save it.
             try:
                 image_filename = save_picture(form.image.data)
-                # We can also delete the old picture here, but let's skip for simplicity
-                product.image_file = image_filename # Update the product
+                product.image_file = image_filename
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('admin_edit_product', product_id=product_id))
 
-        # Update product fields from form
         product.category_id = form.category.data
         product.name = form.name.data
         product.description = form.description.data
         product.has_variants = form.has_variants.data
 
-        # --- Handle price for simple (non-variant) products ---
         if not product.has_variants:
             if form.price.data is None:
                 flash('Error: A simple product (no variants) must have a price.', 'danger')
                 return redirect(url_for('admin_edit_product', product_id=product_id))
 
-            # Check if a "Regular" variant already exists
             simple_variant = ProductVariant.query.filter_by(
                 product_id=product.product_id, 
                 size_name="Regular"
             ).first()
 
             if simple_variant:
-                # Update existing simple variant's price
                 simple_variant.price = form.price.data
             else:
-                # Create a new one if it doesn't exist
                 simple_variant = ProductVariant(
                     product=product,
                     size_name="Regular",
@@ -1985,9 +1730,7 @@ def admin_edit_product(product_id):
             db.session.rollback()
             flash(f"Error updating product: {e}", 'danger')
 
-    # --- Handle GET request (pre-filling the form) ---
     if not product.has_variants and product.variants:
-        # If it's a simple product, find its 'Regular' price
         simple_variant = ProductVariant.query.filter_by(
             product_id=product.product_id,
             size_name="Regular"
@@ -2006,15 +1749,9 @@ def admin_edit_product(product_id):
 @app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
 @login_required
 def admin_delete_product(product_id):
-    """
-    (D)ELETE: Delete a product.
-    """
     product = Product.query.get_or_404(product_id)
 
     try:
-        # Note: Because we set 'cascade="all, delete-orphan"' in our
-        # models.py, deleting the product will AUTOMATICALLY delete
-        # all its associated ProductVariants.
         db.session.delete(product)
         db.session.commit()
         flash(f"Product '{product.name}' deleted.", 'success')
@@ -2027,43 +1764,32 @@ def admin_delete_product(product_id):
 @app.route('/admin/export/products_xml')
 @login_required
 def admin_export_products_xml():
-    """
-    (R)EAD: Generate and download an XML file of the full menu.
-    """
     try:
-        # 1. Fetch all products with their categories and variants
         products = Product.query.options(
             db.joinedload(Product.category),
             db.joinedload(Product.variants)
         ).all()
 
-        # 2. Build the XML structure
         root = ET.Element('Menu')
 
         for product in products:
-            # Create a <Product> tag
             product_elem = ET.SubElement(root, 'Product')
             product_elem.set('id', str(product.product_id))
 
-            # Add child tags for product data
             ET.SubElement(product_elem, 'Name').text = product.name
             ET.SubElement(product_elem, 'Description').text = product.description
             ET.SubElement(product_elem, 'Category').text = product.category.name
             ET.SubElement(product_elem, 'HasVariants').text = str(product.has_variants)
 
-            # Add a <Variants> parent tag
             variants_elem = ET.SubElement(product_elem, 'Variants')
             for variant in product.variants:
                 variant_elem = ET.SubElement(variants_elem, 'Variant')
                 ET.SubElement(variant_elem, 'Size').text = variant.size_name
                 ET.SubElement(variant_elem, 'Price').text = str(variant.price)
 
-        # 3. Convert the XML tree to a string
-        # We use 'minidom' to "pretty-print" the XML with indentation
         xml_str = minidom.parseString(ET.tostring(root))\
                          .toprettyxml(indent="   ")
 
-        # 4. Create the file download response
         response = make_response(xml_str)
         response.headers["Content-Disposition"] = "attachment; filename=menu_export.xml"
         response.headers["Content-type"] = "application/xml"
@@ -2075,32 +1801,25 @@ def admin_export_products_xml():
         return redirect(url_for('admin_products'))
 
 # ===============================================
-# MODULE 2b: PRODUCT VARIANT MANAGEMENT (CRUD)
+# MODULE 2b: PRODUCT VARIANT MANAGEMENT
 # ===============================================
 
 @app.route('/admin/products/<int:product_id>/variants', methods=['GET'])
 @login_required
 def admin_product_variants(product_id):
-    """
-    (R)EAD: Display all variants for a specific product.
-    """
     product = Product.query.get_or_404(product_id)
-    # Check if product is simple, if so, redirect
     if not product.has_variants:
         flash(f"'{product.name}' is a simple product and cannot have variants.", 'danger')
         return redirect(url_for('admin_products'))
         
-    # Get the search query from the URL
     search_query = request.args.get('search')
     
     add_form = VariantForm()
     edit_form = VariantForm()
     
-    # Start the base query, already filtered by product_id
     variant_query = ProductVariant.query.filter_by(product_id=product.product_id)
     
     if search_query:
-        # If there is a search, filter the query by variant size_name
         variant_query = variant_query.filter(ProductVariant.size_name.ilike(f'%{search_query}%'))
         
     variants = variant_query.all()
@@ -2111,22 +1830,18 @@ def admin_product_variants(product_id):
         variants=variants,
         add_form=add_form,
         edit_form=edit_form,
-        search_query=search_query # Pass the query back to the template
+        search_query=search_query
     )
 
 @app.route('/admin/products/<int:product_id>/variants/add', methods=['POST'])
 @login_required
 def admin_add_variant(product_id):
-    """
-    (C)REATE: Process the add variant form.
-    """
     product = Product.query.get_or_404(product_id)
     add_form = VariantForm()
 
     if add_form.validate_on_submit():
         form_size_name = add_form.size_name.data
         
-        # Check if a variant with this name already exists for this product
         existing_variant = ProductVariant.query.filter_by(
             product_id=product.product_id, 
             size_name=form_size_name
@@ -2151,18 +1866,14 @@ def admin_add_variant(product_id):
     else:
         flash('Error: Could not add variant. Please check form.', 'danger')
 
-    # Redirect back to the variants page for that product
     return redirect(url_for('admin_product_variants', product_id=product.product_id) + '#add-variant-card')
 
 
 @app.route('/admin/variants/delete/<int:variant_id>', methods=['POST'])
 @login_required
 def admin_delete_variant(variant_id):
-    """
-    (D)ELETE: Delete a variant.
-    """
     variant = ProductVariant.query.get_or_404(variant_id)
-    product_id = variant.product_id # Save this for the redirect
+    product_id = variant.product_id
 
     try:
         db.session.delete(variant)
@@ -2174,35 +1885,26 @@ def admin_delete_variant(variant_id):
 
     return redirect(url_for('admin_product_variants', product_id=product_id) + '#existing-variants-card')
 
-# ... admin_delete_variant function is above ...
-
 @app.route('/admin/variants/edit/<int:variant_id>', methods=['POST'])
 @login_required
 def admin_edit_variant(variant_id):
-    """
-    (U)PDATE: Process the edit variant form.
-    """
     variant = ProductVariant.query.get_or_404(variant_id)
-    product_id = variant.product_id # Save for the redirect
+    product_id = variant.product_id
     edit_form = VariantForm()
     
     if edit_form.validate_on_submit():
         form_size_name = edit_form.size_name.data
         
-        # --- DUPLICATE CHECK (for Update) ---
-        # Check if another variant (but not this one) already has the new name
         existing_variant = ProductVariant.query.filter(
             ProductVariant.product_id == product_id,
             ProductVariant.size_name == form_size_name,
-            ProductVariant.variant_id != variant_id # Exclude self
+            ProductVariant.variant_id != variant_id
         ).first()
         
         if existing_variant:
-            flash(f"Error: Cannot rename. A variant named '{form_size_a}' already exists.", 'danger')
+            flash(f"Error: Cannot rename. A variant named '{form_size_name}' already exists.", 'danger')
             return redirect(url_for('admin_product_variants', product_id=product_id))
-        # --- END OF CHECK ---
             
-        # If no conflicts, update the variant
         variant.size_name = form_size_name
         variant.price = edit_form.price.data
         
@@ -2213,16 +1915,16 @@ def admin_edit_variant(variant_id):
             db.session.rollback()
             flash(f"Error updating variant: {e}", 'danger')
     else:
-        flash('Error: Could not update variant. Please check form.', 'danger')
+        for field, errors in edit_form.errors.items():
+            for error in errors:
+                field_name = getattr(edit_form, field).label.text
+                flash(f"Error in '{field_name}': {error}", 'danger')
 
     return redirect(url_for('admin_product_variants', product_id=product_id) + '#existing-variants-card')
 
 @app.route('/admin/import/products_csv', methods=['POST'])
 @login_required
 def admin_import_products_csv():
-    """
-    (C)REATE: Import products from an uploaded CSV file.
-    """
     if 'csv_file' not in request.files:
         flash('No file part in the request.', 'danger')
         return redirect(url_for('admin_products'))
@@ -2235,7 +1937,6 @@ def admin_import_products_csv():
 
     if file and file.filename.endswith('.csv'):
         try:
-            # Read the file in-memory
             stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
             csv_reader = csv.DictReader(stream)
 
@@ -2247,13 +1948,13 @@ def admin_import_products_csv():
                 category = Category.query.filter_by(name=row['category_name']).first()
                 if not category:
                     errors.append(f"Category '{row['category_name']}' for product '{row['name']}' not found. Skipping.")
-                    continue # Skip this row
+                    continue
 
                 # 2. Check if product already exists
                 existing_product = Product.query.filter_by(name=row['name']).first()
                 if existing_product:
                     errors.append(f"Product '{row['name']}' already exists. Skipping.")
-                    continue # Skip this row
+                    continue
 
                 # 3. Create the Product
                 has_variants = row['has_variants'].lower() == 'true'
@@ -2280,10 +1981,8 @@ def admin_import_products_csv():
 
                 products_added += 1
 
-            # Commit all new products and variants to the database
             db.session.commit()
 
-            # Report results
             if products_added > 0:
                 flash(f"Successfully imported {products_added} new products!", 'success')
             if errors:
@@ -2298,17 +1997,14 @@ def admin_import_products_csv():
     return redirect(url_for('admin_products'))
 
 # ===============================================
-# MODULE 4: VOUCHER MANAGEMENT (CRUD)
+# MODULE 4: VOUCHER MANAGEMENT
 # ===============================================
 
 @app.route('/admin/vouchers', methods=['GET'])
 @login_required
 def admin_vouchers():
-    """
-    (R)EAD: Display all vouchers and show forms.
-    """
     add_form = VoucherForm()
-    edit_form = VoucherForm() # We use the same form for editing
+    edit_form = VoucherForm()
     vouchers = Voucher.query.order_by(Voucher.code.asc()).all()
 
     return render_template(
@@ -2321,20 +2017,15 @@ def admin_vouchers():
 @app.route('/admin/vouchers/add', methods=['POST'])
 @login_required
 def admin_add_voucher():
-    """
-    (C)REATE: Process the add voucher form.
-    """
     add_form = VoucherForm()
     
     if add_form.validate_on_submit():
         form_code = add_form.code.data
         
-        # --- NEW: DUPLICATE CHECK ---
         existing_voucher = Voucher.query.filter_by(code=form_code).first()
         if existing_voucher:
             flash(f"Error: A voucher with the code '{form_code}' already exists.", 'danger')
             return redirect(url_for('admin_vouchers') + '#add-voucher-card')
-        # --- END OF CHECK ---
 
         new_voucher = Voucher(
             code=form_code,
@@ -2350,7 +2041,6 @@ def admin_add_voucher():
             db.session.rollback()
             flash(f"Error adding voucher: {e}", 'danger')
     else:
-        # This block catches form validation errors (like > 20%)
         for field, errors in add_form.errors.items():
             for error in errors:
                 field_name = getattr(add_form, field).label.text
@@ -2361,17 +2051,12 @@ def admin_add_voucher():
 @app.route('/admin/vouchers/edit/<int:voucher_id>', methods=['POST'])
 @login_required
 def admin_edit_voucher(voucher_id):
-    """
-    (U)PDATE: Process the edit voucher form.
-    """
     voucher = Voucher.query.get_or_404(voucher_id)
     edit_form = VoucherForm()
     
     if edit_form.validate_on_submit():
         form_code = edit_form.code.data
 
-        # --- NEW: DUPLICATE CHECK ---
-        # Check if another voucher (but not this one) already has the new code
         existing_voucher = Voucher.query.filter(
             Voucher.code == form_code,
             Voucher.voucher_id != voucher_id
@@ -2379,12 +2064,10 @@ def admin_edit_voucher(voucher_id):
         if existing_voucher:
             flash(f"Error: Cannot rename. The code '{form_code}' is already in use.", 'danger')
             return redirect(url_for('admin_vouchers') + '#existing-vouchers-card')
-        # --- END OF CHECK ---
 
         voucher.code = form_code
         voucher.discount_percentage = edit_form.discount_percentage.data
         voucher.max_uses = edit_form.max_uses.data
-        # We don't update is_active here, that's handled by the toggle route
         
         try:
             db.session.commit()
@@ -2393,7 +2076,6 @@ def admin_edit_voucher(voucher_id):
             db.session.rollback()
             flash(f"Error updating voucher: {e}", 'danger')
     else:
-        # This block catches form validation errors (like > 20%)
         for field, errors in edit_form.errors.items():
             for error in errors:
                 field_name = getattr(edit_form, field).label.text
@@ -2404,9 +2086,6 @@ def admin_edit_voucher(voucher_id):
 @app.route('/admin/vouchers/delete/<int:voucher_id>', methods=['POST'])
 @login_required
 def admin_delete_voucher(voucher_id):
-    """
-    (D)ELETE: Delete a voucher.
-    """
     voucher = Voucher.query.get_or_404(voucher_id)
 
     try:
@@ -2422,12 +2101,8 @@ def admin_delete_voucher(voucher_id):
 @app.route('/admin/vouchers/toggle/<int:voucher_id>', methods=['POST'])
 @login_required
 def admin_toggle_voucher_status(voucher_id):
-    """
-    (U)PDATE: Toggle the is_active status of a voucher.
-    """
     voucher = Voucher.query.get_or_404(voucher_id)
 
-    # This is the "soft delete" logic
     voucher.is_active = not voucher.is_active
 
     try:
@@ -2440,25 +2115,20 @@ def admin_toggle_voucher_status(voucher_id):
         db.session.rollback()
         flash(f"Error changing voucher status: {e}", 'danger')
 
-    # Redirect back to the correct anchor
     return redirect(url_for('admin_vouchers') + '#existing-vouchers-card')
 
 # ===============================================
-# MODULE 5: CUSTOMER MANAGEMENT (CRUD)
+# MODULE 5: CUSTOMER MANAGEMENT
 # ===============================================
 
 @app.route('/admin/customers')
 @login_required
 def admin_customers():
-    """
-    (R)EAD: Display all registered customers.
-    """
     search_query = request.args.get('search')
     
     customer_query = Customer.query
     
     if search_query:
-        # Search by name or email
         search_term = f'%{search_query}%'
         customer_query = customer_query.filter(
             db.or_(
@@ -2478,22 +2148,15 @@ def admin_customers():
 @app.route('/admin/customers/delete/<int:customer_id>', methods=['POST'])
 @login_required
 def admin_delete_customer(customer_id):
-    """
-    (D)ELETE: Delete a customer account.
-    """
     customer = Customer.query.get_or_404(customer_id)
     
-    # We must delete their orders first, or the database will complain.
     try:
-        # 1. Delete all associated OrderItems
         order_ids = [order.order_id for order in customer.orders]
         if order_ids:
             OrderItem.query.filter(OrderItem.order_id.in_(order_ids)).delete(synchronize_session=False)
         
-        # 2. Delete all their Orders
         Order.query.filter_by(customer_id=customer_id).delete(synchronize_session=False)
         
-        # 3. Now delete the Customer
         db.session.delete(customer)
         
         db.session.commit()
@@ -2503,129 +2166,11 @@ def admin_delete_customer(customer_id):
         flash(f"Error deleting customer: {e}", 'danger')
 
     return redirect(url_for('admin_customers'))
-# ===============================================
-# MODULE 5b: RIDER MANAGEMENT (by Admin)
-# ===============================================
-
-@app.route('/admin/riders')
-@login_required
-def admin_riders():
-    """
-    (R)EAD: Display all registered delivery riders.
-    """
-    riders = Rider.query.order_by(Rider.name.asc()).all()
-    return render_template('admin_riders.html', riders=riders)
-
-@app.route('/admin/riders/add', methods=['GET', 'POST'])
-@login_required
-def admin_add_rider():
-    """
-    (C)REATE: Add a new delivery rider.
-    """
-    form = AdminRiderAddForm()
-    if form.validate_on_submit():
-        new_rider = Rider(
-            name=form.name.data,
-            contact_number=form.contact_number.data,
-            email=form.email.data
-        )
-        new_rider.set_password(form.password.data)
-        
-        try:
-            db.session.add(new_rider)
-            db.session.commit()
-            flash(f"Rider '{new_rider.name}' created successfully.", 'success')
-            return redirect(url_for('admin_riders'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error creating rider: {e}", 'danger')
-
-    return render_template(
-        'admin_rider_form.html',
-        form=form,
-        form_title="Add New Rider",
-        action_url=url_for('admin_add_rider')
-    )
-
-@app.route('/admin/riders/edit/<int:rider_id>', methods=['GET', 'POST'])
-@login_required
-def admin_edit_rider(rider_id):
-    """
-    (U)PDATE: Edit an existing rider.
-    """
-    rider = Rider.query.get_or_404(rider_id)
-    form = AdminRiderEditForm(obj=rider)
-
-    if form.validate_on_submit():
-        # Check for email conflicts
-        new_email = form.email.data
-        if new_email != rider.email:
-            existing_rider = Rider.query.filter_by(email=new_email).first()
-            if existing_rider:
-                flash('That email is already in use by another rider.', 'danger')
-                return render_template('admin_rider_form.html', form=form, form_title=f"Edit Rider: {rider.name}", action_url=url_for('admin_edit_rider', rider_id=rider_id))
-
-        rider.name = form.name.data
-        rider.contact_number = form.contact_number.data
-        rider.email = new_email
-
-        if form.password.data:
-            rider.set_password(form.password.data)
-            flash(f"Rider '{rider.name}' updated successfully (password changed).", 'success')
-        else:
-            flash(f"Rider '{rider.name}' updated successfully (password unchanged).", 'success')
-
-        try:
-            db.session.commit()
-            return redirect(url_for('admin_riders'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error updating rider: {e}", 'danger')
-
-    return render_template(
-        'admin_rider_form.html',
-        form=form,
-        form_title=f"Edit Rider: {rider.name}",
-        action_url=url_for('admin_edit_rider', rider_id=rider_id)
-    )
-
-@app.route('/admin/riders/delete/<int:rider_id>', methods=['POST'])
-@login_required
-def admin_delete_rider(rider_id):
-    """
-    (D)ELETE: Delete a rider.
-    """
-    rider = Rider.query.get_or_404(rider_id)
-    
-    # Check if rider is assigned to any non-completed orders
-    active_deliveries = Order.query.filter_by(rider_id=rider.rider_id)\
-                                   .filter(Order.status != 'Completed').count()
-    
-    if active_deliveries > 0:
-        flash(f"Error: Rider '{rider.name}' is still assigned to {active_deliveries} active order(s). Please reassign or complete orders first.", 'danger')
-        return redirect(url_for('admin_riders'))
-
-    try:
-        # You might want to just set their orders' rider_id to None
-        Order.query.filter_by(rider_id=rider.rider_id).update({'rider_id': None})
-        
-        db.session.delete(rider)
-        db.session.commit()
-        flash(f"Rider '{rider.name}' has been deleted.", 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error deleting rider: {e}", 'danger')
-
-    return redirect(url_for('admin_riders'))
 
 @app.route('/admin/customers/edit/<int:customer_id>', methods=['GET'])
 @login_required
 def admin_edit_customer_page(customer_id):
-    """
-    (R)EAD: Show the form to edit a customer.
-    """
     customer = Customer.query.get_or_404(customer_id)
-    # Pre-fill the form with the customer's existing data
     form = CustomerEditForm(obj=customer)
 
     return render_template(
@@ -2637,14 +2182,10 @@ def admin_edit_customer_page(customer_id):
 @app.route('/admin/customers/edit/<int:customer_id>', methods=['POST'])
 @login_required
 def admin_edit_customer(customer_id):
-    """
-    (U)PDATE: Process the edit customer form.
-    """
     customer = Customer.query.get_or_404(customer_id)
     form = CustomerEditForm()
 
     if form.validate_on_submit():
-        # Check if email is being changed to one that already exists
         new_email = form.email.data
         if new_email != customer.email:
             existing_customer = Customer.query.filter_by(email=new_email).first()
@@ -2652,12 +2193,10 @@ def admin_edit_customer(customer_id):
                 flash('That email is already in use by another customer.', 'danger')
                 return render_template('admin_customer_form.html', form=form, customer=customer)
 
-        # Update the customer's details
         customer.name = form.name.data
         customer.contact_number = form.contact_number.data
         customer.email = new_email
 
-        # Check if a new password was entered
         if form.password.data:
             customer.set_password(form.password.data)
             flash(f"Customer '{customer.name}' updated successfully (password changed).", 'success')
@@ -2671,31 +2210,27 @@ def admin_edit_customer(customer_id):
             db.session.rollback()
             flash(f"Error updating customer: {e}", 'danger')
 
-    # If form validation fails, show the form again with errors
     return render_template(
         'admin_customer_form.html',
         form=form,
         customer=customer
     )
 
-@app.route('/admin/verifications_hub')
+@app.route('/admin/verifications')
 @login_required
-def admin_verifications_hub():
+def admin_verifications():
     """
-    (R)EAD: Show all pending Customer and Rider verifications on one page.
+    (R)EAD: Show all pending Customer verifications (Rider checks removed).
     """
-    # 1. Fetch pending customer discounts (Senior/PWD)
     customers_to_verify = Customer.query.filter(
         Customer.discount_status == 'Pending'
     ).order_by(Customer.registration_date.desc()).all()
 
-    # 2. Fetch pending rider applications
-    riders_to_verify = Rider.query.filter(
-        Rider.application_status == 'Pending'
-    ).order_by(Rider.registration_date.desc()).all()
+    # Riders are no longer part of the system
+    riders_to_verify = [] 
 
     return render_template(
-        'admin_verifications_hub.html', # We will create this new template
+        'admin_verifications_hub.html', 
         customers=customers_to_verify,
         riders=riders_to_verify
     )
@@ -2703,15 +2238,10 @@ def admin_verifications_hub():
 @app.route('/admin/approve_discount/<int:customer_id>', methods=['POST'])
 @login_required
 def admin_approve_discount(customer_id):
-    """
-    (U)PDATE: Approve a customer's discount verification.
-    """
     customer = Customer.query.get_or_404(customer_id)
 
-   # Set their status to verified
     customer.is_verified_discount = True
-    customer.discount_status = 'Approved' # <-- ADD THIS LINE
-    # We keep the discount_type and id_image_file for records
+    customer.discount_status = 'Approved'
 
     try:
         db.session.commit()
@@ -2722,21 +2252,13 @@ def admin_approve_discount(customer_id):
 
     return redirect(url_for('admin_verifications'))
 
-# --- ADD THIS SECOND NEW ROUTE ---
 @app.route('/admin/deny_discount/<int:customer_id>', methods=['POST'])
 @login_required
 def admin_deny_discount(customer_id):
-    """
-    (U)PDATE: Deny a customer's discount verification.
-    """
     customer = Customer.query.get_or_404(customer_id)
 
-    # We will set their status to 'Denied' so they see the message
     customer.is_verified_discount = False
-    customer.discount_status = 'Denied' # <-- THIS IS THE KEY CHANGE
-    # We are NOT clearing the id_image_file or type,
-    # so the admin can see what was denied.
-    # The user can override it by re-uploading.
+    customer.discount_status = 'Denied'
 
     try:
         db.session.commit()
@@ -2747,86 +2269,6 @@ def admin_deny_discount(customer_id):
 
     return redirect(url_for('admin_verifications'))
 
-# app/routes.py
-
-# ... (around line 990, after the Customer verification routes) ...
-# ===============================================
-# MODULE 5c: RIDER APPLICATION VERIFICATION
-# ===============================================
-
-@app.route('/admin/verifications') # Use the old, familiar route name
-@login_required
-def admin_verifications():
-    """
-    (R)EAD: Show all pending Customer and Rider verifications on one page.
-    """
-    # 1. Fetch pending customer discounts (Senior/PWD)
-    customers_to_verify = Customer.query.filter(
-        Customer.discount_status == 'Pending'
-    ).order_by(Customer.registration_date.desc()).all()
-
-    # 2. Fetch pending rider applications
-    riders_to_verify = Rider.query.filter(
-        Rider.application_status == 'Pending'
-    ).order_by(Rider.registration_date.asc()).all() # Using asc for FIFO
-
-    return render_template(
-        'admin_verifications_hub.html', 
-        customers=customers_to_verify,
-        riders=riders_to_verify
-    )
-@app.route('/admin/rider_verifications/details/<int:rider_id>')
-@login_required
-def admin_rider_details(rider_id):
-    """
-    (R)EAD: Show a rider's profile and uploaded documents for review.
-    """
-    rider = Rider.query.get_or_404(rider_id)
-    # --- FIX: Calculate today's date and pass it as a simple variable ---
-    current_date = date.today() 
-    return render_template('admin_rider_details.html', rider=rider, today=current_date)
-
-
-@app.route('/admin/approve_rider/<int:rider_id>', methods=['POST'])
-@login_required
-def admin_approve_rider(rider_id):
-    """
-    (U)PDATE: Approve a rider's application.
-    """
-    rider = Rider.query.get_or_404(rider_id)
-    rider.application_status = 'Approved'
-
-    try:
-        db.session.commit()
-        flash(f"Approved application for rider {rider.name}. They can now log in.", 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error approving rider: {e}", 'danger')
-
-    # --- FIX ---
-    # Redirect to the correct route name
-    return redirect(url_for('admin_verifications'))
-
-@app.route('/admin/deny_rider/<int:rider_id>', methods=['POST'])
-@login_required
-def admin_deny_rider(rider_id):
-    """
-    (U)PDATE: Deny a rider's application.
-    """
-    rider = Rider.query.get_or_404(rider_id)
-    rider.application_status = 'Denied'
-
-    try:
-        db.session.commit()
-        flash(f"Denied application for rider {rider.name}.", 'warning')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error denying rider: {e}", 'danger')
-
-    # --- FIX ---
-    # Redirect to the correct route name
-    return redirect(url_for('admin_verifications'))
-
 # ===============================================
 # MODULE 6: SALES REPORTING
 # ===============================================
@@ -2834,37 +2276,27 @@ def admin_deny_rider(rider_id):
 @app.route('/admin/sales_reports')
 @login_required
 def admin_sales_reports():
-    """
-    (R)EAD: Display sales reports and analytics with dynamic date filtering.
-    """
-    # 1. Get dates from query params
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
-    # 2. Set dates or use defaults (Last 30 Days)
     try:
-        # Default start: 30 days ago
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else date.today() - timedelta(days=30)
     except:
         start_date = date.today() - timedelta(days=30)
     
     try:
-        # Default end: today
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else date.today()
     except:
         end_date = date.today()
 
-    # Prepare filter for SQL query
-    date_filter = [Order.order_date.between(start_date, end_date + timedelta(days=1))] # +1 day to include the end date fully
+    date_filter = [Order.order_date.between(start_date, end_date + timedelta(days=1))]
 
-    # Create dynamic string for template header
     if start_date.strftime('%Y-%m-%d') == (date.today() - timedelta(days=30)).strftime('%Y-%m-%d') and end_date.strftime('%Y-%m-%d') == date.today().strftime('%Y-%m-%d'):
         date_range_str = "Last 30 Days"
     else:
         date_range_str = f"from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
 
 
-    # --- 1. Top Selling Items Report (UPDATED WITH FILTER) ---
     top_selling_items = db.session.query(
         Product.name,
         ProductVariant.size_name,
@@ -2877,7 +2309,6 @@ def admin_sales_reports():
      .order_by(func.sum(OrderItem.quantity).desc())\
      .all()
 
-    # --- 2. Sales Per Day Report (UPDATED WITH FILTER) ---
     sales_by_day = db.session.query(
         func.date(Order.order_date).label('date'),
         func.sum(Order.final_amount).label('total_sales')
@@ -2898,14 +2329,9 @@ def admin_sales_reports():
 @app.route('/admin/export/sales_csv')
 @login_required
 def admin_export_sales_csv():
-    """
-    (R)EAD: Generate and download a CSV file of daily sales, respecting date filters.
-    """
-    # 1. Get dates from query params
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
-    # 2. Set dates or use defaults (Last 30 Days)
     try:
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else date.today() - timedelta(days=30)
     except:
@@ -2916,10 +2342,9 @@ def admin_export_sales_csv():
     except:
         end_date = date.today()
 
-    date_filter = [Order.order_date.between(start_date, end_date + timedelta(days=1))] # +1 day to include the end date fully
+    date_filter = [Order.order_date.between(start_date, end_date + timedelta(days=1))]
     
     try:
-        # 1. Run the same filtered query as the sales report page
         sales_by_day_query = db.session.query(
             func.date(Order.order_date).label('date'),
             func.sum(Order.final_amount).label('total_sales')
@@ -2927,21 +2352,17 @@ def admin_export_sales_csv():
          .group_by(func.date(Order.order_date))\
          .order_by(func.date(Order.order_date).desc())
 
-        # 2. Use Pandas to read the query directly
         df = pd.read_sql(sales_by_day_query.statement, db.engine)
 
-        # 3. Rename columns for a user-friendly CSV
         df = df.rename(columns={
             'date': 'Date',
             'total_sales': 'Total Sales (PHP)'
         })
 
-        # 4. Create an in-memory file to hold the CSV
         output = io.StringIO()
         df.to_csv(output, index=False)
         output.seek(0)
 
-        # 5. Create the file download response
         response = make_response(output.getvalue())
         response.headers["Content-Disposition"] = "attachment; filename=sales_report.csv"
         response.headers["Content-type"] = "text/csv"
@@ -2953,46 +2374,38 @@ def admin_export_sales_csv():
         return redirect(url_for('admin_sales_reports'))
 
 # ===============================================
-# MODULE 7: USER (STAFF) MANAGEMENT (CRUD)
+# MODULE 7: USER (STAFF) MANAGEMENT 
+# (Rider management removed from all user routes)
 # ===============================================
-
-# app/routes.py
 
 @app.route('/admin/users', methods=['GET'])
 @login_required
 def admin_users():
     """
-    (R)EAD: Display all staff users and now includes all delivery riders.
+    (R)EAD: Display all staff users (Riders removed).
     """
-    # Fetch all staff users
     staff_users = User.query.order_by(User.username.asc()).all()
     
-    # Fetch all riders
-    riders = Rider.query.order_by(Rider.name.asc()).all()
+    # Riders list is now empty
+    riders = [] 
     
-    # Pass both lists to the template
     return render_template('admin_users.html', staff_users=staff_users, riders=riders)
 
 @app.route('/admin/users/add', methods=['GET', 'POST'])
 @login_required
 def admin_add_user():
-    """
-    (C)REATE: Add a new staff user.
-    """
     form = UserAddForm()
     if form.validate_on_submit():
-        # Check if username already exists
         existing_user = User.query.filter_by(username=form.username.data).first()
         if existing_user:
             flash('That username is already taken. Please choose a different one.', 'danger')
             return render_template('admin_user_form.html', form=form, form_title="Add New Staff User", action_url=url_for('admin_add_user'))
 
-        # Create new user
         new_user = User(
             username=form.username.data,
             role=form.role.data
         )
-        new_user.set_password(form.password.data) # Hash the password
+        new_user.set_password(form.password.data)
 
         db.session.add(new_user)
         try:
@@ -3003,7 +2416,6 @@ def admin_add_user():
             db.session.rollback()
             flash(f"Error creating user: {e}", 'danger')
 
-    # Show the form on a GET request
     return render_template(
         'admin_user_form.html',
         form=form,
@@ -3015,15 +2427,10 @@ def admin_add_user():
 @app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 def admin_edit_user(user_id):
-    """
-    (U)PDATE: Edit an existing staff user.
-    """
     user = User.query.get_or_404(user_id)
-    # Use the UserEditForm, pre-filled with user's data
     form = UserEditForm(obj=user)
 
     if form.validate_on_submit():
-        # Check if username is being changed to one that already exists
         new_username = form.username.data
         if new_username != user.username:
             existing_user = User.query.filter_by(username=new_username).first()
@@ -3031,11 +2438,9 @@ def admin_edit_user(user_id):
                 flash('That username is already taken. Please choose a different one.', 'danger')
                 return render_template('admin_user_form.html', form=form, form_title=f"Edit User: {user.username}", action_url=url_for('admin_edit_user', user_id=user_id))
 
-        # Update fields
         user.username = new_username
         user.role = form.role.data
 
-        # Check if a new password was entered
         if form.password.data:
             user.set_password(form.password.data)
             flash(f"User '{user.username}' updated successfully (password changed).", 'success')
@@ -3049,7 +2454,6 @@ def admin_edit_user(user_id):
             db.session.rollback()
             flash(f"Error updating user: {e}", 'danger')
 
-    # Show the pre-filled form on a GET request
     return render_template(
         'admin_user_form.html',
         form=form,
@@ -3061,10 +2465,6 @@ def admin_edit_user(user_id):
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
 def admin_delete_user(user_id):
-    """
-    (D)ELETE: Delete a staff user.
-    """
-    # Security check: You can't delete yourself.
     if user_id == current_user.user_id:
         flash("You cannot delete your own account.", 'danger')
         return redirect(url_for('admin_users'))
@@ -3080,282 +2480,3 @@ def admin_delete_user(user_id):
         flash(f"Error deleting user: {e}", 'danger')
 
     return redirect(url_for('admin_users'))
-
-# ===============================================
-# == DELIVERY RIDER PORTAL (NEW SECTION)
-# ===============================================
-
-def rider_login_required(f):
-    """
-    Decorator to ensure a rider is logged in.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'rider_id' not in session:
-            flash("You must be logged in to view that page.", 'danger')
-            return redirect(url_for('delivery_login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# app/routes.py
-
-@app.route('/delivery/login', methods=['GET', 'POST'])
-def delivery_login():
-    """
-    (C)REATE: Log in a delivery rider.
-    NOW CHECKS APPLICATION STATUS.
-    """
-    if 'rider_id' in session:
-        return redirect(url_for('delivery_dashboard')) 
-
-    form = RiderLoginForm()
-    if form.validate_on_submit():
-        rider = Rider.query.filter_by(email=form.email.data).first()
-        if rider and rider.check_password(form.password.data):
-            
-            # --- NEW CHECK: Application Status ---
-            if rider.application_status == 'Pending':
-                flash('Your application is currently pending review. Please wait for an admin to approve it.', 'danger')
-                return redirect(url_for('delivery_login'))
-            elif rider.application_status == 'Denied':
-                flash('Your application has been denied. Please contact an administrator.', 'danger')
-                return redirect(url_for('delivery_login'))
-            # --- END NEW CHECK ---
-            
-            # Password is correct and status is 'Approved'! Log the rider in.
-            session['rider_id'] = rider.rider_id
-            session['rider_name'] = rider.name
-            
-            # Set rider status to 'Online'
-            rider.status = 'Online'
-            db.session.commit()
-            
-            flash('Login successful. Welcome!', 'success')
-            return redirect(url_for('delivery_dashboard'))
-        else:
-            flash('Invalid email or password.', 'danger')
-            
-    return render_template('delivery_login.html', form=form)
-
-@app.route('/delivery/dashboard')
-@rider_login_required
-def delivery_dashboard():
-    """
-    (R)EAD: Show the main dashboard for the rider.
-    Shows their current delivery and available new deliveries.
-    """
-    rider_id = session['rider_id']
-    
-    # --- 1. Set Rider status to 'Online' ---
-    rider = Rider.query.get(rider_id)
-    if rider.status != 'Delivering':
-        rider.status = 'Online'
-        db.session.commit()
-
-    # --- 2. Find Rider's CURRENT Delivery ---
-    my_delivery = Order.query.filter_by(
-        rider_id=rider_id,
-        status='In Progress'
-    ).first() 
-
-    # --- 3. Find all AVAILABLE Deliveries ---
-    available_orders = Order.query.filter_by(
-        order_type='Delivery',
-        status='Pending',
-        rider_id=None
-    ).order_by(Order.order_date.asc()).all()
-    
-    return render_template(
-        'delivery_dashboard.html',
-        my_delivery=my_delivery,
-        available_orders=available_orders
-    )
-
-
-
-@app.route('/delivery/logout')
-@rider_login_required
-def delivery_logout():
-    """
-    (D)ELETE: Log out the delivery rider.
-    """
-    # Set rider status to 'Offline'
-    rider = Rider.query.get(session['rider_id'])
-    if rider:
-        rider.status = 'Offline'
-        db.session.commit()
-        
-    session.pop('rider_id', None)
-    session.pop('rider_name', None)
-    flash('You have been logged out.', 'info')
-    return redirect(url_for('delivery_login'))
-
-# app/routes.py
-
-@app.route('/delivery/register', methods=['GET', 'POST'])
-def delivery_register():
-    """
-    (C)REATE: Register a new delivery rider and submit application documents.
-    """
-    if 'rider_id' in session:
-        return redirect(url_for('delivery_dashboard'))
-
-    form = RiderRegisterForm()
-    if form.validate_on_submit():
-        
-        # 1. Save all uploaded documents
-        try:
-            license_fn = save_rider_document(form.license_file.data)
-            govt_id_fn = save_rider_document(form.govt_id_file.data)
-            or_cr_fn = save_rider_document(form.or_cr_file.data)
-            nbi_clearance_fn = save_rider_document(form.nbi_clearance_file.data)
-        except Exception as e:
-            flash(f"Error uploading documents. Please ensure they are valid images. {e}", 'danger')
-            return render_template('delivery_register.html', form=form)
-            
-        # 2. Create the new rider object
-        new_rider = Rider(
-            name=form.name.data,
-            contact_number=form.contact_number.data,
-            email=form.email.data,
-            birthdate=form.birthdate.data,
-            
-            # Set initial application status and document filenames
-            application_status='Pending', 
-            license_file=license_fn,
-            govt_id_file=govt_id_fn,
-            or_cr_file=or_cr_fn,
-            nbi_clearance_file=nbi_clearance_fn
-        )
-        new_rider.set_password(form.password.data)
-        
-        # 3. Save to DB and Redirect
-        try:
-            db.session.add(new_rider)
-            db.session.commit()
-            
-            flash(f"Application for {new_rider.name} submitted successfully. Please wait for admin approval.", 'info')
-            return redirect(url_for('delivery_login'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error creating account: {e}", 'danger')
-    
-    return render_template('delivery_register.html', form=form)
-
-def send_rider_reset_email(rider):
-    """
-    Helper function to send the password reset email to a rider.
-    """
-    token = rider.get_reset_token()
-    msg = Message(
-        'Password Reset Request (Rider Portal)',
-        sender=current_app.config['MAIL_USERNAME'],
-        recipients=[rider.email]
-    )
-    msg.html = render_template('delivery_reset_email.html', token=token)
-    
-    from threading import Thread
-    app = current_app._get_current_object() 
-    thread = Thread(target=send_async_email, args=(app, msg))
-    thread.start()
-    return thread
-
-@app.route('/delivery/forgot-password', methods=['GET', 'POST'])
-def delivery_forgot_password():
-    """
-    (C)REATE: Show form for rider to request a password reset.
-    """
-    if 'rider_id' in session:
-        return redirect(url_for('delivery_dashboard'))
-    
-    form = RiderRequestResetForm()
-    if form.validate_on_submit():
-        rider = Rider.query.filter_by(email=form.email.data).first()
-        if rider:
-            send_rider_reset_email(rider)
-        flash('If an account exists, a reset link has been sent.', 'info')
-        return redirect(url_for('delivery_login'))
-
-    return render_template('delivery_forgot_password.html', form=form)
-
-@app.route('/delivery/reset-password/<token>', methods=['GET', 'POST'])
-def delivery_reset_token(token):
-    """
-    (U)PDATE: Process the rider's password reset.
-    """
-    if 'rider_id' in session:
-        return redirect(url_for('delivery_dashboard'))
-    
-    rider = Rider.verify_reset_token(token)
-    if rider is None:
-        flash('That is an invalid or expired token.', 'danger')
-        return redirect(url_for('delivery_forgot_password'))
-    
-    form = RiderResetPasswordForm()
-    if form.validate_on_submit():
-        rider.set_password(form.password.data)
-        db.session.commit()
-        flash('Your password has been updated! You can now log in.', 'success')
-        return redirect(url_for('delivery_login'))
-    
-    return render_template('delivery_reset_password.html', form=form)
-
-@app.route('/delivery/accept/<int:order_id>', methods=['POST'])
-@rider_login_required
-def delivery_accept_order(order_id):
-    """
-    (U)PDATE: Assign an order to the logged-in rider.
-    """
-    order = Order.query.get_or_404(order_id)
-    rider = Rider.query.get(session['rider_id'])
-
-    # Check if order is still available
-    if order.status != 'Pending' or order.rider_id is not None:
-        flash("This order is no longer available.", 'danger')
-        return redirect(url_for('delivery_dashboard'))
-    
-    # Check if rider is already on a delivery
-    if rider.status == 'Delivering':
-        flash("You must complete your current delivery before accepting a new one.", 'danger')
-        return redirect(url_for('delivery_dashboard'))
-
-    # Assign the order!
-    order.rider_id = rider.rider_id
-    order.status = 'In Progress' # Move from 'Pending' to 'In Progress'
-    rider.status = 'Delivering'
-    
-    try:
-        db.session.commit()
-        flash(f"You have accepted Order #{order.order_id}.", 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error accepting order: {e}", 'danger')
-
-    return redirect(url_for('delivery_dashboard'))
-
-@app.route('/delivery/complete/<int:order_id>', methods=['POST'])
-@rider_login_required
-def delivery_complete_order(order_id):
-    """
-    (U)PDATE: Mark an order as 'Completed' and set rider to 'Online'.
-    """
-    order = Order.query.get_or_404(order_id)
-    rider = Rider.query.get(session['rider_id'])
-    
-    # Security check: Make sure this rider owns this order
-    if order.rider_id != rider.rider_id:
-        flash("This is not your order.", 'danger')
-        return redirect(url_for('delivery_dashboard'))
-        
-    # Mark as completed
-    order.status = 'Completed'
-    rider.status = 'Online' # Rider is now free
-    
-    try:
-        db.session.commit()
-        flash(f"Order #{order.order_id} marked as complete!", 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error completing order: {e}", 'danger')
-        
-    return redirect(url_for('delivery_dashboard'))

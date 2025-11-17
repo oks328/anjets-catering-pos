@@ -26,7 +26,30 @@
 
                 <div class="product-card-content">
                     <h3>{{ product.name }}</h3>
-                    <p>{{ product.description or 'No description available.' }}</p>
+                    
+                    {# RATING DISPLAY BLOCK #}
+                    {% set rating_data = ratings_map.get(product.product_id) %}
+                    {% if rating_data and rating_data.count > 0 %}
+                        <div class="product-rating" style="margin-bottom: 0.5rem; color: #ffc107;">
+                            {% set full_stars = rating_data.avg | int %}
+                            {% for i in range(full_stars) %}
+                                ★
+                            {% endfor %}
+                            {% if rating_data.avg - full_stars >= 0.5 %}
+                                <span style="display: inline-block; width: 0.5em; overflow: hidden; color: #ffc107;">★</span> 
+                            {% endif %}
+                            <span style="color: #666; font-size: 0.9em; font-weight: 500;">
+                                ({{ "%.1f"|format(rating_data.avg) }} / {{ rating_data.count }} reviews)
+                            </span>
+                        </div>
+                    {% else %}
+                        <p style="font-size: 0.9em; color: #999; margin-bottom: 0.5rem;">No reviews yet.</p>
+                    {% endif %}
+                    {# END RATING DISPLAY BLOCK #}
+
+                    <p style="font-size: 0.9em; color: #666; flex-grow: 1; margin-bottom: 1rem;">
+                        {{ product.description or 'No description available.' }}
+                    </p>
                     
                     <div class="product-card-footer">
                         <div class="product-card-price">
@@ -46,9 +69,16 @@
                             {% endif %}
                         </div>
                         
-                        <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
-                            Add to Cart
-                        </button>
+                        {% if 'customer_id' in session %}
+                            <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
+                                Add to Cart
+                            </button>
+                        {% else %}
+                            {# If logged out, this button is a link to the login page #}
+                            <a href="{{ url_for('client_account_page') }}" class="btn btn-primary">
+                                Add to Cart
+                            </a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -58,5 +88,3 @@
     </div>
 
 {% endblock %}
-
-
