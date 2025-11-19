@@ -56,7 +56,11 @@
                 {% if pwd_discount_amt > 0 %}
                     <span style="color: #28a745; font-weight: bold;">PWD Discount (Capped at ₱150):</span>
                     <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(pwd_discount_amt) }}</span>
-                {% endif %}
+                {% endif %} 
+                
+                {# NEW: VAT DISPLAY LINE #}
+                <span style="font-weight: bold;">VAT (12%):</span>
+                    <span style="font-weight: bold;">+ ₱{{ "%.2f"|format(vat_amount) }}</span>
                 
                 {% if delivery_fee > 0 %}
                     <span>Delivery Fee:</span>

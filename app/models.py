@@ -140,6 +140,7 @@ class Order(db.Model):
     order_type = db.Column(db.String(50), nullable=False, default='Pickup')
     delivery_address = db.Column(db.Text, nullable=True)
     delivery_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
+    vat_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00) # <-- ADDED VAT
     # rider_id column REMOVED
     special_instructions = db.Column(db.Text, nullable=True)
 

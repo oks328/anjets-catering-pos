@@ -22,6 +22,8 @@ from app import mail
 from app.forms import RequestResetForm, ResetPasswordForm
 from flask import make_response, jsonify, current_app as app, render_template, redirect, url_for, flash, request, session, jsonify, current_app, get_flashed_messages
 
+# app/routes.py (Place this near the top)
+VAT_RATE = 0.12 # 12% Value Added Tax
 
 def get_category_choices():
     """
@@ -509,14 +511,14 @@ def product_details(product_id):
 def client_cart():
     """
     (R)EAD: Display the user's shopping cart with smart totals.
-    NOW INCLUDES separate PWD (capped) and Senior (full) logic.
+    NOW INCLUDES VAT calculation.
     """
     cart_session = session.get('cart', {})
     cart_items = []
 
     ala_carte_subtotal = 0.0
     buffet_subtotal = 0.0
-    total_price = 0.0
+    total_price = 0.0 # Gross Subtotal
 
     for item_id, item_data in cart_session.items():
         if 'name' not in item_data or 'price' not in item_data:
@@ -539,37 +541,38 @@ def client_cart():
 
     customer = Customer.query.get(session['customer_id'])
 
-    # --- NEW: Separate Discount Logic ---
     voucher_discount_amt = 0.0
     senior_discount_amt = 0.0
     pwd_discount_amt = 0.0
-    subtotal = ala_carte_subtotal + buffet_subtotal
+    subtotal = total_price 
 
     if customer and customer.is_verified_discount:
-        # Clear any regular vouchers
         if 'voucher_code' in session:
             session.pop('voucher_code', None)
             session.pop('discount_percentage', None)
             flash(f"Your verified {customer.discount_type} discount has replaced the voucher.", 'info')
 
         if customer.discount_type == 'Senior':
-            # Senior logic: 20% off total
             senior_discount_amt = subtotal * 0.20
         
         elif customer.discount_type == 'PWD':
-            # PWD logic: 20% off total, but capped at ₱150
             pwd_discount_amt = subtotal * 0.20
             if pwd_discount_amt > 150.00:
                 pwd_discount_amt = 150.00
             
     else:
-        # No verified discount, check for regular voucher
         voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-    # --- END NEW LOGIC ---
-
+        voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
+    
     total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-    final_total = total_price - total_discount_amount
+    
+    # --- NEW VAT CALCULATION ---
+    taxable_base = subtotal - total_discount_amount
+    vat_amount = taxable_base * VAT_RATE
+    
+    # Final Total includes VAT
+    final_total = taxable_base + vat_amount 
+    # --- END NEW VAT CALCULATION ---
 
     available_vouchers = Voucher.query.filter(
         Voucher.is_active == True,
@@ -579,12 +582,13 @@ def client_cart():
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
-        total_price=total_price,
+        total_price=total_price, # Gross Subtotal
         ala_carte_subtotal=ala_carte_subtotal,
         buffet_subtotal=buffet_subtotal,
         voucher_discount_amt=voucher_discount_amt,
         senior_discount_amt=senior_discount_amt,
-        pwd_discount_amt=pwd_discount_amt, # <-- Pass new discount
+        pwd_discount_amt=pwd_discount_amt,
+        vat_amount=vat_amount, # <-- PASS VAT
         total_discount_amount=total_discount_amount,
         final_total=final_total,
         available_vouchers=available_vouchers,
@@ -668,7 +672,7 @@ def apply_voucher():
 def client_checkout():
     """
     (R)EAD: Display the FINAL checkout page with ALL totals.
-    NOW INCLUDES separate PWD (capped) and Senior (full) logic.
+    NOW INCLUDES VAT calculation.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
@@ -704,12 +708,11 @@ def client_checkout():
 
     customer = Customer.query.get(session['customer_id'])
 
-    # --- NEW: Separate Discount Logic ---
     voucher_discount_amt = 0.0
     senior_discount_amt = 0.0
     pwd_discount_amt = 0.0
     delivery_fee = session.get('delivery_fee', 0.0)
-    subtotal = ala_carte_subtotal + buffet_subtotal
+    subtotal = total_price 
 
     if customer and customer.is_verified_discount:
         if customer.discount_type == 'Senior':
@@ -720,11 +723,17 @@ def client_checkout():
                 pwd_discount_amt = 150.00
     else:
         voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-    # --- END NEW LOGIC ---
+        voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
 
     total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-    final_total = (total_price - total_discount_amount) + delivery_fee
+    
+    # --- NEW VAT CALCULATION ---
+    taxable_base = subtotal - total_discount_amount
+    vat_amount = taxable_base * VAT_RATE
+    
+    # Final Total includes VAT and Delivery Fee
+    final_total = taxable_base + vat_amount + delivery_fee 
+    # --- END NEW VAT CALCULATION ---
 
     return render_template(
         'client_checkout.html',
@@ -732,7 +741,8 @@ def client_checkout():
         total_price=total_price,
         voucher_discount_amt=voucher_discount_amt,
         senior_discount_amt=senior_discount_amt,
-        pwd_discount_amt=pwd_discount_amt, # <-- Pass new discount
+        pwd_discount_amt=pwd_discount_amt,
+        vat_amount=vat_amount, # <-- PASS VAT
         delivery_fee=delivery_fee,
         total_discount_amount=total_discount_amount,
         final_total=final_total
@@ -801,8 +811,7 @@ def save_checkout_options():
 @customer_login_required
 def place_order():
     """
-    (C)REATE: Create the order in the database.
-    NOW INCLUDES separate PWD (capped) and Senior (full) logic.
+    (C)REATE: Create the order in the database, saving the calculated VAT.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
@@ -828,12 +837,11 @@ def place_order():
 
     customer = Customer.query.get(session['customer_id'])
 
-    # --- NEW: Separate Discount Logic ---
     voucher_discount_amt = 0.0
     senior_discount_amt = 0.0
     pwd_discount_amt = 0.0
     delivery_fee = session.get('delivery_fee', 0.0)
-    subtotal = ala_carte_subtotal + buffet_subtotal
+    subtotal = total_price
 
     if customer and customer.is_verified_discount:
         if customer.discount_type == 'Senior':
@@ -844,18 +852,23 @@ def place_order():
                 pwd_discount_amt = 150.00
     else:
         voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (ala_carte_subtotal * voucher_discount_perc) / 100
-    # --- END NEW LOGIC ---
+        voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
 
     total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-    final_total = (total_price - total_discount_amount) + delivery_fee
+    
+    # --- FINAL VAT CALCULATION FOR DB ---
+    taxable_base = subtotal - total_discount_amount
+    vat_amount = taxable_base * VAT_RATE
+    final_total = taxable_base + vat_amount + delivery_fee 
+    # --- END FINAL VAT CALCULATION ---
 
     try:
         special_instructions = request.form.get('special_instructions')
         new_order = Order(
             customer_id=session['customer_id'],
-            total_amount=total_price,
-            discount_amount=total_discount_amount, # This now includes all discounts
+            total_amount=subtotal,
+            discount_amount=total_discount_amount,
+            vat_amount=vat_amount, # <-- SAVE VAT TO DB
             final_amount=final_total,
             status="Pending",
             order_type=session.get('order_type', 'Pickup'),
@@ -866,6 +879,7 @@ def place_order():
         db.session.add(new_order)
         db.session.commit()
 
+        # ... (rest of order item saving logic) ...
         for item_key, item_data in valid_cart_items.items():
             real_variant_id = item_data.get('variant_id', item_key)
             if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
@@ -908,7 +922,6 @@ def place_order():
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': f"DB Error: {e}"}), 500
-
 # ===============================================
 # CLIENT-SIDE: CUSTOMER ACCOUNTS (Login/Register/Reset)
 # ===============================================
