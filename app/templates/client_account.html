@@ -7,100 +7,19 @@
     <aside class="account-nav">
         <h3>Hello, {{ session['customer_name'] }}!</h3>
         <ul>
-            <li><a href="{{ url_for('client_my_account') }}" class="active">Order History</a></li>
             <li><a href="{{ url_for('client_profile') }}">My Profile</a></li>
         </ul>
     </aside>
 
     <section class="account-content">
-        <h2>My Order History</h2>
+        <h2>Welcome back!</h2>
         
-        {% if not orders %}
-            <p>You haven't placed any orders yet.</p>
-        {% else %}
-            <table class="order-history-table">
-                <thead>
-                    <tr>
-                        <th>Order ID</th>
-                        <th>Items</th>
-                        <th>Date</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th>Receipt</th> 
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for order in orders %}
-                    <tr>
-                        <td>#{{ order.order_id }}</td>
-                        <td class="order-items-list">
-                        <ul>
-                            {% for item in order.items %}
-                                <li>
-                                    {{ item.quantity }}x {{ item.product.name }}
-                                    <span class="variant-name">({{ item.variant.size_name }})</span>
-                                    
-                                    {% set customer_id = session['customer_id'] %}
-                                    {% set product_id = item.product.product_id %}
-                                    
-                                    {# Check 1: Only show if order is completed #}
-                                    {% if order.status == 'Completed' %}
-                                    
-                                        {# Check 2: Has the user already reviewed this item? #}
-                                        {% if has_reviewed_product(customer_id, product_id) %}
-                                            <span style="font-size: 0.75rem; color: #28a745; margin-left: 0.5rem;">
-                                                (Reviewed)
-                                            </span>
-                                        {% else %}
-                                            <a href="{{ url_for('client_review_product', product_id=product_id) }}" 
-                                               class="btn btn-secondary btn-sm"
-                                               style="padding: 0.2rem 0.5rem; margin-left: 0.5rem; font-size: 0.75rem;">
-                                                Review
-                                            </a>
-                                        {% endif %}
-                                        
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </td>
-                        <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
-                        <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
-                        
-                        <td>
-                            {% if order.status == 'Pending' %}
-                                <span class="status-pending">Pending</span>
-                            {% elif order.status == 'In Progress' %}
-                                <span class="status-in-progress">In Progress</span>
-                            {% elif order.status == 'Completed' %}
-                                <span class="status-completed">Completed</span>
-                            {% else %}
-                                <span>{{ order.status }}</span>
-                            {% endif %}
-                        </td>
-                        
-                        <td class="action-buttons">
-                            <a href="{{ url_for('client_view_receipt', order_id=order.order_id) }}" 
-                               class="btn btn-secondary" 
-                               style="padding: 0.5rem 1rem; margin: 0; background-color: #17a2b8; color: white;">
-                               View Receipt
-                            </a>
-                        </td>
-
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="6">No orders found.</td> </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
-
-        <div style="text-align: right; margin-top: 2rem;">
-            <a href="{{ url_for('client_home') }}" class="btn btn-secondary">
-                &larr; Continue Shopping
-            </a>
+                <a href="{{ url_for('client_profile') }}" class="btn btn-secondary">
+                    Manage Profile
+                </a>
+            </div>
         </div>
+
     </section>
 </div>
 {% endblock %}

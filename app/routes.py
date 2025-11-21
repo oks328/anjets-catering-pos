@@ -250,20 +250,10 @@ def admin_login():
 def client_my_account():
     """
     (R)EAD: Display the customer's account page.
-    Shows their profile and order history.
     """
-    customer_id = session['customer_id']
-
-    # Removed db.joinedload(Order.rider) since riders are gone
-    orders = Order.query\
-        .filter_by(customer_id=customer_id)\
-        .order_by(Order.order_date.desc())\
-        .all()
-
+    # We no longer need to fetch orders here since they are on the cart page
     return render_template(
-        'client_account.html',
-        orders=orders,
-        has_reviewed_product=has_reviewed_product # Pass the helper function
+        'client_account.html'
     )
 
 @app.route('/my-account/profile', methods=['GET', 'POST'])
@@ -511,7 +501,7 @@ def product_details(product_id):
 def client_cart():
     """
     (R)EAD: Display the user's shopping cart with smart totals.
-    NOW INCLUDES VAT calculation.
+    NOW INCLUDES VAT calculation and order history.
     """
     cart_session = session.get('cart', {})
     cart_items = []
@@ -541,10 +531,17 @@ def client_cart():
 
     customer = Customer.query.get(session['customer_id'])
 
+    # Fetch order history for the customer
+    customer_id = session['customer_id']
+    orders = Order.query\
+        .filter_by(customer_id=customer_id)\
+        .order_by(Order.order_date.desc())\
+        .all()
+
     voucher_discount_amt = 0.0
     senior_discount_amt = 0.0
     pwd_discount_amt = 0.0
-    subtotal = total_price 
+    subtotal = total_price
 
     if customer and customer.is_verified_discount:
         if 'voucher_code' in session:
@@ -554,24 +551,24 @@ def client_cart():
 
         if customer.discount_type == 'Senior':
             senior_discount_amt = subtotal * 0.20
-        
+
         elif customer.discount_type == 'PWD':
             pwd_discount_amt = subtotal * 0.20
             if pwd_discount_amt > 150.00:
                 pwd_discount_amt = 150.00
-            
+
     else:
         voucher_discount_perc = session.get('discount_percentage', 0.0)
         voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
-    
+
     total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-    
+
     # --- NEW VAT CALCULATION ---
     taxable_base = subtotal - total_discount_amount
     vat_amount = taxable_base * VAT_RATE
-    
+
     # Final Total includes VAT
-    final_total = taxable_base + vat_amount 
+    final_total = taxable_base + vat_amount
     # --- END NEW VAT CALCULATION ---
 
     available_vouchers = Voucher.query.filter(
@@ -579,20 +576,28 @@ def client_cart():
         (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
     ).all()
 
+# --- NEW: Fetch Order History for the Cart Page ---
+    orders = Order.query\
+        .filter_by(customer_id=session['customer_id'])\
+        .order_by(Order.order_date.desc())\
+        .all()  
+    
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
-        total_price=total_price, # Gross Subtotal
+        total_price=total_price,
         ala_carte_subtotal=ala_carte_subtotal,
         buffet_subtotal=buffet_subtotal,
         voucher_discount_amt=voucher_discount_amt,
         senior_discount_amt=senior_discount_amt,
         pwd_discount_amt=pwd_discount_amt,
-        vat_amount=vat_amount, # <-- PASS VAT
+        vat_amount=vat_amount,
         total_discount_amount=total_discount_amount,
         final_total=final_total,
         available_vouchers=available_vouchers,
-        customer=customer
+        customer=customer,
+        orders=orders,                          # <--- NEW
+        has_reviewed_product=has_reviewed_product # <--- NEW
     )
 
 @app.route('/cart/clear')
