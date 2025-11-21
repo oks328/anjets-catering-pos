@@ -15,67 +15,59 @@
     <section class="account-content">
         <h2>My Profile</h2>
         
-        <div class="form-wrapper" style="box-shadow: none; padding: 0;">
-            <form method="POST" action="{{ url_for('client_profile') }}" novalidate>
-                {{ form.hidden_tag() }} <div class="form-group">
-                    {{ form.name.label }}
-                    {{ form.name(class="form-control") }}
-                    {% for error in form.name.errors %}
-                        <span class="error-message">{{ error }}</span>
-                    {% endfor %}
-                </div>
-                
-                <div class="form-group">
-                    {{ form.contact_number.label }}
-                    {{ form.contact_number(class="form-control") }}
-                    {% for error in form.contact_number.errors %}
-                        <span class="error-message">{{ error }}</span>
-                    {% endfor %}
-                </div>
-
-                <div class="form-group">
-                    {{ form.birthdate.label }}
-                    {{ form.birthdate(class="form-control", type="date") }}
-                    <p style="font-size: 0.9em; color: #555;">Used for senior discount verification.</p>
-                    {% for error in form.birthdate.errors %}
-                        <span class="error-message">{{ error }}</span>
-                    {% endfor %}
-                </div>
-
-                <div class="form-group">
-                    {{ form.submit(class="btn btn-primary") }}
-                </div>
-            </form>
-        </div>
-
-        <hr style="margin-top: 2rem; margin-bottom: 2rem;">
-
-    <div class="discount-verification">
-        <h3>Discount Verification</h3>
-
-        {% if customer.is_verified_discount %}
-            <div style="background: #d4edda; color: #155724; padding: 1rem; border-radius: 4px;">
-                <strong>Status: Verified!</strong>
-                <p style="margin: 0;">Your {{ customer.discount_type or 'Senior/PWD' }} discount will be automatically applied at checkout.</p>
+        <form method="POST" action="{{ url_for('client_profile') }}" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <div class="form-group">
+                {{ form.name.label }}
+                {{ form.name(class="form-control") }}
+                {% for error in form.name.errors %}
+                    <span class="error-message" style="color: var(--danger-red);">{{ error }}</span>
+                {% endfor %}
+            </div>
+            
+            <div class="form-group">
+                {{ form.contact_number.label }}
+                {{ form.contact_number(class="form-control") }}
+                {% for error in form.contact_number.errors %}
+                    <span class="error-message" style="color: var(--danger-red);">{{ error }}</span>
+                {% endfor %}
             </div>
 
-        {% elif customer.discount_status == 'Pending' %}
-             <div style="background: #d1ecf1; color: #0c5460; padding: 1rem; border-radius: 4px;">
-                <strong>Status: Pending Review</strong>
-                <p style="margin: 0;">Your ID has been submitted and is awaiting admin approval.</p>
+            <div class="form-group">
+                {{ form.birthdate.label }}
+                {{ form.birthdate(class="form-control", type="date") }}
+                <p style="font-size: 0.85rem; color: var(--text-gray); margin-top: 0.5rem;">Used for senior discount verification.</p>
+                {% for error in form.birthdate.errors %}
+                    <span class="error-message" style="color: var(--danger-red);">{{ error }}</span>
+                {% endfor %}
             </div>
 
-        {% else %}
-            {% if customer.discount_status == 'Denied' %}
-                <div style="background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 4px;">
-                    <strong>Status: Denied</strong>
-                    <p style="margin: 0;">Your last submission was not approved. Please upload a new, clear image of your ID.</p>
+            <div class="form-group">
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+
+        <hr style="margin: 3rem 0; border: 0; border-top: 1px solid var(--border-color);">
+
+        <div class="discount-verification">
+            <h3>Discount Verification</h3>
+
+            {% if customer.is_verified_discount %}
+                <div style="background: #ecfdf5; color: #047857; padding: 1rem; border-radius: 8px; border: 1px solid #d1fae5;">
+                    <strong>Status: Verified!</strong>
+                    <p style="margin: 0;">Your {{ customer.discount_type or 'Senior/PWD' }} discount will be automatically applied at checkout.</p>
                 </div>
+
+            {% elif customer.discount_status == 'Pending' %}
+                 <div style="background: #eff6ff; color: #1d4ed8; padding: 1rem; border-radius: 8px; border: 1px solid #dbeafe;">
+                    <strong>Status: Pending Review</strong>
+                    <p style="margin: 0;">Your ID has been submitted and is awaiting admin approval.</p>
+                </div>
+
             {% else %}
-                 <p>If you are a Senior Citizen or PWD, please upload your valid ID for verification.</p>
-            {% endif %}
+                <p style="margin-bottom: 1rem;">If you are a Senior Citizen or PWD, please upload your valid ID for verification.</p>
 
-            <div class="form-wrapper" style="box-shadow: none; padding: 1rem 0;">
                 <form method="POST" action="{{ url_for('client_upload_id') }}" enctype="multipart/form-data" novalidate>
                     {{ upload_form.hidden_tag() }}
                     <div class="form-group">
@@ -85,24 +77,13 @@
                     <div class="form-group">
                         {{ upload_form.id_image.label }}
                         {{ upload_form.id_image(class="form-control") }}
-                        {% for error in upload_form.id_image.errors %}
-                            <span class="error-message">{{ error }}</span>
-                        {% endfor %}
                     </div>
                     <div class="form-group">
-                        <button type="submit" class="btn btn-primary">
-                            {% if customer.discount_status == 'Denied' %}
-                                Re-submit for Verification
-                            {% else %}
-                                Submit for Verification
-                            {% endif %}
-                        </button>
+                        <button type="submit" class="btn btn-primary">Submit for Verification</button>
                     </div>
                 </form>
-            </div>
-
-        {% endif %}
-    </div>
+            {% endif %}
+        </div>
 
     </section>
 </div>

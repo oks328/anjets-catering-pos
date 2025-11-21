@@ -1,31 +1,32 @@
 /* ==========================================================================
    1. FONTS & VARIABLES
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap');
 
 :root {
-    /* Theme Colors */
-    --brand-red: #e84c3d;       /* Specific red from design */
-    --brand-red-hover: #c0392b; /* Darker red for hover */
-    --brand-dark: #222222;      /* Dark text */
-    --text-gray: #666666;       /* Light gray text */
-    --text-muted: #888888;      /* Muted text */
-    --bg-light: #ffffff;        /* White background */
-    --bg-cream: #fffbf8;        /* Cream tint for body background */
-    --white: #ffffff;
-    --border-color: #eeeeee;
+    /* Brand Colors */
+    --brand-red: #e84c3d;
+    --brand-red-hover: #c0392b;
+    --brand-red-light: #fff5f5;
     
-    /* Status Colors */
-    --success-green: #27ae60;
-    --warning-yellow: #f39c12;
-    --danger-red: #e74c3c;
+    /* Neutral Colors */
+    --brand-dark: #1f2937;      /* Softer dark blue-gray */
+    --text-gray: #6b7280;       /* Modern gray text */
+    --text-light: #9ca3af;
+    --bg-body: #f3f4f6;         /* Light gray background */
+    --bg-white: #ffffff;
     
-    /* Buffet Wizard Specific */
-    --wizard-orange: #f6b980;   /* Peach/Orange Button */
-    --wizard-orange-hover: #e0a06b;
-
+    /* UI Colors */
+    --border-color: #e5e7eb;
+    --success-green: #10b981;
+    --warning-yellow: #f59e0b;
+    --danger-red: #ef4444;
+    
     /* Shadows */
-    --card-shadow: 0 10px 40px rgba(0,0,0,0.08);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 /* ==========================================================================
@@ -33,19 +34,26 @@
    ========================================================================== */
 * {
     box-sizing: border-box;
-}
-
-body, h1, h2, h3, h4, h5, h6, p, ul, li, a {
     margin: 0;
     padding: 0;
 }
 
 body {
-    font-family: 'Poppins', sans-serif;
-    background-color: var(--bg-cream); 
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-body); 
     color: var(--brand-dark);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
+    color: var(--brand-dark);
+    line-height: 1.2;
+    margin-bottom: 1rem;
 }
 
 a {
@@ -59,40 +67,42 @@ ul {
 }
 
 /* ==========================================================================
-   3. HEADER & NAVIGATION (3-Column Layout)
+   3. HEADER & NAVIGATION
    ========================================================================== */
 .client-header {
-    background-color: var(--white);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     height: 80px;
-    padding: 0 3rem;
+    padding: 0 2rem;
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Separates Logo, Nav, Icons */
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    box-shadow: 0 2px 15px rgba(0,0,0,0.03);
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: 1000;
+    box-shadow: var(--shadow-sm);
 }
 
-/* Logo (Left) */
 .logo a {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     font-weight: 800;
     color: var(--brand-red);
     letter-spacing: -0.5px;
+    text-transform: uppercase;
 }
 
-/* Navigation Links (Center) */
 .client-nav-center {
     display: flex;
-    gap: 2.5rem;
+    gap: 2rem;
 }
 
 .client-nav-center a {
     font-weight: 500;
     font-size: 0.95rem;
-    color: var(--brand-dark);
+    color: var(--text-gray);
+    padding: 0.5rem 0;
     position: relative;
 }
 
@@ -101,104 +111,117 @@ ul {
     color: var(--brand-red);
 }
 
-/* Right Side Icons (Right) */
+.client-nav-center a::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: 0;
+    left: 0;
+    background-color: var(--brand-red);
+    transition: width 0.3s ease;
+}
+
+.client-nav-center a:hover::after,
+.client-nav-center a.active::after {
+    width: 100%;
+}
+
 .client-nav-right {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1rem;
 }
 
 .client-nav-right .icon-link {
     font-size: 1.2rem;
     color: var(--brand-dark);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    transition: background 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
 .client-nav-right .icon-link:hover {
-    background-color: #f9f9f9;
+    background-color: var(--brand-red-light);
     color: var(--brand-red);
 }
 
-/* Login Button (in Header) */
 .client-nav-right .btn-login {
-    background-color: var(--brand-red);
-    color: var(--white);
-    padding: 0.5rem 1.5rem;
-    border-radius: 25px;
+    background-color: var(--brand-dark);
+    color: var(--bg-white);
+    padding: 0.6rem 1.5rem;
+    border-radius: 50px;
     font-weight: 600;
     font-size: 0.9rem;
     border: none;
     cursor: pointer;
+    transition: all 0.3s ease;
 }
+
 .client-nav-right .btn-login:hover {
-    background-color: var(--brand-red-hover);
+    background-color: var(--brand-red);
+    transform: translateY(-1px);
 }
 
 /* ==========================================================================
-   4. MAIN LAYOUT WRAPPER
+   4. MAIN LAYOUT & CARD STYLES
    ========================================================================== */
 .client-main {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 2rem 1rem;
-    min-height: 80vh;
+    padding: 2rem 1.5rem;
+    flex: 1; 
+    width: 100%;
 }
 
 .client-footer {
     background-color: var(--brand-dark);
-    color: var(--white);
+    color: #e5e7eb;
     text-align: center;
     padding: 3rem 2rem;
-    margin-top: 4rem;
+    margin-top: auto;
 }
 
-/* Generic Card Utility */
+/* Generic Card (Used in Account, Checkout, etc.) */
 .card {
-    background-color: var(--white);
-    border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    background: var(--bg-white);
+    border-radius: 16px;
     padding: 2rem;
-    margin-bottom: 2rem;
+    box-shadow: var(--shadow-sm);
     border: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
 }
 
 /* ==========================================================================
-   5. HERO SECTION (Design Match)
+   5. HERO SECTION
    ========================================================================== */
 .hero-section {
-    /* Background Image */
     background-image: url('https://images.unsplash.com/photo-1555244162-803834f70033?q=80&w=2070&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
-    height: 550px;
-    width: 100%;
+    height: 500px;
+    width: 100vw;
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: 0; 
-    margin-bottom: 3rem; 
+    margin-bottom: 4rem;
+    margin-left: calc(-50vw + 50%);
+    margin-right: calc(-50vw + 50%);
 }
 
-/* Full width hero support */
-@media (min-width: 1200px) {
-    .hero-section {
-        margin-left: calc(-50vw + 50%);
-        margin-right: calc(-50vw + 50%);
-        width: 100vw;
-        border-radius: 0;
-    }
-}
-
-/* Dark Overlay */
 .hero-overlay {
-    background: rgba(0, 0, 0, 0.6); 
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
     width: 100%;
     height: 100%;
     display: flex;
@@ -207,23 +230,22 @@ ul {
     align-items: center;
     text-align: center;
     padding: 2rem;
-    color: var(--white);
+    color: var(--bg-white);
 }
 
 .hero-overlay h1 {
     font-size: 3.5rem;
-    font-weight: 700;
+    font-weight: 800;
     margin-bottom: 1rem;
-    line-height: 1.2;
-    text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    color: var(--bg-white);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .hero-overlay p {
-    font-size: 1.25rem;
-    font-weight: 300;
+    font-size: 1.2rem;
+    font-weight: 400;
     margin-bottom: 2.5rem;
-    color: rgba(255,255,255,0.95);
-    max-width: 700px;
+    opacity: 0.95;
 }
 
 .cta-buttons {
@@ -231,102 +253,90 @@ ul {
     gap: 1rem;
 }
 
-/* Hero Buttons */
 .btn-hero-primary {
     background-color: var(--brand-red);
-    color: var(--white);
-    padding: 1rem 2.5rem;
+    color: var(--bg-white);
+    padding: 0.8rem 2rem;
     border-radius: 50px;
     font-weight: 600;
     border: 2px solid var(--brand-red);
-    box-shadow: 0 4px 15px rgba(232, 76, 61, 0.4);
+    transition: all 0.2s;
 }
 
 .btn-hero-primary:hover {
-    background-color: var(--brand-red-hover);
-    border-color: var(--brand-red-hover);
-    transform: translateY(-2px);
+    background-color: transparent;
+    border-color: var(--bg-white);
 }
 
 .btn-hero-outline {
     background-color: transparent;
-    color: var(--white);
-    padding: 1rem 2.5rem;
+    color: var(--bg-white);
+    padding: 0.8rem 2rem;
     border-radius: 50px;
     font-weight: 600;
-    border: 2px solid var(--white);
+    border: 2px solid var(--bg-white);
+    transition: all 0.2s;
 }
 
 .btn-hero-outline:hover {
-    background-color: var(--white);
-    color: var(--brand-dark);
-    transform: translateY(-2px);
+    background-color: var(--bg-white);
+    color: var(--brand-red);
 }
 
 /* ==========================================================================
-   6. POPULAR ITEMS & PRODUCT CARDS (Zoom Effect & New Layout)
+   6. PRODUCTS & MENU
    ========================================================================== */
-.popular-section {
-    max-width: 1200px;
-    margin: 3rem auto;
-    padding: 0 1rem;
-    margin-bottom: 4rem;
-}
+.popular-section { margin-bottom: 4rem; }
 
 .section-title {
-    font-size: 2.25rem;
+    font-size: 2rem;
     font-weight: 700;
-    color: var(--brand-dark);
-    margin-top: 3.5rem;
-    margin-bottom: 1.5rem;
-    text-align: left; /* Left Align */
-    line-height: 1.2;
+    margin-bottom: 2rem;
+    position: relative;
+    display: inline-block;
 }
 
 .product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 2.5rem; /* Wide gap */
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 2rem;
 }
 
 .product-card {
-    background: var(--white);
+    background: var(--bg-white);
     border-radius: 16px;
-    overflow: hidden; /* Keeps zoomed image inside */
-    box-shadow: var(--card-shadow);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    border: 1px solid #f0f0f0;
 }
 
 .product-card:hover {
-    transform: translateY(-8px); /* Lift up */
-    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+    border-color: transparent;
 }
 
-/* Image Wrapper for Zoom Effect */
 .product-image-wrapper {
     width: 100%;
-    height: 300px; /* Tall/Square-ish image */
-    background-color: #f4f4f4;
-    position: relative;
-    overflow: hidden; /* Important for zoom */
+    height: 220px;
+    background-color: #f9fafb;
+    overflow: hidden;
 }
 
 .product-card-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.5s ease; /* Smooth zoom speed */
+    transition: transform 0.5s ease;
 }
 
-/* ZOOM TRIGGER */
 .product-card:hover .product-card-image {
-    transform: scale(1.1); /* Zoom in 10% */
+    transform: scale(1.05);
 }
 
-/* Card Content */
 .product-card-content {
     padding: 1.5rem;
     display: flex;
@@ -335,17 +345,14 @@ ul {
 }
 
 .product-card-content h3 {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
-    color: var(--brand-dark);
-    line-height: 1.3;
 }
 
 .product-card-content p {
     font-size: 0.9rem;
-    color: var(--text-muted);
-    line-height: 1.5;
+    color: var(--text-gray);
     margin-bottom: 1.5rem;
     flex-grow: 1;
     display: -webkit-box;
@@ -355,164 +362,88 @@ ul {
 }
 
 .product-card-footer {
+    margin-top: auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: auto;
 }
 
 .product-price {
-    color: var(--brand-red);
+    font-size: 1.1rem;
     font-weight: 700;
-    font-size: 1.3rem;
-}
-
-.product-price .price-small {
-    font-size: 0.85rem;
-    font-weight: 400;
-    color: var(--text-gray);
+    color: var(--brand-dark);
 }
 
 .btn-card-add {
-    background-color: var(--brand-red);
-    color: var(--white);
+    background-color: var(--brand-red-light);
+    color: var(--brand-red);
     border: none;
-    padding: 0.6rem 1.5rem;
+    padding: 0.5rem 1rem;
     border-radius: 8px;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
-    transition: background 0.2s;
-}
-
-.btn-card-add:hover {
-    background-color: var(--brand-red-hover);
-}
-
-/* ==========================================================================
-   7. BUTTONS & FORMS (General)
-   ========================================================================== */
-.btn {
-    display: inline-block;
-    padding: 0.75rem 1.5rem;
-    border-radius: 6px;
-    font-weight: 600;
-    text-align: center;
-    cursor: pointer;
-    border: none;
     transition: all 0.2s;
 }
 
-.btn-primary {
+.btn-card-add:hover {
     background-color: var(--brand-red);
-    color: var(--white);
-}
-.btn-primary:hover {
-    background-color: var(--brand-red-hover);
-}
-
-.btn-secondary {
-    background-color: var(--white);
-    color: var(--brand-dark);
-    border: 1px solid #ccc;
-}
-.btn-secondary:hover {
-    background-color: #f0f0f0;
-    border-color: #bbb;
-}
-
-.btn-checkout {
-    background-color: var(--success-green);
-    color: var(--white) !important;
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.1rem;
-    border-radius: 8px;
-    margin-top: 1.5rem;
-    text-decoration: none;
-    display: block;
-}
-.btn-checkout:hover {
-    background-color: #219150;
-}
-
-.btn-danger {
-    background-color: var(--danger-red);
     color: white;
 }
 
-.form-control {
-    width: 100%;
-    padding: 0.8rem 1rem;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-family: 'Poppins', sans-serif;
-    font-size: 1rem;
-}
-.form-control:focus {
-    outline: none;
-    border-color: var(--brand-red);
-    box-shadow: 0 0 0 3px rgba(232, 76, 61, 0.1);
-}
-
-/* ==========================================================================
-   8. MENU PAGE & CATEGORIES (Compact & Rounded Rectangles)
-   ========================================================================== */
 .category-tabs {
     display: flex;
     justify-content: center;
-    gap: 0.8rem; /* Reduced gap */
-    margin-bottom: 2rem; /* Reduced bottom margin */
     flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-bottom: 3rem;
 }
 
 .category-tabs a {
-    padding: 0.5rem 1.2rem; /* Smaller padding */
-    border-radius: 12px;    /* Rounded Rectangle (NOT Pill) */
-    background-color: var(--white);
+    padding: 0.6rem 1.2rem;
+    border-radius: 50px;
+    background-color: var(--bg-white);
     color: var(--text-gray);
-    font-weight: 600;       /* Bolder text */
-    font-size: 0.9rem;      /* Smaller font */
+    font-weight: 600;
+    font-size: 0.9rem;
     border: 1px solid var(--border-color);
     transition: all 0.2s;
 }
 
-.category-tabs a:hover,
+.category-tabs a:hover {
+    border-color: var(--brand-red);
+    color: var(--brand-red);
+}
+
 .category-tabs a.active {
     background-color: var(--brand-red);
-    color: var(--white);
+    color: var(--bg-white);
     border-color: var(--brand-red);
-    box-shadow: 0 4px 10px rgba(232, 76, 61, 0.3);
+    box-shadow: 0 4px 6px rgba(232, 76, 61, 0.3);
 }
 
 /* ==========================================================================
-   9. CART & TABLES
+   7. TABLES
    ========================================================================== */
-.cart-container {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.cart-table {
+.cart-table, .order-history-table {
     width: 100%;
-    border-collapse: collapse;
-    background: var(--white);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 1rem;
 }
 
-.cart-table th {
-    background-color: #f8f8f8;
+.cart-table th, .order-history-table th {
     text-align: left;
-    padding: 1.2rem;
+    padding: 1rem;
     font-weight: 600;
-    color: var(--brand-dark);
+    color: var(--text-gray);
     border-bottom: 2px solid var(--border-color);
+    font-size: 0.9rem;
+    text-transform: uppercase;
 }
 
-.cart-table td {
-    padding: 1.2rem;
+.cart-table td, .order-history-table td {
+    padding: 1.2rem 1rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
 }
@@ -524,82 +455,135 @@ ul {
 }
 
 .cart-item-details img {
-    width: 70px;
-    height: 70px;
-    object-fit: cover;
-    border-radius: 8px;
-}
-
-.cart-item-details a {
-    font-weight: 600;
-    color: var(--brand-dark);
-}
-
-.quantity-form {
-    display: flex;
-    gap: 5px;
-    align-items: center;
-}
-.quantity-form .form-control-sm {
     width: 60px;
-    padding: 5px;
-    text-align: center;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
 }
 
 .cart-totals {
-    margin-top: 2rem;
-    background: var(--white);
+    background: var(--bg-body);
     padding: 2rem;
     border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    margin-top: 2rem;
 }
 
 .totals-grid {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 1rem;
+    gap: 0.8rem;
     max-width: 400px;
     margin-left: auto;
 }
 
-.totals-grid .total-label,
-.totals-grid .total-value {
-    font-size: 1.25rem;
-    font-weight: 700;
+.totals-grid .total-label, .totals-grid .total-value {
+    font-size: 1.2rem;
+    font-weight: 800;
     color: var(--brand-red);
     padding-top: 1rem;
-    border-top: 2px solid var(--border-color);
+    border-top: 1px solid #ccc;
     margin-top: 0.5rem;
 }
 
 /* ==========================================================================
-   10. ACCOUNTS (Login/Register)
+   8. BUTTONS & FORMS
    ========================================================================== */
-.form-container {
-    max-width: 480px;
-    margin: 4rem auto;
-}
-
-.form-wrapper {
-    background: var(--white);
-    padding: 3rem;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-}
-
-.form-wrapper h2 {
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
     text-align: center;
-    margin-bottom: 2rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--brand-red);
+    color: white;
+}
+.btn-primary:hover {
+    background-color: var(--brand-red-hover);
+    box-shadow: 0 4px 12px rgba(232, 76, 61, 0.2);
+}
+
+.btn-secondary {
+    background-color: white;
+    color: var(--text-gray);
+    border-color: var(--border-color);
+}
+.btn-secondary:hover {
+    border-color: var(--text-gray);
     color: var(--brand-dark);
+}
+
+.btn-checkout {
+    background-color: var(--success-green);
+    color: white !important;
+    width: 100%;
+    padding: 1rem;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    text-align: center;
+    display: block;
+}
+.btn-checkout:hover {
+    background-color: #059669;
+    transform: translateY(-1px);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.2s;
+    background-color: #fff;
+}
+.form-control:focus {
+    outline: none;
+    border-color: var(--brand-red);
+    box-shadow: 0 0 0 3px rgba(232, 76, 61, 0.1);
+}
+
+/* Checkbox styling for Login/Register */
+.form-group-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+.form-group-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--brand-dark);
+    cursor: pointer;
+}
+.form-group-checkbox label {
+    margin: 0;
+    font-weight: 400;
+    cursor: pointer;
 }
 
 .form-switch-link {
     text-align: center;
-    margin-top: 1rem;
+    margin-top: 2rem;
+    color: var(--text-gray);
+    font-size: 0.95rem;
 }
+.form-switch-link a {
+    color: var(--brand-red);
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+.form-switch-link a:hover { text-decoration: underline; }
 
+/* ==========================================================================
+   9. ACCOUNT & PROFILE
+   ========================================================================== */
 .account-container {
     display: grid;
     grid-template-columns: 250px 1fr;
@@ -607,85 +591,105 @@ ul {
 }
 
 .account-nav {
-    background: var(--white);
-    border-radius: 12px;
+    background: var(--bg-white);
+    border-radius: 16px;
     padding: 1.5rem;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    border: 1px solid var(--border-color);
     height: fit-content;
+}
+
+.account-nav h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .account-nav a {
     display: block;
     padding: 0.8rem 1rem;
     border-radius: 8px;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
     color: var(--text-gray);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
 }
 
-.account-nav a:hover,
-.account-nav a.active {
-    background-color: rgba(232, 76, 61, 0.1);
+.account-nav a:hover, .account-nav a.active {
+    background-color: var(--brand-red-light);
     color: var(--brand-red);
 }
 
-.account-content {
-    background: var(--white);
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+.form-container {
+    max-width: 450px;
+    margin: 4rem auto;
+}
+
+.form-wrapper {
+    background: var(--bg-white);
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 1.2rem;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
 }
 
 /* ==========================================================================
-   11. BUFFET WIZARD (Compact Card)
+   10. BUFFET WIZARD STYLES
    ========================================================================== */
 .wizard-container {
-    max-width: 100%;
+    max-width: 800px;
     margin: 2rem auto;
     padding: 0 1rem;
 }
 
 .wizard-step-card {
-    max-width: 550px; /* Compact Width */
-    margin: 0 auto;
-    padding: 2.5rem;  /* Reduced Padding */
-    background: var(--white);
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    text-align: left;
+    background: var(--bg-white);
+    padding: 3rem;
+    border-radius: 24px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    text-align: center;
 }
 
 .wizard-title {
-    text-align: center;
-    font-size: 1.75rem; /* Smaller title */
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: 800;
     color: var(--brand-dark);
     margin-bottom: 0.5rem;
 }
 
 .wizard-subtitle {
-    text-align: center;
     color: var(--text-gray);
-    font-size: 0.9rem;
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
+    font-size: 1rem;
 }
 
 .wizard-step {
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
+    text-align: left;
 }
 
 .step-header {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
-    margin-bottom: 0.8rem;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
 }
 
 .step-number {
     background-color: var(--brand-red);
-    color: var(--white);
-    width: 28px;
-    height: 28px;
+    color: white;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -693,220 +697,223 @@ ul {
     font-weight: 700;
     font-size: 0.9rem;
     flex-shrink: 0;
+    box-shadow: 0 2px 5px rgba(232, 76, 61, 0.3);
 }
 
 .step-title {
     font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--brand-dark);
+    font-weight: 700;
     margin: 0;
-}
-
-.form-control-lg {
-    background-color: #fafafa;
-    border: 1px solid #eee;
-    border-radius: 8px;
-    padding: 0.8rem 1rem;
-    width: 100%;
-    font-size: 1rem;
     color: var(--brand-dark);
-    outline: none;
-    transition: border 0.2s;
-}
-.form-control-lg:focus {
-    border-color: var(--brand-red);
 }
 
 .category-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.8rem;
-    margin-top: 0.8rem;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
 }
 
 .category-option {
-    display: flex;
-    align-items: center;
-    padding: 0.8rem 1rem;
-    border: 1px solid #eee;
-    border-radius: 10px;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: white;
+    display: flex;
+    align-items: center;
+    background: #fafafa;
 }
 
 .category-option:hover {
+    background-color: var(--brand-red-light);
     border-color: var(--brand-red);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
 }
 
 .category-option input[type="checkbox"] {
-    appearance: none;
-    -webkit-appearance: none;
+    margin-right: 12px;
     width: 18px;
     height: 18px;
-    border: 2px solid #ddd;
-    border-radius: 50%;
-    margin-right: 12px;
+    accent-color: var(--brand-red);
     cursor: pointer;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border 0.2s;
-}
-
-.category-option input[type="checkbox"]:checked {
-    border-color: var(--brand-red);
-}
-
-.category-option input[type="checkbox"]:checked::after {
-    content: '';
-    width: 10px;
-    height: 10px;
-    background-color: var(--brand-red);
-    border-radius: 50%;
 }
 
 .option-label {
-    font-weight: 500;
+    font-weight: 600;
     color: var(--brand-dark);
     font-size: 0.95rem;
 }
 
+/* Guest Count Input */
+.form-control-lg {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.form-control-lg:focus {
+    border-color: var(--brand-red);
+    box-shadow: 0 0 0 4px rgba(232, 76, 61, 0.1);
+}
+
+/* Next Button Styling */
 .btn-wizard-next {
-    background-color: var(--wizard-orange);
+    background-color: var(--brand-dark);
     color: white;
     width: 100%;
-    padding: 0.9rem;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 700;
+    padding: 1rem;
+    border-radius: 12px;
+    font-size: 1.1rem;
     border: none;
+    margin-top: 2rem;
+    cursor: pointer;
+    transition: all 0.2s;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 0.5rem;
-    cursor: pointer;
-    transition: background 0.2s;
-    margin-top: 1rem;
+    font-weight: 600;
 }
 
 .btn-wizard-next:hover {
-    background-color: var(--wizard-orange-hover);
-}
-
-.buffet-tracker {
-    position: sticky;
-    top: 100px;
-    background: var(--white);
-    padding: 1.5rem;
-    border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-    margin-bottom: 2rem;
-}
-
-.buffet-tracker .count {
-    color: var(--brand-red);
-    font-weight: 700;
+    background-color: var(--brand-red);
+    transform: translateY(-2px);
 }
 
 /* ==========================================================================
-   12. MODALS, TOASTS, & EXTRAS
+   11. MODALS & TOASTS
    ========================================================================== */
 .modal {
     display: none;
     position: fixed;
-    z-index: 2000;
+    z-index: 9999;
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
+    overflow: auto;
     background-color: rgba(0,0,0,0.6);
-    backdrop-filter: blur(3px);
+    backdrop-filter: blur(4px);
 }
 
 .modal-content {
-    background-color: var(--white);
-    margin: 10% auto;
-    padding: 2.5rem;
+    background-color: var(--bg-white);
+    margin: 10vh auto;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
     width: 90%;
     max-width: 500px;
     border-radius: 16px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-lg);
     position: relative;
-    animation: slideDown 0.3s ease;
+    animation: slideDown 0.3s ease-out;
 }
 
 @keyframes slideDown {
-    from { transform: translateY(-20px); opacity: 0; }
+    from { transform: translateY(-50px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: var(--brand-dark);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+}
+
+.modal-body {
+    margin-bottom: 1.5rem;
 }
 
 .modal-close-btn {
     position: absolute;
-    top: 1.5rem;
+    top: 1rem;
     right: 1.5rem;
     font-size: 1.5rem;
-    cursor: pointer;
+    font-weight: bold;
     color: var(--text-gray);
+    cursor: pointer;
 }
 
+/* Quantity Stepper for Modal */
 .quantity-stepper {
     display: flex;
-    border: 1px solid #ddd;
+    align-items: center;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
     width: fit-content;
-}
-.quantity-stepper button {
-    background: #f5f5f5;
-    border: none;
-    width: 40px;
-    font-size: 1.2rem;
-    cursor: pointer;
-}
-.quantity-stepper input {
-    border: none;
-    text-align: center;
-    width: 60px;
-    font-weight: 600;
-    font-family: 'Poppins', sans-serif;
+    margin-top: 0.5rem;
 }
 
+.btn-qty {
+    background-color: #f3f4f6;
+    border: none;
+    padding: 0.6rem 1rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--brand-dark);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.btn-qty:hover { background-color: #e5e7eb; }
+
+.form-control-qty {
+    width: 60px;
+    text-align: center;
+    border: none;
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    padding: 0.6rem;
+    font-weight: 600;
+    font-size: 1rem;
+    outline: none;
+    -moz-appearance: textfield;
+}
+.form-control-qty::-webkit-outer-spin-button,
+.form-control-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Toast Notifications */
 #toastContainer {
     position: fixed;
     bottom: 2rem;
     right: 2rem;
-    z-index: 3000;
+    z-index: 10000;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    pointer-events: none;
 }
 
 .toast {
-    background: var(--brand-dark);
-    color: var(--white);
+    pointer-events: auto;
+    background: var(--bg-white);
+    color: var(--brand-dark);
     padding: 1rem 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
     display: flex;
     align-items: center;
     justify-content: space-between;
     min-width: 300px;
-    animation: slideInRight 0.4s ease;
+    border-left: 5px solid var(--brand-dark);
+    animation: slideInRight 0.3s ease-out;
 }
 
-.toast-success { background-color: var(--success-green); }
-.toast-danger  { background-color: var(--danger-red); }
-.toast-info    { background-color: #3498db; }
+.toast-success { border-left-color: var(--success-green); }
+.toast-danger { border-left-color: var(--danger-red); }
+.toast-info { border-left-color: #3b82f6; }
 
 .toast-close-btn {
     background: none;
     border: none;
-    color: white;
     font-size: 1.2rem;
     cursor: pointer;
+    color: var(--text-gray);
     margin-left: 1rem;
 }
 
@@ -915,66 +922,250 @@ ul {
     to { transform: translateX(0); opacity: 1; }
 }
 
+@keyframes fadeOut {
+    to { opacity: 0; transform: translateX(20px); }
+}
+
 /* ==========================================================================
-   13. RESPONSIVE STYLES
+   12. RESPONSIVE
    ========================================================================== */
 @media (max-width: 768px) {
     .client-header {
-        flex-direction: column;
         padding: 1rem;
+        flex-direction: column;
         height: auto;
         gap: 1rem;
     }
     
     .client-nav-center {
-        gap: 1.5rem;
-        font-size: 0.9rem;
         width: 100%;
         justify-content: center;
-    }
-    
-    .hero-section {
-        margin-top: 0;
-        height: 400px;
-    }
-
-    .hero-overlay h1 {
-        font-size: 2.2rem;
+        gap: 1rem;
+        font-size: 0.9rem;
     }
     
     .account-container {
         grid-template-columns: 1fr;
     }
     
-    .cart-table, .cart-table thead, .cart-table tbody, .cart-table th, .cart-table td, .cart-table tr {
-        display: block;
-    }
-    
     .cart-table thead { display: none; }
-    
+    .cart-table tr, .cart-table td { display: block; width: 100%; }
     .cart-table tr {
         margin-bottom: 1rem;
-        border: 1px solid #eee;
-        border-radius: 8px;
-        padding: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
     }
-    
     .cart-table td {
-        padding: 0.5rem 0;
-        border: none;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        text-align: right;
+        padding: 0.8rem;
+        border-bottom: 1px solid #eee;
+    }
+    .cart-table td::before {
+        content: attr(data-label);
+        float: left;
+        font-weight: 600;
     }
     
-    .totals-grid {
-        margin-left: 0;
-    }
-
     .category-grid {
-        grid-template-columns: 1fr; 
+        grid-template-columns: 1fr;
     }
-    .wizard-step-card {
-        padding: 1.5rem;
+}
+
+/* FIX: Force padding on the profile card */
+.account-content {
+    padding: 3rem !important; /* Forces space inside the white box */
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+/* Ensure the form inside doesn't stick to the edges */
+.account-content form {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* ==========================================================================
+   CHECKOUT OPTIONS PAGE STYLES
+   ========================================================================== */
+.checkout-options-container {
+    max-width: 700px;
+    margin: 4rem auto;
+}
+
+.checkout-options-container h2 {
+    text-align: center;
+    margin-bottom: 3rem;
+    font-weight: 800;
+}
+
+/* The clickable card wrapper for radio buttons */
+.option-card {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    background: var(--bg-white);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    margin-bottom: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.option-card:hover {
+    border-color: #d1d5db; /* darker gray on hover */
+}
+
+/* When the radio inside is checked, style the parent card */
+/* Note: :has() is supported in all modern browsers */
+.option-card:has(input:checked) {
+    border-color: var(--brand-red);
+    background-color: var(--brand-red-light);
+    box-shadow: var(--shadow-md);
+}
+
+/* Style the actual radio button */
+.option-card input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--brand-red);
+    margin-right: 1.5rem;
+    flex-shrink: 0;
+}
+
+.option-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.option-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--brand-dark);
+    margin-bottom: 0.2rem;
+}
+
+.option-desc {
+    color: var(--text-gray);
+    font-size: 0.9rem;
+}
+
+/* Delivery Address Form Container */
+.address-card {
+    background: var(--bg-white);
+    padding: 2rem;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    margin-top: 2rem;
+    box-shadow: var(--shadow-sm);
+    animation: slideDown 0.3s ease-out;
+}
+
+/* Address default card */
+.default-address-box {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    padding: 1.2rem;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+}
+
+/* ==========================================================================
+   NEW CART LAYOUT (2-COLUMN)
+   ========================================================================== */
+.cart-content-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 380px; /* Items take available space, Summary takes 380px */
+    gap: 2rem;
+    align-items: start;
+}
+
+/* Left Panel: Cart Items List */
+.cart-items-panel {
+    background: var(--bg-white);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+    overflow: hidden; /* Keeps table corners rounded */
+}
+
+.cart-header-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.2rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: #f9fafb;
+}
+
+.cart-header-action h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+/* Right Panel: Order Summary */
+.cart-summary-panel {
+    background: var(--bg-white);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    padding: 2rem;
+    position: sticky; /* Makes it float as you scroll */
+    top: 100px; 
+}
+
+.cart-summary-panel h3 {
+    font-size: 1.25rem;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Adjust Table to fit inside panel */
+.cart-items-panel .cart-table {
+    box-shadow: none; /* Remove double shadow */
+    border-radius: 0;
+    margin-bottom: 0;
+}
+.cart-items-panel .cart-table th {
+    background: var(--bg-white);
+}
+.cart-items-panel .cart-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Summary Row Styles */
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    color: var(--text-gray);
+    font-size: 0.95rem;
+}
+
+.summary-row.total {
+    font-weight: 800;
+    font-size: 1.4rem;
+    color: var(--brand-dark);
+    border-top: 2px solid var(--border-color);
+    padding-top: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.discount-text {
+    color: var(--success-green);
+    font-weight: 600;
+}
+
+/* Responsive: Stack columns on tablet/mobile */
+@media (max-width: 1024px) {
+    .cart-content-wrapper {
+        grid-template-columns: 1fr;
+    }
+    .cart-summary-panel {
+        position: static;
     }
 }

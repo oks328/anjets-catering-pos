@@ -4,55 +4,57 @@
 
 {% block content %}
 <div class="checkout-options-container">
-    <h2 style="margin-bottom: 2rem;">How would you like to get your order?</h2>
+    <h2>How would you like to receive your order?</h2>
 
     <form action="{{ url_for('save_checkout_options') }}" method="POST">
         
         <label class="option-card">
             <input type="radio" name="order_type" value="Pickup" checked 
                    onchange="toggleAddressForm()">
-            <div class="option-card-label">
-                <strong>Store Pickup</strong>
-                <span>No additional fee.</span>
+            <div class="option-info">
+                <span class="option-title">Store Pickup</span>
+                <span class="option-desc">Pick up your order at our location. No additional fees.</span>
             </div>
         </label>
 
         <label class="option-card">
             <input type="radio" name="order_type" value="Delivery"
                    onchange="toggleAddressForm()">
-            <div class="option-card-label">
-                <strong>Delivery</strong>
-                <span>A ₱100.00 fee will be added to your order.</span>
+            <div class="option-info">
+                <span class="option-title">Delivery</span>
+                <span class="option-desc">We deliver to your doorstep. A ₱100.00 flat fee applies.</span>
             </div>
         </label>
 
-        <div id="delivery-address-form" class="form-wrapper" style="display: none;">
-            <h3>Delivery Address</h3>
+        <div id="delivery-address-form" class="address-card" style="display: none;">
+            <h3 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Delivery Details</h3>
             
             {% if default_address %}
-            <div class="card" style="padding: 1rem; background: #eee;">
-                <strong>Your Default Address:</strong>
-                <p style="margin-top: 0.5rem;">{{ default_address }}</p>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="useDefaultAddress()">
-                    Use this Address
-                </button>
+            <div class="default-address-box">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <strong style="color: var(--brand-dark);">Your Default Address</strong>
+                    <button type="button" class="btn-card-add" onclick="useDefaultAddress()" style="font-size: 0.8rem;">
+                        Use this
+                    </button>
+                </div>
+                <p style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.4;">{{ default_address }}</p>
             </div>
             {% endif %}
 
             <div class="form-group">
-                <label for="delivery_address">Enter a new or different address:</label>
-                <textarea id="delivery_address" name="delivery_address" class="form-control" rows="4" 
-                          placeholder="Please enter your full delivery address."></textarea>
+                <label for="delivery_address">Delivery Address</label>
+                <textarea id="delivery_address" name="delivery_address" class="form-control" rows="3" 
+                          placeholder="House No., Street Name, Barangay, City"></textarea>
             </div>
             
             <div class="form-group">
-                <label for="landmark">Landmark / Notes for delivery:</label>
+                <label for="landmark">Landmark / Notes (Optional)</label>
                 <input type="text" id="landmark" name="landmark" class="form-control" 
-                       placeholder="e.g., Near 7-Eleven, Blue Gate, etc.">
+                       placeholder="e.g., Near the blue gate, beside 7-Eleven">
             </div>
         </div>
 
-        <div class="form-group" style="margin-top: 2rem; text-align: right;">
+        <div style="margin-top: 2.5rem;">
             <button type="submit" class="btn-checkout">
                 Continue to Final Review &rarr;
             </button>
@@ -81,16 +83,14 @@
 
     function useDefaultAddress() {
         // Get the default address text and put it in the textarea
-        const defaultAddress = {{ default_address|tojson }}; // Get address from Python
-        
-        // This is the line that needs the 'customer' object
+        const defaultAddress = {{ default_address|tojson }}; 
         const defaultLandmark = {{ customer.landmark|tojson or '""' }}; 
 
         document.getElementById('delivery_address').value = defaultAddress;
         document.getElementById('landmark').value = defaultLandmark;
     }
 
-    // Run the toggle function once on page load
+    // Run the toggle function once on page load to set initial state
     document.addEventListener('DOMContentLoaded', toggleAddressForm);
 </script>
 {% endblock %}

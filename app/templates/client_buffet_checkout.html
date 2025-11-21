@@ -3,68 +3,167 @@
 {% block title %}Buffet Final Review{% endblock %}
 
 {% block content %}
-<div class="cart-container"> <h2 style="margin-bottom: 2rem;">Review Your Buffet Package</h2>
+<div class="cart-container">
+    <h2 style="margin-bottom: 2rem; font-weight: 800;">Review Your Buffet Package</h2>
 
     {% if not buffet_package %}
-        <p>Your buffet package is empty.</p>
-        <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-primary">Start Over</a>
-    {% else %}
-        <table class="cart-table">
-            <thead>
-                <tr>
-                    <th colspan="2">Product</th>
-                    <th>Price</th>
-                    <th>Quantity</th>
-                    <th>Total</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for variant_id, item in buffet_package.items() %}
-                <tr>
-                    <td colspan="2">
-                        <div class="cart-item-details">
-                            <img src="{{ url_for('static', filename='uploads/products/' + item.image) }}" alt="{{ item.product_name }}">
-                            <div>
-                                <a href="#">{{ item.product_name }}</a>
-                                <span class="variant-name">{{ item.variant_name }}</span>
-                            </div>
-                        </div>
-                    </td>
-                    <td>₱{{ "%.2f"|format(item.price) }}</td>
-                    <td>
-                        <form action="{{ url_for('buffet_update_quantity') }}" method="POST" class="quantity-form">
-                            <input type="hidden" name="variant_id" value="{{ variant_id }}">
-                            <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="form-control-sm">
-                            <button type="submit" class="btn btn-primary btn-sm">Update</button>
-                        </form>
-                    </td>
-                    <td>₱{{ "%.2f"|format(item.price * item.quantity) }}</td>
-                    <td>
-                        <a href="{{ url_for('buffet_remove_item', variant_id=variant_id) }}" style="color: #d9534f; font-weight: bold;">
-                            Remove
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <div class="cart-summary-container" style="margin-top: 2rem;">
-
-            <div class="cart-totals">
-                <div class="totals-grid">
-                    <span class="total-label">Package Subtotal:</span>
-                    <span class="total-value">₱{{ "%.2f"|format(total_price) }}</span>
-                </div>
-                
-                <form method="POST" action="{{ url_for('buffet_commit_package') }}">
-                    <button type="submit" class="btn-checkout">
-                        Confirm & Add Package to Cart
-                    </button>
-                </form>
+        <div class="card" style="text-align: center; padding: 4rem;">
+            <div style="font-size: 3rem; color: #e5e7eb; margin-bottom: 1rem;">
+                <i class="fa-solid fa-utensils"></i>
             </div>
+            <p style="color: var(--text-gray); margin-bottom: 2rem; font-size: 1.1rem;">Your buffet package is currently empty.</p>
+            <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-primary">Start Building Buffet</a>
         </div>
+    {% else %}
+    
+    <div class="cart-content-wrapper">
+        
+        <div class="cart-items-panel">
+            <div class="cart-header-action">
+                <h3>Package Items ({{ buffet_package|length }})</h3>
+                <a href="{{ url_for('buffet_wizard_start') }}" 
+                   style="color: var(--brand-red); font-size: 0.85rem; font-weight: 600;">
+                    <i class="fa-solid fa-rotate-left"></i> Restart Builder
+                </a>
+            </div>
+
+            <table class="cart-table">
+                <thead>
+                    <tr>
+                        <th colspan="2">Product</th>
+                        <th>Price</th>
+                        <th>Quantity</th>
+                        <th style="text-align: right;">Total</th>
+                        <th style="width: 50px;"></th> </tr>
+                </thead>
+                <tbody>
+                    {% for variant_id, item in buffet_package.items() %}
+                    <tr>
+                        <td colspan="2">
+                            <div class="cart-item-details">
+                                <img src="{{ url_for('static', filename='uploads/products/' + item.image) }}"
+                                    alt="{{ item.product_name }}">
+                                <div>
+                                    <a href="#" style="font-weight: 600; font-size: 1rem; display: block; margin-bottom: 0.2rem;">{{ item.product_name }}</a>
+                                    <span class="variant-name" style="color: var(--text-gray); font-size: 0.85rem;">{{ item.variant_name }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>₱{{ "%.2f"|format(item.price) }}</td>
+                        <td>
+                            <form action="{{ url_for('buffet_update_quantity') }}" method="POST" class="quantity-form-auto">
+                                <input type="hidden" name="variant_id" value="{{ variant_id }}">
+                                
+                                <div class="quantity-stepper">
+                                    <button type="button" class="btn-qty" 
+                                            data-remove-url="{{ url_for('buffet_remove_item', variant_id=variant_id) }}"
+                                            onclick="updateBuffetQty(this, -1)">-</button>
+                                    
+                                    <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="form-control-qty" readonly>
+                                    
+                                    <button type="button" class="btn-qty" onclick="updateBuffetQty(this, 1)">+</button>
+                                </div>
+                            </form>
+                        </td>
+                        <td style="text-align: right; font-weight: 700;">₱{{ "%.2f"|format(item.price * item.quantity) }}</td>
+                        <td style="text-align: right;">
+                            <button type="button" 
+                                    onclick="openRemoveModal('{{ url_for('buffet_remove_item', variant_id=variant_id) }}')"
+                                    style="color: var(--text-light); background: none; border: none; cursor: pointer; font-size: 1.1rem; transition: color 0.2s;"
+                                    onmouseover="this.style.color='var(--danger-red)'"
+                                    onmouseout="this.style.color='var(--text-light)'"
+                                    title="Remove Item">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cart-summary-panel">
+            <h3>Package Summary</h3>
+            
+            <p style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 1.5rem; line-height: 1.5;">
+                This custom buffet package will be added to your main cart as a single group.
+            </p>
+
+            <div class="summary-row total">
+                <span>Package Total</span>
+                <span>₱{{ "%.2f"|format(total_price) }}</span>
+            </div>
+
+            <form method="POST" action="{{ url_for('buffet_commit_package') }}">
+                <button type="submit" class="btn-checkout">
+                    Add Package to Cart <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
+                </button>
+            </form>
+        </div>
+
+    </div>
     {% endif %}
 </div>
+
+<div id="removeItemModal" class="modal">
+    <div class="modal-content">
+        <span class="modal-close-btn" id="removeItemModalCloseBtn">&times;</span>
+        <h4 style="margin-top: 0;">Remove Item?</h4>
+        <p>Are you sure you want to remove this item from your buffet package?</p>
+        <div class="modal-actions" style="text-align: right; margin-top: 1.5rem;">
+            <button type="button" id="removeItemModalCancel" class="btn btn-secondary">Cancel</button>
+            <a href="#" id="removeItemModalConfirm" class="btn btn-danger">Remove</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const removeItemModal = document.getElementById('removeItemModal');
+        const removeItemCloseBtn = document.getElementById('removeItemModalCloseBtn');
+        const removeItemCancelBtn = document.getElementById('removeItemModalCancel');
+
+        const closeRemoveItemModal = () => {
+            if (removeItemModal) removeItemModal.style.display = 'none';
+        }
+
+        if (removeItemCloseBtn) removeItemCloseBtn.onclick = closeRemoveItemModal;
+        if (removeItemCancelBtn) removeItemCancelBtn.onclick = closeRemoveItemModal;
+
+        window.addEventListener('click', (event) => {
+            if (event.target === removeItemModal) closeRemoveItemModal();
+        });
+    });
+
+    function openRemoveModal(removeUrl) {
+        const modal = document.getElementById('removeItemModal');
+        const confirmBtn = document.getElementById('removeItemModalConfirm');
+        
+        if (modal && confirmBtn) {
+            confirmBtn.href = removeUrl;
+            modal.style.display = 'block';
+        }
+    }
+
+    function updateBuffetQty(btn, change) {
+        const form = btn.closest('form');
+        const input = form.querySelector('input[name="quantity"]');
+        let currentVal = parseInt(input.value);
+        let newVal = currentVal + change;
+        
+        // Check if decreasing to zero
+        if (newVal === 0) {
+            const removeUrl = btn.getAttribute('data-remove-url');
+            openRemoveModal(removeUrl);
+            return; 
+        }
+        
+        if (newVal < 1) return; 
+
+        input.value = newVal;
+        form.submit();
+    }
+</script>
 {% endblock %}

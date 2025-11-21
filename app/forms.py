@@ -201,15 +201,20 @@ class CustomerRegisterForm(FlaskForm):
         'Full Name',
         validators=[DataRequired(), Length(min=3, max=255)]
     )
-    # ... (contact_number) ...
     
+    # --- THIS WAS MISSING ---
+    contact_number = StringField(
+        'Contact Number',
+        validators=[DataRequired(), Length(min=11, max=11), Regexp(r'^\d+$', message="Phone number must contain only digits.")]
+    )
+    # ------------------------
+
     address = TextAreaField(
         'Address',
         validators=[DataRequired(), Length(min=10, max=500)],
         description="Please enter your full delivery address."
     )
 
-    # --- ADD THIS NEW FIELD ---
     landmark = StringField(
         'Landmark (Optional)',
         validators=[Optional(), Length(max=255)],
@@ -217,11 +222,23 @@ class CustomerRegisterForm(FlaskForm):
     )
 
     birthdate = DateField('Birthdate (Optional)', validators=[Optional()])
+    
     email = StringField(
         'Email Address',
         validators=[DataRequired(), Email(), email_exists] # email_exists checks for duplicates
     )
-    # ... (password fields, etc.) ...
+
+    password = PasswordField(
+        'Password',
+        validators=[DataRequired(), Length(min=8), password_complexity]
+    )
+    
+    confirm_password = PasswordField(
+        'Confirm Password',
+        validators=[DataRequired(), EqualTo('password', message='Passwords must match.')]
+    )
+    
+    submit = SubmitField('Create Account')
     
 class CustomerLoginForm(FlaskForm):
     """
