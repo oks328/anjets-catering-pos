@@ -6,6 +6,9 @@
     <title>{% block title %}Anjet's Catering{% endblock %}</title>
     
     <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
     {% block styles %}{% endblock %}
 </head>
 <body>
@@ -14,26 +17,27 @@
             <a href="{{ url_for('client_home') }}">Anjet's Catering</a>
         </div>
         
-       {% set active_page = request.endpoint %}
-        <nav class="client-nav">
-            <ul>
-                <li><a href="{{ url_for('client_home') }}" class="{{ 'active' if active_page == 'client_home' else '' }}">Home</a></li>
-                
-                {# These links are now visible to everyone #}
-                <li><a href="{{ url_for('client_menu') }}" class="{{ 'active' if active_page == 'client_menu' else '' }}">Menu</a></li>
-                <li><a href="{{ url_for('buffet_wizard_start') }}" class="{{ 'active' if active_page == 'buffet_wizard_start' else '' }}">Build a Buffet</a></li>
-
-                {% if 'customer_id' in session %}
-                    {# Logged-in users see Cart, Account, and Logout #}
-                    <li><a href="{{ url_for('client_cart') }}" class="{{ 'active' if active_page in ['client_cart', 'client_checkout'] else '' }}">Cart</a></li>
-                    <li><a href="{{ url_for('client_my_account') }}" class="{{ 'active' if active_page in ['client_my_account', 'client_profile'] else '' }}">My Account</a></li>
-                    <li><a href="{{ url_for('client_logout') }}">Logout</a></li>
-                {% else %}
-                    {# Logged-out users see Login #}
-                    <li><a href="{{ url_for('client_account_page') }}" class="{{ 'active' if active_page in ['client_account_page', 'client_register_page'] else '' }}">Login/Register</a></li>
-                {% endif %}
-            </ul>
+        <nav class="client-nav-center">
+            <a href="{{ url_for('client_home') }}" class="{{ 'active' if request.endpoint == 'client_home' else '' }}">Home</a>
+            <a href="{{ url_for('client_menu') }}" class="{{ 'active' if request.endpoint == 'client_menu' else '' }}">Menu</a>
+            <a href="{{ url_for('buffet_wizard_start') }}" class="{{ 'active' if request.endpoint == 'buffet_wizard_start' else '' }}">Build a Buffet</a>
         </nav>
+
+        <div class="client-nav-right">
+            {% if 'customer_id' in session %}
+                <a href="{{ url_for('client_cart') }}" class="icon-link" title="My Cart">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                </a>
+                <a href="{{ url_for('client_my_account') }}" class="icon-link" title="My Profile">
+                    <i class="fa-regular fa-user"></i>
+                </a>
+                <a href="{{ url_for('client_logout') }}" class="icon-link" title="Logout" style="margin-left: 10px;">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </a>
+            {% else %}
+                <a href="{{ url_for('client_account_page') }}" class="btn btn-login">Login</a>
+            {% endif %}
+        </div>
     </header>
 
     <main class="client-main">
@@ -53,13 +57,13 @@
             <form id="modalCartForm" method="POST" action="{{ url_for('add_to_cart') }}">
                 <div class="modal-body">
                     <input type="hidden" id="modalProductId" name="product_id">
-                    <div id="modalVariantSelector" class="form-group">
-                        <label for="modalVariantId" id="modalVariantLabel">Size</label>
+                    <div id="modalVariantSelector" class="form-group" style="margin-bottom: 1rem;">
+                        <label for="modalVariantId" id="modalVariantLabel" style="font-weight:bold;">Size</label>
                         <select id="modalVariantId" name="variant_id" class="form-control"></select>
                     </div>
-                    <div id="modalCurrentCount" class="modal-current-count" style="display: none;"></div>
+                    <div id="modalCurrentCount" class="modal-current-count" style="display: none; margin-bottom: 1rem;"></div>
                     <div class="form-group">
-                        <label for="modalQuantity">Quantity to Add</label>
+                        <label for="modalQuantity" style="font-weight:bold;">Quantity to Add</label>
                         <div class="quantity-stepper">
                             <button type="button" class="btn-qty" id="modal-btn-minus">-</button>
                             <input type="number" id="modalQuantity" name="quantity" class="form-control-qty" value="1" min="1">
@@ -67,8 +71,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Add to Cart</button>
+                <div class="modal-footer" style="margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-card-add" style="width: 100%;">Add to Cart</button>
                 </div>
             </form>
         </div>
@@ -79,7 +83,7 @@
             <span class="modal-close-btn" id="clearCartModalCloseBtn">&times;</span>
             <h4>Confirm Action</h4>
             <p>Are you sure you want to clear your entire shopping cart? This action cannot be undone.</p>
-            <div class="modal-actions">
+            <div class="modal-actions" style="text-align: right; margin-top: 1rem;">
                 <button type="button" id="clearCartModalCancel" class="btn btn-secondary">Cancel</button>
                 <a href="#" id="clearCartModalConfirm" class="btn btn-danger">Yes, Clear Cart</a>
             </div>
@@ -91,7 +95,7 @@
             <span class="modal-close-btn" id="warningModalCloseBtn">&times;</span>
             <h4>Are you sure?</h4>
             <p id="warningModalMessage">This is a warning message.</p>
-            <div class="modal-actions">
+            <div class="modal-actions" style="text-align: right; margin-top: 1rem;">
                 <button type="button" id="warningModalCancel" class="btn btn-secondary">Cancel</button>
                 <button type="button" id="warningModalConfirm" class="btn btn-primary">Add Anyway</button>
             </div>
@@ -131,13 +135,13 @@
             }, 5000); 
         }
         
-        // --- GLOBAL HELPER: Opens the Custom Clear Cart Modal (Called from client_cart.html) ---
+        // --- GLOBAL HELPER: Opens the Custom Clear Cart Modal ---
         window.openClearCartModal = function(url) {
             const clearCartModal = document.getElementById('clearCartModal');
             const clearCartModalConfirmBtn = document.getElementById('clearCartModalConfirm');
             
             if (clearCartModal && clearCartModalConfirmBtn) {
-                clearCartModalConfirmBtn.href = url; // Set the confirmation button's destination URL
+                clearCartModalConfirmBtn.href = url; 
                 clearCartModal.style.display = 'block';
             }
         }
@@ -191,10 +195,12 @@
             }
             closeModalBtn.onclick = closeProductModal;
             
-            // FIX: Ensure clicking outside closes EITHER the Product or Clear Cart modal
+            // Ensure clicking outside closes EITHER the Product or Clear Cart modal
             window.onclick = (event) => {
                 if (event.target == modal) closeProductModal();
                 if (event.target == clearCartModal) closeClearCartModal();
+                const warningModal = document.getElementById('warningModal');
+                if (warningModal && event.target == warningModal) warningModal.style.display = 'none';
             };
 
             // 5. --- Global Quantity Stepper Logic ---
@@ -226,7 +232,7 @@
             }
             modalVariantSelect.addEventListener('change', updateBuffetCounter);
 
-            // 7. --- Global Modal Open Logic (Same as existing) ---
+            // 7. --- Global Modal Open Logic ---
             document.querySelectorAll('.btn-open-product-modal').forEach(button => {
                 button.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -267,22 +273,22 @@
                             if (button.hasAttribute('data-category')) {
                                 window.isBuffetPage = true;
                                 modalCartForm.action = "{{ url_for('buffet_add_item') }}";
-                                updateBuffetCounter(); // Show buffet counter
+                                updateBuffetCounter(); 
                             } else {
                                 window.isBuffetPage = false;
                                 modalCartForm.action = "{{ url_for('add_to_cart') }}";
-                                if (modalCurrentCount) modalCurrentCount.style.display = 'none'; // Hide buffet counter
+                                if (modalCurrentCount) modalCurrentCount.style.display = 'none'; 
                             }
                             
                             modal.style.display = 'block';
                         });
                 });
-            }); // end querySelectorAll
+            }); 
 
             // 8. --- Global Form Submit Logic (Only for Product Modal) ---
             if (modalCartForm) {
                 if (window.isBuffetPage === true) {
-                    // Do nothing. The local script from 'client_buffet_select.html' is in control.
+                    // Do nothing. The local script from 'client_buffet_select.html' handles this.
                 } else {
                     modalCartForm.onsubmit = function(e) {
                         e.preventDefault(); 
@@ -299,7 +305,6 @@
                                 closeProductModal(); 
                             
                             } else if (data.status === 'login_required') {
-                                // NEW: Redirect to login page
                                 createToast('You must log in to add items to your cart.', 'danger');
                                 window.location.href = data.url; 
                             
@@ -313,9 +318,9 @@
                         });
                     }
                 }
-            } // end if(modalCartForm)
+            } 
 
-        }); // end DOMContentLoaded
+        }); 
     </script>
 
     {% block scripts %}{% endblock %}

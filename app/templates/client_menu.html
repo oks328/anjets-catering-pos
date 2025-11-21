@@ -1,90 +1,90 @@
 {% extends "base.html" %}
 
-{% block title %}Order Now{% endblock %}
+{% block title %}Our Menu{% endblock %}
 
 {% block content %}
-    <h2 style="text-align: center; margin-bottom: 2rem;">Our Menu</h2>
 
-    <ul class="category-tabs">
-        <li><a href="{{ url_for('client_menu') }}" class="{{ 'active' if not selected_category else '' }}">All</a></li>
-        {% for category in categories %}
-            {% set is_active = selected_category and selected_category.category_id == category.category_id %}
-            <li>
-                <a href="{{ url_for('client_menu', category_id=category.category_id) }}" class="{{ 'active' if is_active else '' }}">
-                    {{ category.name }}
-                </a>
-            </li>
-        {% endfor %}
-    </ul>
+<div style="text-align: center; margin-bottom: 1.5rem; margin-top: 1.5rem;">
+    <h1 style="font-size: 2rem; font-weight: 800; color: #333; margin: 0;">Our Menu</h1>
+</div>
 
-    <div class="product-grid">
-        {% for product in products %}
-            <div class="product-card">
+<ul class="category-tabs">
+    <li>
+        <a href="{{ url_for('client_menu') }}" 
+           class="{{ 'active' if not selected_category else '' }}">
+           All
+        </a>
+    </li>
+    
+    {% for category in categories %}
+        {% set is_active = selected_category and selected_category.category_id == category.category_id %}
+        <li>
+            <a href="{{ url_for('client_menu', category_id=category.category_id) }}" 
+               class="{{ 'active' if is_active else '' }}">
+                {{ category.name }}
+            </a>
+        </li>
+    {% endfor %}
+</ul>
+
+<div class="product-grid">
+    {% for product in products %}
+        <div class="product-card">
+            
+            <div class="product-image-wrapper">
                 <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
                      alt="{{ product.name }}" 
                      class="product-card-image">
+            </div>
 
-                <div class="product-card-content">
-                    <h3>{{ product.name }}</h3>
-                    
-                    {# RATING DISPLAY BLOCK #}
-                    {% set rating_data = ratings_map.get(product.product_id) %}
-                    {% if rating_data and rating_data.count > 0 %}
-                        <div class="product-rating" style="margin-bottom: 0.5rem; color: #ffc107;">
-                            {% set full_stars = rating_data.avg | int %}
-                            {% for i in range(full_stars) %}
-                                ★
-                            {% endfor %}
-                            {% if rating_data.avg - full_stars >= 0.5 %}
-                                <span style="display: inline-block; width: 0.5em; overflow: hidden; color: #ffc107;">★</span> 
-                            {% endif %}
-                            <span style="color: #666; font-size: 0.9em; font-weight: 500;">
-                                ({{ "%.1f"|format(rating_data.avg) }} / {{ rating_data.count }} reviews)
-                            </span>
-                        </div>
-                    {% else %}
-                        <p style="font-size: 0.9em; color: #999; margin-bottom: 0.5rem;">No reviews yet.</p>
-                    {% endif %}
-                    {# END RATING DISPLAY BLOCK #}
+            <div class="product-card-content">
+                <h3>{{ product.name }}</h3>
+                
+                {% set rating_data = ratings_map.get(product.product_id) %}
+                {% if rating_data and rating_data.count > 0 %}
+                    <div style="color: #ffc107; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        <i class="fa-solid fa-star"></i> 
+                        <span style="font-weight: bold; color: #333;">{{ "%.1f"|format(rating_data.avg) }}</span>
+                        <span style="color: #999;">({{ rating_data.count }})</span>
+                    </div>
+                {% endif %}
 
-                    <p style="font-size: 0.9em; color: #666; flex-grow: 1; margin-bottom: 1rem;">
-                        {{ product.description or 'No description available.' }}
-                    </p>
-                    
-                    <div class="product-card-footer">
-                        <div class="product-card-price">
-                            {% if product.has_variants %}
-                                {% if product.variants %}
-                                    <span class="price-small">Starts at</span>
-                                    ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
-                                {% else %}
-                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
-                                {% endif %}
+                <p>{{ product.description or 'Delicious catering favorite.' }}</p>
+                
+                <div class="product-card-footer">
+                    <div class="product-price">
+                        {% if product.has_variants %}
+                            {% if product.variants %}
+                                ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
                             {% else %}
-                                {% if product.variants %}
-                                    ₱{{ "%.2f"|format(product.variants[0].price) }}
-                                {% else %}
-                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
-                                {% endif %}
+                                <span style="font-size: 0.8rem; color: #999;">Unavailable</span>
                             {% endif %}
-                        </div>
-                        
-                        {% if 'customer_id' in session %}
-                            <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
-                                Add to Cart
-                            </button>
                         {% else %}
-                            {# If logged out, this button is a link to the login page #}
-                            <a href="{{ url_for('client_account_page') }}" class="btn btn-primary">
-                                Add to Cart
-                            </a>
+                            {% if product.variants %}
+                                ₱{{ "%.2f"|format(product.variants[0].price) }}
+                            {% else %}
+                                <span style="font-size: 0.8rem; color: #999;">Unavailable</span>
+                            {% endif %}
                         {% endif %}
                     </div>
+                    
+                    {% if 'customer_id' in session %}
+                        <button class="btn btn-card-add btn-open-product-modal" data-product-id="{{ product.product_id }}">
+                            Add
+                        </button>
+                    {% else %}
+                        <a href="{{ url_for('client_account_page') }}" class="btn btn-card-add">
+                            Add
+                        </a>
+                    {% endif %}
                 </div>
             </div>
-        {% else %}
-            <p>No products found in this category.</p>
-        {% endfor %}
-    </div>
+        </div>
+    {% else %}
+        <p style="grid-column: 1/-1; text-align: center; color: #666; margin-top: 2rem;">
+            No items found in this category.
+        </p>
+    {% endfor %}
+</div>
 
 {% endblock %}

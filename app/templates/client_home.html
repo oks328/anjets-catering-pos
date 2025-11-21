@@ -5,115 +5,57 @@
 {% block content %}
 
 <div class="hero-section">
-    <h1>Delicious Catering for Every Occasion</h1>
-    <p>Let us make your next event unforgettable.</p>
+    <div class="hero-overlay">
+        <h1>Delicious Catering for Every Occasion</h1>
+        <p>Let us make your next event unforgettable.</p>
 
-    <div class="cta-buttons" style="margin-top: 2rem;">
-        {% if 'customer_id' in session %}
-            <a href="{{ url_for('client_menu') }}" class="btn btn-primary">Order Now (À la Carte)</a>
-        {% else %}
-            <a href="{{ url_for('client_account_page') }}" class="btn btn-primary">Order Now (À la Carte)</a>
-        {% endif %}
-        
-        <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-secondary">Build a Buffet</a>
+        <div class="cta-buttons">
+            {% if 'customer_id' in session %}
+                <a href="{{ url_for('client_menu') }}" class="btn btn-hero-primary">Order Now (À la Carte)</a>
+            {% else %}
+                <a href="{{ url_for('client_account_page') }}" class="btn btn-hero-primary">Order Now (À la Carte)</a>
+            {% endif %}
+            <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-hero-outline">Build a Buffet</a>
+        </div>
     </div>
 </div>
 
-{% if 'customer_id' in session %}
-<div class="card" style="margin-top: 2rem;">
-    <h2>Today's Popular Items</h2>
+<div class="popular-section">
+    <h2 class="section-title">Today's Popular Items</h2>
 
-    <div class="product-grid" style="margin-top: 1.5rem;">
+    <div class="product-grid">
         {% for product in popular_products %}
             <div class="product-card">
-                <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
-                     alt="{{ product.name }}" 
-                     class="product-card-image">
+                
+                <div class="product-image-wrapper">
+                    <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
+                         class="product-card-image" 
+                         alt="{{ product.name }}">
+                </div>
 
                 <div class="product-card-content">
                     <h3>{{ product.name }}</h3>
-                    <p>{{ product.description or 'No description available.' }}</p>
+                    <p>{{ product.description or 'Freshly prepared catering favorite.' }}</p>
                     
                     <div class="product-card-footer">
-                        <div class="product-card-price">
+                        <div class="product-price">
                             {% if product.has_variants %}
-                                {% if product.variants %}
-                                    <span class="price-small">Starts at</span>
-                                    ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
-                                {% else %}
-                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
-                                {% endif %}
+                                ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
                             {% else %}
-                                {% if product.variants %}
-                                    ₱{{ "%.2f"|format(product.variants[0].price) }}
-                                {% else %}
-                                    <span style="color:red; font-size: 0.9rem;">Price not set</span>
-                                {% endif %}
+                                ₱{{ "%.2f"|format(product.variants[0].price) }}
                             {% endif %}
                         </div>
                         
-                        {# This is the only button logic, wrapped in a login check #}
-                        {% if 'customer_id' in session %}
-                            <button class="btn btn-primary btn-open-product-modal" data-product-id="{{ product.product_id }}">
-                                Add to Cart
-                            </button>
-                        {% else %}
-                            <a href="{{ url_for('client_account_page') }}" class="btn btn-primary">
-                                Add to Cart
-                            </a>
-                        {% endif %}
+                        <button class="btn btn-card-add btn-open-product-modal" data-product-id="{{ product.product_id }}">
+                            Add to Cart
+                        </button>
                     </div>
                 </div>
             </div>
         {% else %}
-            <p>No popular items just yet. Be the first to order!</p>
+            <p>Check out our Menu for more items!</p>
         {% endfor %}
     </div>
 </div>
-{% endif %}
+
 {% endblock %}
-
-
-{% block styles %}
-<style>
-    .hero-section {
-        text-align: center;
-        padding: 4rem 2rem;
-        background-color: #d9534f; /* Main theme color */
-        color: white;
-        border-radius: 8px;
-    }
-    .hero-section h1, 
-    .hero-section p {
-        color: white;
-    }
-    .hero-section h1 {
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
-    }
-    .hero-section p {
-        font-size: 1.25rem;
-        margin-bottom: 2rem;
-    }
-    
-    /* Style the buttons in the hero */
-    .hero-section .btn-primary {
-        background-color: white;
-        color: #d9534f;
-    }
-    .hero-section .btn-primary:hover {
-        background-color: #f4f4f4;
-    }
-    .hero-section .btn-secondary {
-        background-color: transparent;
-        color: white;
-        border: 2px solid white;
-    }
-    .hero-section .btn-secondary:hover {
-        background-color: white;
-        color: #d9534f;
-    }
-</style>
-{% endblock %}
-
-
