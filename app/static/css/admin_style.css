@@ -642,3 +642,23 @@ main h2 {
   font-family: Arial, sans-serif;
   color: #9CA3AF;
 }
+
+/* --- PASSWORD TOGGLE ICON STYLES --- */
+.password-container {
+  position: relative;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--text-gray);
+  font-size: 1.2rem;
+  transition: color 0.2s ease;
+}
+
+.toggle-password:hover {
+  color: var(--primary-color);
+}

@@ -22,15 +22,13 @@
 
             <div class="form-group">
                 {{ login_form.password.label }}
-                {{ login_form.password(class="form-control", id="password_field") }}
+                <div class="password-container">
+                    {{ login_form.password(class="form-control", id="password_field") }}
+                    <i class="fas fa-eye toggle-password" id="toggle_password"></i>
+                </div>
                 {% for error in login_form.password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
-            </div>
-            
-            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem; text-align: left;">
-                <input type="checkbox" id="toggle_password" style="width: auto;">
-                <label for="toggle_password" style="font-weight: normal; display: inline;">Show Password</label>
             </div>
 
             <div class="form-group" style="text-align: right; margin-top: -0.5rem; margin-bottom: 1rem;">
@@ -62,6 +60,10 @@
                 // Toggle the type attribute
                 const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
                 passwordField.setAttribute('type', type);
+
+                // Toggle the icon
+                this.classList.toggle('fa-eye');
+                this.classList.toggle('fa-eye-slash');
             });
         }
     });

@@ -1072,6 +1072,32 @@ ul {
 }
 
 /* ==========================================================================
+   PASSWORD TOGGLE ICON STYLES
+   ========================================================================== */
+.password-container {
+    position: relative;
+}
+
+.password-container .form-control {
+    padding-right: 2.5rem; /* Make space for the icon */
+}
+
+.toggle-password {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--text-gray);
+    font-size: 1.2rem;
+    transition: color 0.2s ease;
+}
+
+.toggle-password:hover {
+    color: var(--brand-red);
+}
+
+/* ==========================================================================
    NEW CART LAYOUT (2-COLUMN)
    ========================================================================== */
 .cart-content-wrapper {

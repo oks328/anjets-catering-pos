@@ -27,28 +27,23 @@
 
             <div class="form-group">
                 {{ form.password.label }}
-                {{ form.password(class="form-control", id="password_field") }}
+                <div class="password-container">
+                    {{ form.password(class="form-control", id="password_field") }}
+                    <i class="fas fa-eye toggle-password" id="toggle_password"></i>
+                </div>
                 {% for error in form.password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
-
-            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem;">
-                <input type="checkbox" id="toggle_password">
-                <label for="toggle_password">Show Password</label>
-            </div>
-
             <div class="form-group">
                 {{ form.confirm_password.label }}
-                {{ form.confirm_password(class="form-control", id="confirm_password_field") }}
+                <div class="password-container">
+                    {{ form.confirm_password(class="form-control", id="confirm_password_field") }}
+                    <i class="fas fa-eye toggle-password" id="toggle_confirm_password"></i>
+                </div>
                 {% for error in form.confirm_password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
-            </div>
-            
-            <div class="form-group-checkbox" style="margin-top: -10px; margin-bottom: 1rem;">
-                <input type="checkbox" id="toggle_confirm_password">
-                <label for="toggle_confirm_password">Show Password</label>
             </div>
 
             <div class="form-group">
@@ -60,7 +55,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        
+
         // --- Logic for the first password field ---
         const togglePassword = document.getElementById('toggle_password');
         const passwordField = document.getElementById('password_field');
@@ -69,6 +64,10 @@
             // Toggle the type attribute
             const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordField.setAttribute('type', type);
+
+            // Toggle the icon
+            this.classList.toggle('fa-eye');
+            this.classList.toggle('fa-eye-slash');
         });
 
         // --- Logic for the confirm password field ---
@@ -79,6 +78,10 @@
             // Toggle the type attribute
             const type = confirmPasswordField.getAttribute('type') === 'password' ? 'text' : 'password';
             confirmPasswordField.setAttribute('type', type);
+
+            // Toggle the icon
+            this.classList.toggle('fa-eye');
+            this.classList.toggle('fa-eye-slash');
         });
     });
 </script>

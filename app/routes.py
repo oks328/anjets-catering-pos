@@ -971,10 +971,10 @@ def client_register():
             contact_number=register_form.contact_number.data,
             address=register_form.address.data,
             landmark=register_form.landmark.data, # <-- ADDED LANDMARK
-            email=register_form.email.data,
+            email=register_form.email.data.lower(),
             birthdate=register_form.birthdate.data
         )
-        new_customer.set_password(register_form.password.data) 
+        new_customer.set_password(register_form.password.data)
 
         db.session.add(new_customer)
         try:
@@ -987,11 +987,6 @@ def client_register():
         except Exception as e:
             db.session.rollback()
             flash(f"Error creating account: {e}", 'danger')
-
-    return render_template(
-        'client_register.html',
-        register_form=register_form
-    )
 
 @app.route('/login', methods=['POST'])
 def client_login():
@@ -1020,11 +1015,16 @@ def send_async_email(app, msg):
 
 def send_reset_email(customer):
     token = customer.get_reset_token()
+    
+    # Ensure we have a sender string, otherwise fallback to a dummy string to prevent crash
+    sender_email = current_app.config.get('MAIL_USERNAME') or 'noreply@demo.com'
+
     msg = Message(
         'Password Reset Request',
-        sender=current_app.config['MAIL_USERNAME'],
+        sender=sender_email,  # <--- Updated variable
         recipients=[customer.email]
     )
+    # ... rest of function ...
     msg.html = render_template('reset_email.html', customer=customer, token=token)
     
     from threading import Thread
