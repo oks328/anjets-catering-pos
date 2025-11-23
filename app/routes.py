@@ -1663,10 +1663,10 @@ def admin_update_order_status(order_id):
             # Only send email if status actually changed
             
             if new_status == 'Approved' and old_status != 'Approved':
-                send_order_email(order, f"Order #{order.order_id} Confirmed - Anjet's Catering", 'email_order_approved.html')
+                send_order_email(order, f"Order #{order.order_id} Confirmed - Anjet's", 'email_order_approved.html')
                 
             elif new_status == 'Declined':
-                send_order_email(order, f"Update on Order #{order.order_id} - Anjet's Catering", 'email_order_declined.html')
+                send_order_email(order, f"Update on Order #{order.order_id} - Anjet's", 'email_order_declined.html')
 
             # --- NEW: IN PROGRESS EMAIL ---
             elif new_status == 'In Progress' and old_status != 'In Progress':
