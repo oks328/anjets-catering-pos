@@ -4,38 +4,56 @@
 
 {% block content %}
 <div class="wizard-container">
-    <div class="buffet-recommendation" style="margin-bottom: 3rem;">
-
-    <h3>Choose {{ category_name }} Dishes</h3>
-
-    <p>
-        You must select {{ required_count }} items from this category to proceed.
-        <br>
-        <span style="color: #d9534f; font-weight: bold;">(Selected: {{ current_count }} / Required: {{ required_count }})</span>
-    </p>
-
-    <div class="wizard-nav-buttons" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
-
-        <a href="{{ previous_url }}" class="btn btn-secondary">
-            &larr; Go Back
-        </a>
-
-        <a href="{{ next_url }}" 
-           id="btn-continue" 
-           class="btn btn-primary"
-           {% if current_count < required_count %}disabled{% endif %}>
-
-            {% if is_final_category %}
-                Review Your Buffet &rarr;
-            {% else %}
-                Continue to Next Category &rarr;
-            {% endif %}
-        </a>
-
+    
+    <div class="wizard-progress-container">
+        <div class="wizard-step-text">
+            <span>Step {{ current_step }} of {{ total_steps }}</span>
+            <span>{{ category_name }}</span>
+        </div>
+        <div class="wizard-progress-bar">
+            {% for i in range(total_steps) %}
+                <div class="wizard-progress-step {{ 'active' if i < current_step else '' }}"></div>
+            {% endfor %}
+        </div>
     </div>
-</div>
 
-{% if current_selections %}
+    <div class="buffet-recommendation" style="margin-bottom: 3rem;">
+        <h3>Choose {{ category_name }} Dishes</h3>
+        <p>
+            {% if is_main_category %}
+                You need <strong>{{ required_count }}</strong> Main Dishes total (Pork, Beef, Chicken, Seafood).
+                <br>
+                <span style="color: {{ '#28a745' if current_count >= required_count else '#d9534f' }}; font-weight: bold;">
+                    (Total Selected Mains: {{ current_count }} / {{ required_count }})
+                </span>
+            {% else %}
+                You must select {{ required_count }} items from this category.
+                <br>
+                <span style="color: {{ '#28a745' if current_count >= required_count else '#d9534f' }}; font-weight: bold;">
+                    (Selected: {{ current_count }} / Required: {{ required_count }})
+                </span>
+            {% endif %}
+        </p>
+
+        <div class="wizard-nav-buttons" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+            <a href="{{ previous_url }}" class="btn btn-secondary">
+                &larr; Go Back
+            </a>
+
+            <a href="{{ next_url }}" 
+               id="btn-continue" 
+               class="btn btn-primary"
+               {% if current_count < min_to_proceed %}disabled{% endif %}>
+                {% if is_final_category %}
+                    Review Your Buffet &rarr;
+                {% else %}
+                    Continue to Next Category &rarr;
+                {% endif %}
+            </a>
+        </div>
+    </div>
+
+    {% if current_selections %}
     <div class="card" style="margin-bottom: 2rem;">
         <h4>Your Current {{ category_name }} Selections:</h4>
         <table class="order-history-table">
@@ -96,9 +114,14 @@
         <p>No products found in this category.</p>
         {% endfor %}
     </div>
+    
+    <div class="buffet-floating-total">
+        <span>Estimated Total:</span>
+        <span class="total-amount" id="running-total">₱{{ "%.2f"|format(current_total_price) }}</span>
+    </div>
+
 </div>
 {% endblock %}
-
 
 {% block scripts %}
 <script>
@@ -106,17 +129,15 @@
     window.isBuffetPage = true; 
 
     document.addEventListener('DOMContentLoaded', () => {
-        // --- Get ALL Modal Elements ---
         const modalCartForm = document.getElementById('modalCartForm');
-        
-        // --- Get Warning Modal Elements ---
         const warningModal = document.getElementById('warningModal');
         const warningModalCloseBtn = document.getElementById('warningModalCloseBtn');
         const warningModalCancelBtn = document.getElementById('warningModalCancel');
         const warningModalConfirmBtn = document.getElementById('warningModalConfirm');
         const warningModalMessage = document.getElementById('warningModalMessage');
+        const runningTotalEl = document.getElementById('running-total');
 
-        // --- Logic for the "Continue" button ---
+        // Disable continue logic
         const continueBtn = document.getElementById('btn-continue');
         if (continueBtn) {
             continueBtn.addEventListener('click', function(e) {
@@ -124,30 +145,27 @@
                     e.preventDefault();
                     warningModalMessage.innerText = 'You must select the required number of items to continue.';
                     warningModal.style.display = 'block';
-                    warningModalConfirmBtn.style.display = 'none'; // Hide "Add Anyway"
+                    warningModalConfirmBtn.style.display = 'none';
                 }
             });
         }
         
-        // --- Function to close the WARNING modal ---
         const closeWarningModal = () => {
             if (warningModal) warningModal.style.display = 'none';
-            warningModalConfirmBtn.style.display = 'inline-block'; // Re-show "Add Anyway"
+            warningModalConfirmBtn.style.display = 'inline-block';
         }
         if (warningModalCloseBtn) warningModalCloseBtn.onclick = closeWarningModal;
         if (warningModalCancelBtn) warningModalCancelBtn.onclick = closeWarningModal;
 
-        // --- Hijack the modal's submit button (for Buffet) ---
+        // Handle Submit
         if (modalCartForm) {
             modalCartForm.onsubmit = function(e) {
-                // This script only runs on this page, so we know it's for the buffet.
                 e.preventDefault(); 
                 const formData = new FormData(modalCartForm);
                 handleFetch(formData);
             };
         }
 
-        // --- Main Fetch Logic (for Buffet) ---
         function handleFetch(dataToPost) {
             fetch("{{ url_for('buffet_add_item') }}", {
                 method: 'POST',
@@ -156,13 +174,15 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Reload the page to update the count and "Your Selections" list
+                    // Reload the page to show new counts
                     location.reload(); 
-
+                    // NOTE: We rely on page reload to update table/counts, 
+                    // so the total update below happens on reload anyway.
+                    
                 } else if (data.status === 'warning') {
                     warningModalMessage.innerText = data.message;
                     warningModal.style.display = 'block';
-                    warningModalConfirmBtn.style.display = 'inline-block'; // Ensure "Add Anyway" is visible
+                    warningModalConfirmBtn.style.display = 'inline-block';
 
                     warningModalConfirmBtn.onclick = () => {
                         dataToPost.append('force', 'true');

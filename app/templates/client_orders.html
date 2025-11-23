@@ -17,7 +17,9 @@
         
         {% if not orders %}
             <div style="text-align: center; padding: 2rem; color: var(--text-gray);">
-                <i class="fa-solid fa-box-open" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">
+                    <i class="fa-solid fa-box-open"></i>
+                </div>
                 <p>You haven't placed any orders yet.</p>
                 <a href="{{ url_for('client_menu') }}" class="btn btn-primary" style="margin-top: 1rem;">Browse Menu</a>
             </div>
@@ -27,18 +29,36 @@
                     <thead>
                         <tr>
                             <th style="background: #f9fafb;">Order ID</th>
+                            <th style="background: #f9fafb;">Event Schedule</th>
                             <th style="background: #f9fafb;">Items</th>
-                            <th style="background: #f9fafb;">Date</th>
                             <th style="background: #f9fafb;">Total</th>
                             <th style="background: #f9fafb;">Status</th>
-                            <th style="background: #f9fafb;">Receipt</th> 
+                            <th style="background: #f9fafb;">Action</th> 
                         </tr>
                     </thead>
                     <tbody>
                         {% for order in orders %}
                         <tr>
                             <td style="vertical-align: top; font-weight: bold;">#{{ order.order_id }}</td>
-                            <td class="order-items-list">
+                            
+                            <td style="vertical-align: top;">
+                                {% if order.event_date %}
+                                    <div style="font-size: 0.9rem; margin-bottom: 0.5rem;">
+                                        <span style="color: var(--text-gray); font-size: 0.8rem;">Event Date:</span><br>
+                                        <strong style="color: var(--brand-dark); font-size: 1rem;">{{ order.event_date.strftime('%b %d, %Y') }}</strong> 
+                                        {% if order.event_time %}
+                                            <br>@ {{ order.event_time.strftime('%I:%M %p') }}
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span style="color: #999;">Date not set</span>
+                                {% endif %}
+                                <div style="font-size: 0.75rem; color: #999; margin-top: 4px;">
+                                    Ordered: {{ order.order_date.strftime('%b %d') }}
+                                </div>
+                            </td>
+
+                            <td class="order-items-list" style="vertical-align: top;">
                                 <ul>
                                     {% for item in order.items %}
                                         <li>
@@ -65,29 +85,64 @@
                                         </li>
                                     {% endfor %}
                                 </ul>
+                                {% if order.special_instructions %}
+                                    <div style="font-size: 0.8rem; color: #d63384; font-style: italic; margin-top: 0.5rem;">
+                                        Note: {{ order.special_instructions }}
+                                    </div>
+                                {% endif %}
                             </td>
-                            <td style="vertical-align: top;">{{ order.order_date.strftime('%b %d, %Y') }}<br><small style="color:#999">{{ order.order_date.strftime('%I:%M %p') }}</small></td>
+
                             <td style="vertical-align: top; font-weight: bold;">₱{{ "%.2f"|format(order.final_amount) }}</td>
                             
                             <td style="vertical-align: top;">
-                                {% if order.status == 'Pending' %}
-                                    <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">Pending</span>
+                                {% if order.status == 'Pending Approval' %}
+                                    <div style="background: #fff3cd; color: #856404; padding: 8px; border-radius: 6px; font-size: 0.85rem;">
+                                        <i class="fa-solid fa-hourglass-half"></i> <strong>Waiting for Approval</strong>
+                                        <p style="margin: 4px 0 0 0; font-size: 0.8rem;">We are checking our schedule.</p>
+                                    </div>
+                                
+                                {% elif order.status == 'Approved' %}
+                                    <span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">
+                                        <i class="fa-solid fa-check"></i> Approved
+                                    </span>
+                                
+                                {% elif order.status == 'Declined' %}
+                                    <div style="background: #fee2e2; color: #b91c1c; padding: 8px; border-radius: 6px; font-size: 0.85rem;">
+                                        <i class="fa-solid fa-circle-xmark"></i> <strong>Declined</strong>
+                                        {% if order.decline_reason %}
+                                            <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #fecaca; font-size: 0.8rem; font-style: italic;">
+                                                "{{ order.decline_reason }}"
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
                                 {% elif order.status == 'In Progress' %}
-                                    <span style="background: #cce5ff; color: #004085; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">In Progress</span>
+                                    <span style="background: #cffafe; color: #155e75; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">
+                                        <i class="fa-solid fa-fire-burner"></i> Preparing
+                                    </span>
+
                                 {% elif order.status == 'Completed' %}
-                                    <span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">Completed</span>
+                                    <span style="background: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">
+                                        Completed
+                                    </span>
                                 {% else %}
-                                    <span style="background: #e2e3e5; color: #383d41; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ order.status }}</span>
+                                    <span style="background: #e2e3e5; color: #383d41; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">
+                                        {{ order.status }}
+                                    </span>
                                 {% endif %}
                             </td>
                             
                             <td class="action-buttons" style="vertical-align: top;">
-                                <a href="{{ url_for('client_view_receipt', order_id=order.order_id) }}" 
-                                   class="btn btn-secondary" 
-                                   title="Print Receipt"
-                                   style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">
-                                   <i class="fa-solid fa-receipt"></i>
-                                </a>
+                                {% if order.status in ['Approved', 'In Progress', 'Completed'] %}
+                                    <a href="{{ url_for('client_view_receipt', order_id=order.order_id) }}" 
+                                       class="btn btn-secondary" 
+                                       title="Print Receipt"
+                                       style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">
+                                       <i class="fa-solid fa-receipt"></i> Receipt
+                                    </a>
+                                {% else %}
+                                    <span style="color: #ccc;">-</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

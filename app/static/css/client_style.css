@@ -1195,3 +1195,80 @@ ul {
         position: static;
     }
 }
+
+/* ==========================================================================
+   13. BUFFET UI ENHANCEMENTS (Progress & Badge)
+   ========================================================================== */
+
+/* Progress Bar */
+.wizard-progress-container {
+    margin-bottom: 2rem;
+}
+
+.wizard-progress-bar {
+    display: flex;
+    gap: 5px;
+    height: 8px;
+    width: 100%;
+    background-color: #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.wizard-progress-step {
+    flex: 1;
+    background-color: #d1d5db;
+    transition: background-color 0.3s ease;
+}
+
+.wizard-progress-step.active {
+    background-color: var(--brand-red);
+}
+
+.wizard-step-text {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Floating Total Badge */
+.buffet-floating-total {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--brand-dark);
+    color: #fff;
+    padding: 0.8rem 1.5rem;
+    border-radius: 50px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    z-index: 900; /* Below modal (9999) but above content */
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-weight: 600;
+    animation: slideUp 0.4s ease-out;
+    border: 2px solid rgba(255,255,255,0.1);
+}
+
+.buffet-floating-total .total-amount {
+    font-size: 1.2rem;
+    color: #fbbf24; /* Gold color for price */
+}
+
+@keyframes slideUp {
+    from { transform: translate(-50%, 100px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* Responsive adjust for mobile */
+@media (max-width: 768px) {
+    .buffet-floating-total {
+        width: 90%;
+        justify-content: space-between;
+        bottom: 1rem;
+    }
+}

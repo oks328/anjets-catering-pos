@@ -15,8 +15,9 @@
 
     <div class="filter-tabs">
         <a href="{{ url_for('admin_orders') }}" class="btn {{ 'btn-primary' if not current_filter else 'btn-secondary' }}">All</a>
-        <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn {{ 'btn-primary' if current_filter == 'Pending' else 'btn-secondary' }}">Pending</a>
-        <a href="{{ url_for('admin_orders', status='In Progress') }}" class="btn {{ 'btn-primary' if current_filter == 'In Progress' else 'btn-secondary' }}">In Progress</a>
+        <a href="{{ url_for('admin_orders', status='Pending Approval') }}" class="btn {{ 'btn-primary' if current_filter == 'Pending Approval' else 'btn-secondary' }}">New Requests</a>
+        <a href="{{ url_for('admin_orders', status='Approved') }}" class="btn {{ 'btn-primary' if current_filter == 'Approved' else 'btn-secondary' }}">Approved</a>
+        <a href="{{ url_for('admin_orders', status='In Progress') }}" class="btn {{ 'btn-primary' if current_filter == 'In Progress' else 'btn-secondary' }}">Kitchen</a>
         <a href="{{ url_for('admin_orders', status='Completed') }}" class="btn {{ 'btn-primary' if current_filter == 'Completed' else 'btn-secondary' }}">Completed</a>
     </div>
 
@@ -25,9 +26,9 @@
             <thead>
                 <tr>
                     <th>Order ID</th>
-                    <th>Customer Info</th>
-                    <th>Delivery Info / Landmark</th>
-                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Event Schedule</th>
+                    <th>Type</th>
                     <th>Items</th>
                     <th>Total</th>
                     <th>Status</th>
@@ -38,18 +39,38 @@
                 {% for order in orders %}
                 <tr>
                     <td><strong>#{{ order.order_id }}</strong></td>
+                    
                     <td>
                         <strong>{{ order.customer.name }}</strong>
-                        <p style="font-size: 0.9em; color: var(--text-gray);">Contact: {{ order.customer.contact_number }}</p>
+                        <p style="font-size: 0.85rem; color: var(--text-gray); margin:0;">{{ order.customer.contact_number }}</p>
                     </td>
+
                     <td>
-                        <strong>{{ order.order_type }}</strong>
-                        {% if order.order_type == 'Delivery' %}
-                            <p style="font-size: 0.9em; color: var(--text-gray);">{{ order.delivery_address }}</p>
+                        {% if order.event_date %}
+                            <div style="font-weight: bold; color: var(--primary-color); font-size: 1rem;">
+                                {{ order.event_date.strftime('%b %d, %Y') }}
+                            </div>
+                            <div style="font-size: 0.85rem; font-weight: 600;">
+                                {{ order.event_time.strftime('%I:%M %p') if order.event_time else 'Time not set' }}
+                            </div>
+                            <small style="color: #999; font-size: 0.75rem;">
+                                Ordered: {{ order.order_date.strftime('%b %d') }}
+                            </small>
+                        {% else %}
+                            <span style="color: #999;">No Date Set</span>
                         {% endif %}
                     </td>
 
-                    <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
+                    <td>
+                        {% if order.order_type == 'Delivery' %}
+                            <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">DELIVERY</span>
+                            <div style="font-size: 0.8rem; color: #666; margin-top: 4px; max-width: 150px; white-space: normal;">
+                                {{ order.delivery_address }}
+                            </div>
+                        {% else %}
+                            <span style="background: #f3f4f6; color: #374151; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">PICKUP</span>
+                        {% endif %}
+                    </td>
                     
                     <td class="order-items-list">
                         <ul>
@@ -60,36 +81,139 @@
                                 </li>
                             {% endfor %}
                         </ul>
+                        {% if order.special_instructions %}
+                            <div style="margin-top: 5px; font-size: 0.8rem; color: #d63384; font-style: italic;">
+                                Note: {{ order.special_instructions }}
+                            </div>
+                        {% endif %}
                     </td>
                     
                     <td><strong>₱{{ "%.2f"|format(order.final_amount) }}</strong></td>
                     
                     <td>
-                        <form action="{{ url_for('admin_update_order_status', order_id=order.order_id, status=current_filter) }}" method="POST" class="status-form" id="form-update-{{ order.order_id }}">
-                            
-                            <select name="status" class="form-control" style="min-width: 140px;">
-                                <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>Pending</option>
-                                <option value="In Progress" {% if order.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                                <option value="Completed" {% if order.status == 'Completed' %}selected{% endif %}>Completed</option>
-                            </select>
-                            
-                        </form>
+                        {% if order.status == 'Pending Approval' %}
+                            <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
+                                Needs Approval
+                            </span>
+                        {% elif order.status == 'Approved' %}
+                            <span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
+                                Approved
+                            </span>
+                        {% elif order.status == 'Declined' %}
+                            <span style="background: #fee2e2; color: #b91c1c; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
+                                Declined
+                            </span>
+                        {% elif order.status == 'In Progress' %}
+                            <span style="background: #cffafe; color: #155e75; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
+                                Kitchen
+                            </span>
+                        {% elif order.status == 'Completed' %}
+                            <span style="background: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
+                                Completed
+                            </span>
+                        {% else %}
+                            <span>{{ order.status }}</span>
+                        {% endif %}
                     </td>
 
                     <td class="action-buttons">
-                        <button type="submit" form="form-update-{{ order.order_id }}" class="btn btn-secondary btn-sm">Update</button>
                         
-                        <form action="{{ url_for('admin_delete_order', order_id=order.order_id, status=current_filter) }}" method="POST" class="delete-form-modal" style="display:inline;">
-                            <input type="submit" value="Delete" class="btn btn-danger btn-sm">
-                        </form>
+                        {% if order.status == 'Pending Approval' %}
+                            <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" style="display:inline;">
+                                <input type="hidden" name="status" value="Approved">
+                                <button type="submit" class="btn btn-success btn-sm" title="Approve Order">
+                                    <i class="fa-solid fa-check"></i> Approve
+                                </button>
+                            </form>
+
+                            <button type="button" class="btn btn-danger btn-sm" title="Decline Order" 
+                                    onclick="openDeclineModal('{{ order.order_id }}')">
+                                <i class="fa-solid fa-xmark"></i> Decline
+                            </button>
+
+                        {% elif order.status == 'Declined' %}
+                            <form action="{{ url_for('admin_delete_order', order_id=order.order_id) }}" method="POST" class="delete-form-modal" style="display:inline;">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+
+                        {% else %}
+                            <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" id="form-update-{{ order.order_id }}" style="margin-bottom: 0.5rem;">
+                                <select name="status" class="form-control" style="min-width: 130px; font-size: 0.85rem; padding: 0.3rem;" onchange="this.form.submit()">
+                                    <option value="{{ order.status }}" selected disabled>{{ order.status }}</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </form>
+                            
+                            <form action="{{ url_for('admin_delete_order', order_id=order.order_id) }}" method="POST" class="delete-form-modal" style="display:inline;">
+                                <button type="submit" class="btn btn-danger btn-sm" title="Delete" style="padding: 0.3rem 0.6rem;">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8">No orders found.</td>
+                    <td colspan="8" style="text-align: center; padding: 2rem;">No orders found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    <div id="declineModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-btn" onclick="closeDeclineModal()">&times;</span>
+            <h4 style="margin-top: 0;">Decline Order</h4>
+            <p>Please provide a reason for declining this order. This will be visible to the customer.</p>
+            
+            <form id="declineForm" method="POST" action="">
+                <input type="hidden" name="status" value="Declined">
+                <div class="form-group">
+                    <textarea name="decline_reason" class="form-control" rows="3" required 
+                              placeholder="e.g., Date fully booked, Ingredient unavailable, Below minimum quantity..."></textarea>
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeDeclineModal()">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Decline</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openDeclineModal(orderId) {
+        const form = document.getElementById('declineForm');
+        const modal = document.getElementById('declineModal');
+        
+        // Dynamically set the form action to the correct Order ID
+        form.action = "/admin/orders/update_status/" + orderId;
+        
+        if(modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    function closeDeclineModal() {
+        const modal = document.getElementById('declineModal');
+        if(modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Close modal if clicking outside content
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('declineModal');
+        if (event.target === modal) {
+            closeDeclineModal();
+        }
+    });
+</script>
 {% endblock %}

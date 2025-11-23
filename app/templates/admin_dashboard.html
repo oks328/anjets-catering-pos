@@ -5,7 +5,7 @@
 {% block content %}
     <h2>Dashboard</h2>
     <p style="margin-top: -1.5rem; margin-bottom: 2rem; color: #6B7280;">
-        Welcome back, {{ current_user.username }}! Here's what's happening today.
+        Welcome back, {{ current_user.username }}! Here is your daily overview.
     </p>
 
     <div class="stat-card-row">
@@ -21,7 +21,7 @@
         
         <div class="stat-card">
             <div>
-                <h4>Total Sales (This Month)</h4>
+                <h4>Confirmed Sales (Month)</h4>
                 <div class="stat-value stat-value-small">₱{{ "%.2f"|format(total_sales_month) }}</div>
             </div>
             <div class="stat-card-icon" style="color: #28a745; background: #E0F2E9;">
@@ -29,21 +29,19 @@
             </div>
         </div>
 
-        {# REMOVED: Online Riders stat card #}
-
         <div class="stat-card">
             <div>
-                <h4>Pending Verifications</h4>
+                <h4>Pending ID Verifications</h4>
                 <div class="stat-value">{{ pending_verifications_count }}</div>
             </div>
             <div class="stat-card-icon" style="color: #ffc107; background: #FFF8E1;">
-                <i class="fa-solid fa-user-check"></i>
+                <i class="fa-solid fa-id-card"></i>
             </div>
         </div>
         
         <div class="stat-card">
             <div>
-                <h4>New Customers (This Month)</h4>
+                <h4>New Customers (Month)</h4>
                 <div class="stat-value">{{ new_customers_month_count }}</div>
             </div>
             <div class="stat-card-icon" style="color: #6f42c1; background: #F3EFFF;">
@@ -51,32 +49,69 @@
             </div>
         </div>
     </div>
+
     <div class="card">
-        <h3>Pending Orders</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Recent Approval Requests</h3>
+            <a href="{{ url_for('admin_orders', status='Pending Approval') }}" class="btn btn-sm btn-secondary">View All Requests</a>
+        </div>
+
         <table class="admin-table">
             <thead>
                 <tr>
                     <th>Order ID</th>
                     <th>Customer</th>
-                    <th>Date Placed</th>
+                    <th>Event Date</th>
+                    <th>Items</th>
                     <th>Total</th>
-                    <th>Actions</th>
+                    <th>Status</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for order in recent_pending_orders %}
                 <tr>
                     <td><strong>#{{ order.order_id }}</strong></td>
-                    <td>{{ order.customer.name }}</td>
-                    <td>{{ order.order_date.strftime('%Y-%m-%d %I:%M %p') }}</td>
-                    <td>₱{{ "%.2f"|format(order.final_amount) }}</td>
+                    <td>
+                        <strong>{{ order.customer.name }}</strong>
+                    </td>
+                    <td>
+                        {% if order.event_date %}
+                            <div style="font-weight: bold; color: var(--primary-color);">
+                                {{ order.event_date.strftime('%b %d') }}
+                            </div>
+                            <small style="color: #999;">{{ order.event_time.strftime('%I:%M %p') if order.event_time else '' }}</small>
+                        {% else %}
+                            <span style="color: #999;">Not set</span>
+                        {% endif %}
+                    </td>
+                    <td class="order-items-list">
+                        <ul>
+                            {% for item in order.items[:2] %}
+                                <li>{{ item.quantity }}x {{ item.product.name }}</li>
+                            {% endfor %}
+                            {% if order.items|length > 2 %}
+                                <li style="color: #999; font-style: italic;">+ {{ order.items|length - 2 }} more...</li>
+                            {% endif %}
+                        </ul>
+                    </td>
+                    <td><strong>₱{{ "%.2f"|format(order.final_amount) }}</strong></td>
+                    <td>
+                        <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem;">
+                            Needs Approval
+                        </span>
+                    </td>
                     <td class="action-buttons">
-                        <a href="{{ url_for('admin_orders', status='Pending') }}" class="btn btn-primary btn-sm">Manage</a>
+                        <a href="{{ url_for('admin_orders', status='Pending Approval') }}" class="btn btn-primary btn-sm">
+                            Review
+                        </a>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5">No pending orders.</td>
+                    <td colspan="7" style="text-align: center; padding: 2rem; color: #666;">
+                        No pending requests right now. Good job!
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

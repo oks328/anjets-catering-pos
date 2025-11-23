@@ -4,9 +4,31 @@
 
 {% block content %}
 <div class="checkout-options-container">
-    <h2>How would you like to receive your order?</h2>
+    <h2>Order Details</h2>
 
-    <form action="{{ url_for('save_checkout_options') }}" method="POST">
+    <form action="{{ url_for('save_checkout_options') }}" method="POST" onsubmit="return validateDate()">
+        
+        <div class="card" style="padding: 1.5rem; margin-bottom: 2rem; border-left: 5px solid var(--brand-red);">
+            <h3 style="font-size: 1.1rem; margin-bottom: 1rem;">When do you need the food?</h3>
+            
+            <p style="font-size: 0.9rem; color: var(--text-gray); margin-bottom: 1.5rem;">
+                <i class="fa-regular fa-clock"></i> 
+                Note: Based on your cart items, we require at least <strong>{{ min_days }} days lead time</strong>.
+            </p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label for="event_date">Event Date</label>
+                    <input type="date" id="event_date" name="event_date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="event_time">Time</label>
+                    <input type="time" id="event_time" name="event_time" class="form-control" required>
+                </div>
+            </div>
+        </div>
+
+        <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Delivery Method</h3>
         
         <label class="option-card">
             <input type="radio" name="order_type" value="Pickup" checked 
@@ -29,7 +51,7 @@
         <div id="delivery-address-form" class="address-card" style="display: none;">
             <h3 style="font-size: 1.2rem; margin-bottom: 1.5rem;">Delivery Details</h3>
             
-            {% if default_address %}
+            {% if customer.address %}
             <div class="default-address-box">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                     <strong style="color: var(--brand-dark);">Your Default Address</strong>
@@ -37,7 +59,7 @@
                         Use this
                     </button>
                 </div>
-                <p style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.4;">{{ default_address }}</p>
+                <p style="color: var(--text-gray); font-size: 0.9rem; line-height: 1.4;">{{ customer.address }}</p>
             </div>
             {% endif %}
 
@@ -66,31 +88,64 @@
 {% block scripts %}
 <script>
     function toggleAddressForm() {
-        // Get the selected radio button
         const selectedOption = document.querySelector('input[name="order_type"]:checked').value;
-        
         const addressForm = document.getElementById('delivery-address-form');
         const addressTextarea = document.getElementById('delivery_address');
 
         if (selectedOption === 'Delivery') {
             addressForm.style.display = 'block';
-            addressTextarea.required = true; // Make address required if delivery
+            addressTextarea.required = true;
         } else {
             addressForm.style.display = 'none';
-            addressTextarea.required = false; // Not required for pickup
+            addressTextarea.required = false;
         }
     }
 
     function useDefaultAddress() {
-        // Get the default address text and put it in the textarea
-        const defaultAddress = {{ default_address|tojson }}; 
+        const defaultAddress = {{ customer.address|tojson or '""' }}; 
         const defaultLandmark = {{ customer.landmark|tojson or '""' }}; 
 
         document.getElementById('delivery_address').value = defaultAddress;
         document.getElementById('landmark').value = defaultLandmark;
     }
 
-    // Run the toggle function once on page load to set initial state
-    document.addEventListener('DOMContentLoaded', toggleAddressForm);
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleAddressForm();
+
+        const dateInput = document.getElementById('event_date');
+        const today = new Date();
+        
+        // DYNAMIC JS: Inject server variable here
+        const minDays = {{ min_days }};
+        
+        // Add minDays to today
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() + minDays);
+        
+        // Format YYYY-MM-DD for HTML5 date input
+        const yyyy = minDate.getFullYear();
+        const mm = String(minDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(minDate.getDate()).padStart(2, '0');
+        
+        dateInput.min = `${yyyy}-${mm}-${dd}`;
+    });
+
+    function validateDate() {
+        const dateInput = document.getElementById('event_date');
+        const selectedDate = new Date(dateInput.value);
+        const today = new Date();
+        today.setHours(0,0,0,0); 
+
+        // DYNAMIC JS: Inject here as well
+        const minDays = {{ min_days }};
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() + minDays);
+
+        if (selectedDate < minDate) {
+            alert(`For these items, please select a date at least ${minDays} days from today.`);
+            return false;
+        }
+        return true;
+    }
 </script>
 {% endblock %}

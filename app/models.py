@@ -124,24 +124,35 @@ class User(db.Model, UserMixin):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
+# In app/models.py
+
 class Order(db.Model):
     """
     Model for a single customer order.
-    Rider fields removed for Admin-only delivery.
+    Updated for Event-Based Logic.
     """
     __tablename__ = 'Orders'
     order_id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('Customers.customer_id'), nullable=False)
-    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # When they clicked "Buy"
+    
+    # --- NEW FIELDS FOR CATERING ---
+    event_date = db.Column(db.Date, nullable=True) # When they need the food
+    event_time = db.Column(db.Time, nullable=True) # What time
+    decline_reason = db.Column(db.Text, nullable=True) # If admin rejects it
+    # -------------------------------
+
     total_amount = db.Column(db.Numeric(10, 2), nullable=False)
     discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     final_amount = db.Column(db.Numeric(10, 2), nullable=False)
-    status = db.Column(db.String(50), nullable=False, default='Pending')
+    
+    # Default status is now 'Pending Approval' instead of just 'Pending'
+    status = db.Column(db.String(50), nullable=False, default='Pending Approval')
+    
     order_type = db.Column(db.String(50), nullable=False, default='Pickup')
     delivery_address = db.Column(db.Text, nullable=True)
     delivery_fee = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
-    vat_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00) # <-- ADDED VAT
-    # rider_id column REMOVED
+    vat_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     special_instructions = db.Column(db.Text, nullable=True)
 
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")

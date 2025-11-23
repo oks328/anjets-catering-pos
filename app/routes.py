@@ -22,8 +22,20 @@ from app import mail
 from app.forms import RequestResetForm, ResetPasswordForm
 from flask import make_response, jsonify, current_app as app, render_template, redirect, url_for, flash, request, session, jsonify, current_app, get_flashed_messages
 
-# app/routes.py (Place this near the top)
 VAT_RATE = 0.12 # 12% Value Added Tax
+MAIN_CATEGORIES = ['Pork', 'Beef', 'Chicken', 'Seafood']
+
+CATEGORY_ORDER = [
+    'Beef', 
+    'Pork', 
+    'Chicken', 
+    'Seafood', 
+    'Pasta & Noodles', 
+    'Noodles',
+    'Vegetables', 
+    'Dessert', 
+    'Drinks'
+]
 
 def get_category_choices():
     """
@@ -769,74 +781,118 @@ def client_checkout():
 def client_checkout_options():
     """
     (R)EAD: Show the page for selecting Delivery or Pickup.
+    Now includes Dynamic Lead Time Calculation.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
-    # Get the customer's default address to pre-fill the form
+    # --- DYNAMIC LEAD TIME LOGIC ---
+    min_days = 3 # Default for standard items
+    
+    # Scan cart for buffet items
+    for item in cart_session.values():
+        if item.get('is_buffet_item', False):
+            min_days = 7 # Extended time for buffet
+            break
+            
+    # Get the customer's default address
     customer = Customer.query.get(session['customer_id'])
     default_address = customer.address
 
     return render_template(
         'client_checkout_options.html',
         default_address=default_address,
-        customer=customer  # <-- This is the variable the template needs
+        customer=customer,
+        min_days=min_days # Pass this variable to the template
     )
 
 @app.route('/checkout/save_options', methods=['POST'])
 @customer_login_required
 def save_checkout_options():
     """
-    (C)REATE: Save the chosen delivery options (with landmark) to the session.
+    (C)REATE: Validate and save delivery options.
+    Now enforces strict server-side date validation.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
+    # 1. Recalculate Lead Time (Security Check)
+    min_days = 3
+    for item in cart_session.values():
+        if item.get('is_buffet_item', False):
+            min_days = 7
+            break
+
+    # 2. Get Form Data
+    event_date_str = request.form.get('event_date')
+    event_time_str = request.form.get('event_time')
     order_type = request.form.get('order_type')
     delivery_address = request.form.get('delivery_address')
-    landmark = request.form.get('landmark') # <-- GET LANDMARK
+    landmark = request.form.get('landmark')
 
+    # 3. Strict Date Validation
+    if not event_date_str:
+        flash("Please select an event date.", 'danger')
+        return redirect(url_for('client_checkout_options'))
+    
+    try:
+        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+        today = date.today()
+        # Calculate the earliest valid date
+        min_date = today + timedelta(days=min_days)
+        
+        if event_date < min_date:
+            flash(f"Invalid date. For this order content, we require at least {min_days} days lead time.", 'danger')
+            return redirect(url_for('client_checkout_options'))
+            
+    except ValueError:
+        flash("Invalid date format.", 'danger')
+        return redirect(url_for('client_checkout_options'))
+
+    # 4. Validate Delivery Logic
     if order_type == 'Delivery':
         if not delivery_address:
             flash("Please provide a delivery address.", 'danger')
             return redirect(url_for('client_checkout_options'))
         
-        # Combine the address and landmark
         full_address = delivery_address
         if landmark:
             full_address += f" (Landmark: {landmark})"
 
         session['delivery_fee'] = 100.00
         session['order_type'] = 'Delivery'
-        session['delivery_address'] = full_address # <-- SAVE COMBINED ADDRESS
+        session['delivery_address'] = full_address
     
     else:
-        # It's a Pickup
         session['delivery_fee'] = 0.00
         session['order_type'] = 'Pickup'
         session['delivery_address'] = 'Store Pickup'
 
-    # Send them to the final review page
+    # 5. Save Validated Data to Session
+    session['event_date_str'] = event_date_str
+    session['event_time_str'] = event_time_str
+
     return redirect(url_for('client_checkout'))
 
 @app.route('/checkout/place_order', methods=['POST'])
 @customer_login_required
 def place_order():
     """
-    (C)REATE: Create the order in the database, saving the calculated VAT.
+    (C)REATE: Create the order in the database with Event Date logic.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
         return jsonify({'status': 'error', 'message': "Your cart is empty. Please try again."}), 400
 
+    # 1. Validate Items and Calculate Base Totals
     valid_cart_items = {} 
     ala_carte_subtotal = 0.0
     buffet_subtotal = 0.0
-    total_price = 0.0
+    total_price = 0.0 # Gross Subtotal
 
     for item_id, item_data in cart_session.items():
         if 'product_id' not in item_data or 'price' not in item_data:
@@ -848,9 +904,32 @@ def place_order():
             buffet_subtotal += line_total
         else:
             ala_carte_subtotal += line_total
+            
     if not valid_cart_items:
         return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
 
+    # 2. Retrieve Event Details from Session
+    event_date_str = session.get('event_date_str')
+    event_time_str = session.get('event_time_str')
+    
+    event_date = None
+    event_time = None
+    
+    # Parse the date string back into a Python date object
+    if event_date_str:
+        try:
+            event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass # Handle error gracefully or log it
+            
+    # Parse the time string back into a Python time object
+    if event_time_str:
+        try:
+            event_time = datetime.strptime(event_time_str, '%H:%M').time()
+        except ValueError:
+            pass
+
+    # 3. Calculate Financials (Discounts & VAT)
     customer = Customer.query.get(session['customer_id'])
 
     voucher_discount_amt = 0.0
@@ -872,36 +951,47 @@ def place_order():
 
     total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
     
-    # --- FINAL VAT CALCULATION FOR DB ---
+    # --- VAT CALCULATION ---
     taxable_base = subtotal - total_discount_amount
     vat_amount = taxable_base * VAT_RATE
     final_total = taxable_base + vat_amount + delivery_fee 
-    # --- END FINAL VAT CALCULATION ---
+    # -----------------------
 
     try:
         special_instructions = request.form.get('special_instructions')
+        
+        # 4. Create Order Object
         new_order = Order(
             customer_id=session['customer_id'],
             total_amount=subtotal,
             discount_amount=total_discount_amount,
-            vat_amount=vat_amount, # <-- SAVE VAT TO DB
+            vat_amount=vat_amount, 
             final_amount=final_total,
-            status="Pending",
+            
+            # UPDATED STATUS
+            status="Pending Approval", 
+            
+            # NEW EVENT FIELDS
+            event_date=event_date,
+            event_time=event_time,
+            
             order_type=session.get('order_type', 'Pickup'),
             delivery_address=session.get('delivery_address', 'Store Pickup'),
             delivery_fee=delivery_fee,
             special_instructions=special_instructions
         )
         db.session.add(new_order)
-        db.session.commit()
+        db.session.commit() # Commit first to get the order_id
 
-        # ... (rest of order item saving logic) ...
+        # 5. Save Order Items
         for item_key, item_data in valid_cart_items.items():
+            # Handle composite keys for buffet items (e.g., "buffet_12")
             real_variant_id = item_data.get('variant_id', item_key)
             if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
                 final_variant_id = int(real_variant_id.split('_')[1])
             else:
                 final_variant_id = int(real_variant_id)
+                
             new_item = OrderItem(
                 order_id=new_order.order_id,
                 product_id=item_data['product_id'],
@@ -911,6 +1001,7 @@ def place_order():
             )
             db.session.add(new_item)
 
+        # 6. Update Voucher Usage
         if session.get('voucher_code'):
             voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
             if voucher_to_update:
@@ -919,20 +1010,27 @@ def place_order():
 
         db.session.commit()
 
+        # 7. Clear Session Data
         session.pop('cart', None)
         session.pop('voucher_code', None)
         session.pop('discount_percentage', None)
         session.pop('delivery_fee', None)
         session.pop('order_type', None)
         session.pop('delivery_address', None)
+        
+        # Clear Buffet Session Data
         session.pop('buffet_package', None)
         session.pop('buffet_recommendations', None)
         session.pop('buffet_sequence', None)
+        
+        # Clear New Event Data
+        session.pop('event_date_str', None)
+        session.pop('event_time_str', None)
 
         return jsonify({
             'status': 'success',
-            'message': f"Order #{new_order.order_id} has been placed successfully!",
-            'redirect_url': url_for('client_orders')
+            'message': f"Order #{new_order.order_id} has been placed! Please wait for admin approval.",
+            'redirect_url': url_for('client_orders') # Redirects to the Orders page
         })
 
     except Exception as e:
@@ -1111,19 +1209,38 @@ def buffet_wizard_reco():
         flash("Please select at least one category to include in your buffet.", 'danger')
         return redirect(url_for('buffet_wizard_start'))
 
-    recommendations = {}
-    for category_name in selected_categories:
-        if category_name in ['Noodles', 'Dessert']:
-            count = (guest_count + 14) // 15
-        else:
-            count = (guest_count + 9) // 10
+    # --- NEW: SORT THE SEQUENCE ---
+    # This ensures Mains come first, then Carbs, then Sides, then Dessert
+    def get_sort_index(cat_name):
+        try:
+            return CATEGORY_ORDER.index(cat_name)
+        except ValueError:
+            return 999 # Put unknown/custom categories at the end
+            
+    selected_categories.sort(key=get_sort_index)
+    # ------------------------------
 
-        recommendations[category_name] = count
+    recommendations = {}
+    
+    # Shared Mains Logic
+    total_mains_needed = (guest_count + 9) // 10
+    recommendations['Shared_Mains'] = total_mains_needed
+
+    for category_name in selected_categories:
+        if category_name in MAIN_CATEGORIES:
+            continue
+        elif category_name in ['Pasta & Noodles', 'Vegetables', 'Dessert']:
+            # Adjust this ratio if needed (e.g. 1 per 15 for sides)
+            count = (guest_count + 14) // 15
+            recommendations[category_name] = count
+        else:
+            recommendations[category_name] = (guest_count + 9) // 10
 
     session['buffet_recommendations'] = recommendations
     session['buffet_guest_count'] = guest_count
     session['buffet_package'] = {}
-
+    
+    # Save the SORTED sequence
     session['buffet_sequence'] = selected_categories
 
     return redirect(url_for('buffet_wizard_select', category_name=selected_categories[0]))
@@ -1139,24 +1256,42 @@ def buffet_wizard_select(category_name):
         return redirect(url_for('buffet_wizard_start'))
 
     category_obj = Category.query.filter_by(name=category_name, is_active=True).first_or_404()
-
-    required_count = recommendations.get(category_name, 0)
-
     products = Product.query.filter_by(category_id=category_obj.category_id)\
                             .order_by(Product.name.asc()).all()
 
     buffet_package = session.get('buffet_package', {})
-        
+    
+    # --- SHARED MAINS LOGIC ---
+    is_main_category = category_name in MAIN_CATEGORIES
+    
+    if is_main_category:
+        required_count = recommendations.get('Shared_Mains', 0)
+        current_count = 0
+        for item in buffet_package.values():
+            if item['category'] in MAIN_CATEGORIES:
+                current_count += item['quantity']
+    else:
+        required_count = recommendations.get(category_name, 0)
+        current_count = 0
+        for item in buffet_package.values():
+            if item['category'] == category_name:
+                current_count += item['quantity']
+
+    # Filter selections for display
     current_selections = []
-    current_count = 0
+    current_total_price = 0.0 # <-- NEW: Calculate Total Price
+    
     for variant_id, item_data in buffet_package.items():
+        # Calculate total for the badge
+        current_total_price += (item_data['price'] * item_data['quantity'])
+        
         if item_data['category'] == category_name:
             item_data['variant_id'] = variant_id
             current_selections.append(item_data)
-            current_count += item_data['quantity']
 
+    # Navigation Logic
     current_index = wizard_sequence.index(category_name)
-
+    
     if current_index > 0:
         previous_category = wizard_sequence[current_index - 1]
         previous_url = url_for('buffet_wizard_select', category_name=previous_category)
@@ -1170,16 +1305,33 @@ def buffet_wizard_select(category_name):
         next_category = wizard_sequence[current_index + 1]
         next_url = url_for('buffet_wizard_select', category_name=next_category)
 
+    # Button Logic
+    min_to_proceed = required_count
+    if is_main_category:
+        remaining_categories = wizard_sequence[current_index+1:]
+        has_more_mains = any(cat in MAIN_CATEGORIES for cat in remaining_categories)
+        if has_more_mains:
+            min_to_proceed = 0 
+        else:
+            min_to_proceed = required_count
+
     return render_template(
         'client_buffet_select.html',
         category_name=category_name,
         products=products,
         required_count=required_count,
         current_count=current_count,
+        min_to_proceed=min_to_proceed,
         current_selections=current_selections,
         next_url=next_url,
         previous_url=previous_url,
-        is_final_category=is_final_category
+        is_final_category=is_final_category,
+        is_main_category=is_main_category,
+        
+        # --- NEW VARIABLES FOR UI ---
+        current_step=current_index + 1,
+        total_steps=len(wizard_sequence),
+        current_total_price=current_total_price
     )
 
 @app.route('/buffet-builder/checkout', methods=['GET'])
@@ -1209,42 +1361,34 @@ def buffet_commit_package():
     main_cart = session.get('cart', {})
 
     for variant_id, item_data in buffet_package.items():
-        if variant_id in main_cart and not main_cart[variant_id].get('is_buffet_item', False):
-            new_key = f"buffet_{variant_id}"
+        # --- FIX: ALWAYS PREFIX BUFFET ITEMS ---
+        # Previously, we checked if the item existed and tried to merge.
+        # Now, we force a unique 'buffet_' key. This ensures that even if 
+        # the user adds the exact same item via A La Carte (which uses raw variant_id),
+        # they will be treated as separate entries in the cart.
+        cart_key = f"buffet_{variant_id}"
 
-            if new_key in main_cart:
-                main_cart[new_key]['quantity'] += item_data['quantity']
-            else:
-                main_cart[new_key] = {
-                    'product_id': item_data['product_id'],
-                    'name': item_data['product_name'], 
-                    'variant_id': variant_id,
-                    'variant_name': item_data['variant_name'],
-                    'price': item_data['price'],
-                    'image': item_data['image'],
-                    'quantity': item_data['quantity'],
-                    'is_buffet_item': True
-                }
+        if cart_key in main_cart:
+            main_cart[cart_key]['quantity'] += item_data['quantity']
         else:
-            if variant_id in main_cart:
-                main_cart[variant_id]['quantity'] += item_data['quantity']
-            else:
-                main_cart[variant_id] = {
-                    'product_id': item_data['product_id'],
-                    'name': item_data['product_name'],
-                    'variant_id': variant_id,
-                    'variant_name': item_data['variant_name'],
-                    'price': item_data['price'],
-                    'image': item_data['image'],
-                    'quantity': item_data['quantity'],
-                    'is_buffet_item': True
-                }
+            main_cart[cart_key] = {
+                'product_id': item_data['product_id'],
+                'name': item_data['product_name'],
+                'variant_id': variant_id, # Store raw ID inside for reference
+                'variant_name': item_data['variant_name'],
+                'price': item_data['price'],
+                'image': item_data['image'],
+                'quantity': item_data['quantity'],
+                'is_buffet_item': True
+            }
 
     session['cart'] = main_cart
 
+    # Clear the wizard session
     session.pop('buffet_package', None)
     session.pop('buffet_recommendations', None)
     session.pop('buffet_sequence', None)
+    session.pop('buffet_guest_count', None)
 
     flash("Success! Your custom buffet package has been added to the cart.", 'success')
     return redirect(url_for('client_cart'))
@@ -1309,20 +1453,29 @@ def buffet_add_item():
     product = variant.product
     category_name = product.category.name
 
-    current_category_count = 0
-    for item in buffet_cart.values():
-        if item['category'] == category_name:
-            current_category_count += item['quantity']
+    # Shared Limit Validation
+    if category_name in MAIN_CATEGORIES:
+        current_count = 0
+        for item in buffet_cart.values():
+            if item['category'] in MAIN_CATEGORIES:
+                current_count += item['quantity']
+        recommended_count = recommendations.get('Shared_Mains', 0)
+    else:
+        current_count = 0
+        for item in buffet_cart.values():
+            if item['category'] == category_name:
+                current_count += item['quantity']
+        recommended_count = recommendations.get(category_name, 0)
     
-    potential_new_count = current_category_count + quantity
-    recommended_count = recommendations.get(category_name, 0)
+    potential_new_count = current_count + quantity
 
     if potential_new_count > recommended_count and not force_add:
         return jsonify({
             'status': 'warning',
-            'message': f"You've selected {potential_new_count} {category_name} items, but we only recommend {recommended_count}. Add anyway?"
+            'message': f"You've selected {potential_new_count} items for this section, but the recommendation is {recommended_count}. Add anyway?"
         })
 
+    # Add to cart
     if variant_id in buffet_cart:
         buffet_cart[variant_id]['quantity'] += quantity
     else:
@@ -1338,22 +1491,15 @@ def buffet_add_item():
     
     session['buffet_package'] = buffet_cart
     
-    new_counts = {}
-    total_items = 0
-    for cat in recommendations.keys():
-        new_counts[cat] = 0
-    
+    # --- NEW: CALCULATE NEW TOTAL ---
+    new_total_price = 0.0
     for item in buffet_cart.values():
-        item_cat = item['category']
-        if item_cat in new_counts:
-            new_counts[item_cat] += item['quantity']
-        total_items += item['quantity']
-        
+        new_total_price += (item['price'] * item['quantity'])
+
     return jsonify({
         'status': 'success',
-        'message': f"Added {product.name} ({variant.size_name})",
-        'new_counts': new_counts,
-        'total_items': total_items
+        'message': f"Added {product.name}",
+        'new_total_price': new_total_price # Return this to JS
     })
 
 @app.route('/buffet/remove_item/<string:variant_id>/<string:category_name>')
@@ -1382,22 +1528,38 @@ def buffet_review_and_add():
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
-    # 1. Get "New Orders Today"
+    # 1. Get "New Orders Today" (All orders except Declined)
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    orders_today_count = Order.query.filter(Order.order_date >= today_start).count()
+    orders_today_count = Order.query.filter(
+        Order.order_date >= today_start,
+        Order.status != 'Declined'
+    ).count()
 
-    # 2. Get "Total Sales this Month"
+    # 2. Get "Total Sales this Month" (Only Confirmed Orders)
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    total_sales_month_query = db.session.query(func.sum(Order.final_amount)).filter(Order.order_date >= month_start).scalar()
+    
+    # Filter for valid sales only (Approved, In Progress, Completed)
+    valid_statuses = ['Approved', 'In Progress', 'Completed']
+    
+    total_sales_month_query = db.session.query(func.sum(Order.final_amount)).filter(
+        Order.order_date >= month_start,
+        Order.status.in_(valid_statuses)
+    ).scalar()
+    
     total_sales_month = total_sales_month_query or 0.0
 
     # 3. Get "New Customer Registrations" this month
     new_customers_month_count = Customer.query.filter(Customer.registration_date >= month_start).count()
 
-    # 4. Get recent 5 pending orders
-    recent_pending_orders = Order.query.filter_by(status='Pending').order_by(Order.order_date.asc()).limit(5).all()
-
-    # NOTE: Online Riders/Pending Verifications stats removed since Riders are deleted.
+    # 4. Get "Recent Pending Requests" (Updated Status)
+    # We want the ones waiting for approval, ordered by Event Date (so urgency is visible)
+    recent_pending_orders = Order.query.filter_by(status='Pending Approval')\
+        .order_by(Order.event_date.asc())\
+        .limit(5)\
+        .all()
+        
+    # 5. Get Pending Verifications (For Discount IDs)
+    pending_verifications_count = Customer.query.filter(Customer.discount_status == 'Pending').count()
 
     return render_template(
         'admin_dashboard.html',
@@ -1405,8 +1567,7 @@ def admin_dashboard():
         total_sales_month=total_sales_month,
         new_customers_month_count=new_customers_month_count,
         recent_pending_orders=recent_pending_orders,
-        online_riders_count=0, # Hardcoded 0
-        pending_verifications_count=0 # Hardcoded 0
+        pending_verifications_count=pending_verifications_count
     )
 
 
@@ -1449,28 +1610,34 @@ def admin_orders():
 @login_required
 def admin_update_order_status(order_id):
     """
-    (U)PDATE: Update an order's status (Admin-only).
-    Rider assignment logic removed.
+    (U)PDATE: Update an order's status and save decline reason if applicable.
     """
     order = Order.query.get_or_404(order_id)
     new_status = request.form.get('status')
+    decline_reason = request.form.get('decline_reason') # Get the reason from the modal form
     
     try:
+        # Only update if a new status is provided and it's different from the current one
         if new_status and new_status != order.status:
             order.status = new_status
-            flash(f"Order #{order.order_id} status updated to '{new_status}'.", 'success')
+            
+            # If the status is specifically 'Declined', save the reason text
+            if new_status == 'Declined' and decline_reason:
+                order.decline_reason = decline_reason
+            
+            # If Approved, we might want to clear any previous decline reason (optional)
+            if new_status == 'Approved':
+                order.decline_reason = None
+
+            db.session.commit()
+            flash(f"Order #{order.order_id} updated to '{new_status}'.", 'success')
         else:
              flash("No status change submitted.", 'info')
-
-        db.session.commit()
 
     except Exception as e:
         db.session.rollback()
         flash(f"Error updating order: {e}", 'danger')
 
-    current_filter = request.args.get('status')
-    if current_filter:
-        return redirect(url_for('admin_orders', status=current_filter))
     return redirect(url_for('admin_orders'))
 
 
