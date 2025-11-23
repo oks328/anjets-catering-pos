@@ -17,6 +17,8 @@ from flask_login import login_user, logout_user, current_user, login_required
 from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem, Review # Rider removed
 from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm, ReviewForm # All Rider forms removed
 from functools import wraps
+from threading import Thread # <--- MAKE SURE THIS IS IMPORTED
+from flask_mail import Message
 from flask_mail import Message
 from app import mail
 from app.forms import RequestResetForm, ResetPasswordForm
@@ -1539,7 +1541,7 @@ def admin_dashboard():
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     # Filter for valid sales only (Approved, In Progress, Completed)
-    valid_statuses = ['Approved', 'In Progress', 'Completed']
+    valid_statuses = ['Approved', 'In Progress', 'Up for Delivery', 'Completed']
     
     total_sales_month_query = db.session.query(func.sum(Order.final_amount)).filter(
         Order.order_date >= month_start,
@@ -1606,31 +1608,64 @@ def admin_orders():
         available_riders=[] # Pass empty list
     )
 
+def send_order_email(order, subject, template_name):
+    """
+    Helper to send async order emails.
+    """
+    msg = Message(
+        subject,
+        recipients=[order.customer.email],
+        sender=current_app.config.get('MAIL_USERNAME')
+    )
+    msg.html = render_template(template_name, order=order)
+    
+    # Send asynchronously so the Admin doesn't have to wait
+    app = current_app._get_current_object()
+    Thread(target=send_async_email, args=(app, msg)).start()
+
 @app.route('/admin/orders/update_status/<int:order_id>', methods=['POST'])
 @login_required
 def admin_update_order_status(order_id):
     """
-    (U)PDATE: Update an order's status and save decline reason if applicable.
+    (U)PDATE: Update status and send Email Notifications (Approved, Declined, Delivery, Completed).
     """
     order = Order.query.get_or_404(order_id)
     new_status = request.form.get('status')
-    decline_reason = request.form.get('decline_reason') # Get the reason from the modal form
+    decline_reason = request.form.get('decline_reason')
     
     try:
-        # Only update if a new status is provided and it's different from the current one
         if new_status and new_status != order.status:
+            old_status = order.status # Track old status to prevent spam
             order.status = new_status
             
-            # If the status is specifically 'Declined', save the reason text
+            # 1. Handle Declined Reason
             if new_status == 'Declined' and decline_reason:
                 order.decline_reason = decline_reason
             
-            # If Approved, we might want to clear any previous decline reason (optional)
+            # 2. Clear reason if Approved (in case it was declined before)
             if new_status == 'Approved':
                 order.decline_reason = None
 
             db.session.commit()
-            flash(f"Order #{order.order_id} updated to '{new_status}'.", 'success')
+            
+            # 3. --- EMAIL NOTIFICATION LOGIC ---
+            # Only send email if status actually changed
+            
+            if new_status == 'Approved' and old_status != 'Approved':
+                send_order_email(order, f"Order #{order.order_id} Confirmed - Anjet's Catering", 'email_order_approved.html')
+                
+            elif new_status == 'Declined':
+                send_order_email(order, f"Update on Order #{order.order_id} - Anjet's Catering", 'email_order_declined.html')
+                
+            elif new_status == 'Up for Delivery' and old_status != 'Up for Delivery':
+                send_order_email(order, f"Order #{order.order_id} is Out for Delivery! 🚚", 'email_order_delivery.html')
+
+            # --- NEW: COMPLETED EMAIL ---
+            elif new_status == 'Completed' and old_status != 'Completed':
+                send_order_email(order, f"Order #{order.order_id} Completed - Thank You!", 'email_order_completed.html')
+            # ----------------------------
+
+            flash(f"Order #{order.order_id} updated to '{new_status}' and customer notified.", 'success')
         else:
              flash("No status change submitted.", 'info')
 

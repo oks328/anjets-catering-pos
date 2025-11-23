@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h2 style="color: #dc3545;">Update on Order #{{ order.order_id }}</h2>
+        <p>Dear {{ order.customer.name }},</p>
+        <p>We regret to inform you that we cannot fulfill your order at this time.</p>
+        
+        <div style="background: #fff5f5; padding: 15px; margin: 20px 0; border-left: 4px solid #dc3545;">
+            <p><strong>Reason:</strong></p>
+            <p style="font-style: italic;">"{{ order.decline_reason }}"</p>
+        </div>
+
+        <p>Please contact us if you would like to reschedule or modify your order.</p>
+        
+        <a href="{{ url_for('client_orders', _external=True) }}" 
+           style="background-color: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+           View Order Status
+        </a>
+        
+        <p style="margin-top: 30px; color: #888; font-size: 12px;">Anjet's Catering Service</p>
+    </div>
+</body>
+</html>

@@ -121,6 +121,12 @@
                                         <i class="fa-solid fa-fire-burner"></i> Preparing
                                     </span>
 
+                                {% elif order.status == 'Up for Delivery' %}
+    <div style="background: #e0e7ff; color: #3730a3; padding: 8px; border-radius: 6px; font-size: 0.85rem;">
+        <i class="fa-solid fa-truck-fast"></i> <strong>Out for Delivery</strong>
+        <p style="margin: 4px 0 0 0; font-size: 0.8rem;">Rider is on the way to {{ order.delivery_address }}.</p>
+    </div>
+
                                 {% elif order.status == 'Completed' %}
                                     <span style="background: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85rem;">
                                         Completed
@@ -133,7 +139,7 @@
                             </td>
                             
                             <td class="action-buttons" style="vertical-align: top;">
-                                {% if order.status in ['Approved', 'In Progress', 'Completed'] %}
+                                {% if order.status in ['Approved', 'In Progress', 'Up for Delivery' ,'Completed'] %}
                                     <a href="{{ url_for('client_view_receipt', order_id=order.order_id) }}" 
                                        class="btn btn-secondary" 
                                        title="Print Receipt"

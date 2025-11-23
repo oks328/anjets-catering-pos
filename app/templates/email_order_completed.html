@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h2 style="color: #333;">Thank You for Your Order!</h2>
+        <p>Dear {{ order.customer.name }},</p>
+        <p>Your order <strong>#{{ order.order_id }}</strong> has been marked as completed. We hope you enjoyed the food!</p>
+        
+        <div style="background: #f9fafb; padding: 15px; margin: 20px 0; border-left: 4px solid #333;">
+            <p><strong>Final Amount Paid:</strong> ₱{{ "%.2f"|format(order.final_amount) }}</p>
+            <p><strong>Date Completed:</strong> {{ order.order_date.strftime('%B %d, %Y') }}</p>
+        </div>
+
+        <p>You can view or print your official receipt by clicking the button below:</p>
+        
+        <a href="{{ url_for('client_view_receipt', order_id=order.order_id, _external=True) }}" 
+           style="background-color: #333; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+           View Official Receipt
+        </a>
+        
+        <p style="margin-top: 30px; color: #888; font-size: 12px;">
+            We look forward to serving you again!<br>
+            Anjet's Catering Service
+        </p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h2 style="color: #007bff;">Your Food is on the Way! 🚚</h2>
+        <p>Dear {{ order.customer.name }},</p>
+        <p>Good news! Your order <strong>#{{ order.order_id }}</strong> has left our kitchen and is out for delivery.</p>
+        
+        <div style="background: #e7f1ff; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
+            <p><strong>Delivering to:</strong></p>
+            <p>{{ order.delivery_address }}</p>
+            <p><strong>Amount Due:</strong> ₱{{ "%.2f"|format(order.final_amount) }}</p>
+        </div>
+
+        <p>Please ensure someone is available to receive the items.</p>
+        <p>Thank you for choosing Anjet's Catering!</p>
+        
+        <p style="margin-top: 30px; color: #888; font-size: 12px;">Anjet's Catering Service</p>
+    </div>
+</body>
+</html>

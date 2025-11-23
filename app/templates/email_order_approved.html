@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h2 style="color: #28a745;">Great news! Your Order is Approved.</h2>
+        <p>Dear {{ order.customer.name }},</p>
+        <p>We have reviewed and accepted your order <strong>#{{ order.order_id }}</strong>.</p>
+        
+        <div style="background: #f9f9f9; padding: 15px; margin: 20px 0; border-left: 4px solid #28a745;">
+            <p><strong>Event Date:</strong> {{ order.event_date.strftime('%B %d, %Y') }}</p>
+            <p><strong>Time:</strong> {{ order.event_time.strftime('%I:%M %p') if order.event_time else 'TBD' }}</p>
+            <p><strong>Total Amount:</strong> ₱{{ "%.2f"|format(order.final_amount) }}</p>
+        </div>
+
+        <p>Our kitchen has added this to the schedule. We will start preparing your food on the event day.</p>
+        <p>You can view the full details or print your receipt here:</p>
+        <a href="{{ url_for('client_orders', _external=True) }}" 
+           style="background-color: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+           View Order
+        </a>
+        
+        <p style="margin-top: 30px; color: #888; font-size: 12px;">Anjet's Catering Service</p>
+    </div>
+</body>
+</html>

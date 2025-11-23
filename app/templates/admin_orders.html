@@ -107,6 +107,10 @@
                             <span style="background: #cffafe; color: #155e75; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
                                 Kitchen
                             </span>
+                        {% elif order.status == 'Up for Delivery' %}
+                            <span style="background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
+                                <i class="fa-solid fa-truck-fast"></i> Out for Delivery
+                            </span>
                         {% elif order.status == 'Completed' %}
                             <span style="background: #f3f4f6; color: #374151; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; display: inline-block;">
                                 Completed
@@ -117,7 +121,6 @@
                     </td>
 
                     <td class="action-buttons">
-                        
                         {% if order.status == 'Pending Approval' %}
                             <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" style="display:inline;">
                                 <input type="hidden" name="status" value="Approved">
@@ -142,7 +145,13 @@
                             <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" id="form-update-{{ order.order_id }}" style="margin-bottom: 0.5rem;">
                                 <select name="status" class="form-control" style="min-width: 130px; font-size: 0.85rem; padding: 0.3rem;" onchange="this.form.submit()">
                                     <option value="{{ order.status }}" selected disabled>{{ order.status }}</option>
+                                    
                                     <option value="In Progress">In Progress</option>
+                                    
+                                    {% if order.order_type == 'Delivery' %}
+                                        <option value="Up for Delivery">Up for Delivery</option>
+                                    {% endif %}
+                                    
                                     <option value="Completed">Completed</option>
                                 </select>
                             </form>
