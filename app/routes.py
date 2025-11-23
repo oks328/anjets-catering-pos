@@ -204,7 +204,7 @@ def client_view_receipt(order_id):
     # 2. Security Check: Ensure the order belongs to the logged-in customer
     if order.customer_id != session['customer_id']:
         flash("You do not have permission to view that receipt.", 'danger')
-        return redirect(url_for('client_my_account'))
+        return redirect(url_for('client_orders'))
 
     # 3. Render the receipt template (which you should have already created)
     return render_template(
@@ -249,12 +249,10 @@ def admin_login():
 @customer_login_required
 def client_my_account():
     """
-    (R)EAD: Display the customer's account page.
+    (R)EAD: Redirects the main account URL directly to the profile.
+    This removes the redundant dashboard step.
     """
-    # We no longer need to fetch orders here since they are on the cart page
-    return render_template(
-        'client_account.html'
-    )
+    return redirect(url_for('client_profile'))
 
 @app.route('/my-account/profile', methods=['GET', 'POST'])
 @customer_login_required
@@ -315,6 +313,26 @@ def client_profile():
         form=form,
         upload_form=upload_form,
         customer=customer
+    )
+
+@app.route('/my-account/orders')
+@customer_login_required
+def client_orders():
+    """
+    (R)EAD: Display the customer's order history (Active and Past).
+    """
+    customer_id = session['customer_id']
+    
+    # Fetch all orders, newest first
+    orders = Order.query\
+        .filter_by(customer_id=customer_id)\
+        .order_by(Order.order_date.desc())\
+        .all()
+
+    return render_template(
+        'client_orders.html',
+        orders=orders,
+        has_reviewed_product=has_reviewed_product # Pass the helper function
     )
 
 @app.route('/my-account/upload-id', methods=['POST'])
@@ -380,7 +398,7 @@ def client_review_product(product_id):
     # Check 1: Prevent submission if already reviewed (using the new helper)
     if has_reviewed_product(customer_id, product_id):
         flash("You have already submitted a review for this product.", 'danger')
-        return redirect(url_for('client_my_account'))
+        return redirect(url_for('client_orders'))
     
     # Check 2: Ensure the product was bought in a COMPLETED order
     has_bought = db.session.query(OrderItem.order_item_id)\
@@ -393,7 +411,7 @@ def client_review_product(product_id):
 
     if not has_bought:
         flash("You can only review products from completed orders that you purchased.", 'danger')
-        return redirect(url_for('client_my_account'))
+        return redirect(url_for('client_orders'))
 
     if form.validate_on_submit():
         new_review = Review(
@@ -407,7 +425,7 @@ def client_review_product(product_id):
             db.session.add(new_review)
             db.session.commit()
             flash(f"Thank you for reviewing {product.name}!", 'success')
-            return redirect(url_for('client_my_account'))
+            return redirect(url_for('client_orders'))
         except Exception as e:
             db.session.rollback()
             flash(f"Error submitting review: {e}", 'danger')
@@ -530,13 +548,6 @@ def client_cart():
         })
 
     customer = Customer.query.get(session['customer_id'])
-
-    # Fetch order history for the customer
-    customer_id = session['customer_id']
-    orders = Order.query\
-        .filter_by(customer_id=customer_id)\
-        .order_by(Order.order_date.desc())\
-        .all()
 
     voucher_discount_amt = 0.0
     senior_discount_amt = 0.0
@@ -921,7 +932,7 @@ def place_order():
         return jsonify({
             'status': 'success',
             'message': f"Order #{new_order.order_id} has been placed successfully!",
-            'redirect_url': url_for('client_my_account')
+            'redirect_url': url_for('client_orders')
         })
 
     except Exception as e:

@@ -8,18 +8,38 @@
         <h3>Hello, {{ session['customer_name'] }}!</h3>
         <ul>
             <li><a href="{{ url_for('client_profile') }}">My Profile</a></li>
+            <li><a href="{{ url_for('client_orders') }}">My Orders</a></li>
         </ul>
     </aside>
 
-    <section class="account-content">
-        <h2>Welcome back!</h2>
+    <section class="account-content" style="background: transparent; padding: 0 !important; border: none; box-shadow: none;">
+        <h2 style="margin-bottom: 2rem;">Welcome back!</h2>
         
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+            
+            <div class="card" style="text-align: center; padding: 2.5rem;">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem; color: var(--brand-dark);">
+                    <i class="fa-regular fa-user"></i>
+                </div>
+                <h3>My Profile</h3>
+                <p style="color: var(--text-gray); margin-bottom: 1.5rem;">Update your personal information, password, and verification ID.</p>
                 <a href="{{ url_for('client_profile') }}" class="btn btn-secondary">
                     Manage Profile
                 </a>
             </div>
-        </div>
 
+            <div class="card" style="text-align: center; padding: 2.5rem;">
+                <div style="font-size: 2.5rem; margin-bottom: 1rem; color: var(--brand-red);">
+                    <i class="fa-solid fa-box-open"></i>
+                </div>
+                <h3>My Orders</h3>
+                <p style="color: var(--text-gray); margin-bottom: 1.5rem;">Track active deliveries and view your purchase history.</p>
+                <a href="{{ url_for('client_orders') }}" class="btn btn-secondary">
+                    View Orders
+                </a>
+            </div>
+
+        </div>
     </section>
 </div>
 {% endblock %}
