@@ -143,27 +143,6 @@
     </div>
     <form id="modalDeleteForm" method="POST" style="display: none"></form>
 
-    <div id="csvImportModal" class="modal">
-    <div class="modal-content">
-        <span class="modal-close-btn" id="csvModalCloseBtn">&times;</span>
-        <h4>Import Products from CSV</h4>
-        <p>Upload a CSV file with the required columns. <br>
-            <strong>Required columns:</strong> `name`, `description`, `category_name`, `has_variants`, `price`, `size_name`
-        </p>
-
-        <form id="csvImportForm" method="POST" action="{{ url_for('admin_import_products_csv') }}" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="csv_file">CSV File</label>
-                <input type="file" id="csv_file" name="csv_file" class="form-control" accept=".csv" required>
-            </div>
-            <div class="modal-actions" style="margin-top: 1rem;">
-                <button type="button" id="csvModalCancel" class="btn btn-secondary">Cancel</button>
-                <button type="submit" id="csvImportSubmit" class="btn btn-primary">Upload and Import</button>
-            </div>
-        </form>
-    </div>
-</div>
-
     <div id="toastContainer"></div>
     
     <script>
