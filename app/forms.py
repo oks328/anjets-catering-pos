@@ -7,7 +7,6 @@ from wtforms import StringField, PasswordField, SubmitField, TextAreaField, Bool
 from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
 from app.models import Customer
-# The Rider model import has been removed.
 
 
 def password_complexity(form, field):
@@ -28,7 +27,6 @@ def email_exists(form, field):
     if customer:
         raise ValidationError('That email address is already in use. Please log in.')
     
-# The 'rider_email_exists' validator has been removed.
 
 class AdminLoginForm(FlaskForm):
     """
@@ -202,12 +200,14 @@ class CustomerRegisterForm(FlaskForm):
         validators=[DataRequired(), Length(min=3, max=255)]
     )
     
-    # --- THIS WAS MISSING ---
     contact_number = StringField(
         'Contact Number',
-        validators=[DataRequired(), Length(min=11, max=11), Regexp(r'^\d+$', message="Phone number must contain only digits.")]
+        validators=[
+            DataRequired(), 
+            Length(min=11, max=11, message="Phone number must be exactly 11 digits."), 
+            Regexp(r'^\d+$', message="Phone number must contain only digits.")
+        ]
     )
-    # ------------------------
 
     address = TextAreaField(
         'Address',
@@ -225,7 +225,7 @@ class CustomerRegisterForm(FlaskForm):
     
     email = StringField(
         'Email Address',
-        validators=[DataRequired(), Email(), email_exists] # email_exists checks for duplicates
+        validators=[DataRequired(), Email(), email_exists]
     )
 
     password = PasswordField(
@@ -241,57 +241,42 @@ class CustomerRegisterForm(FlaskForm):
     submit = SubmitField('Create Account')
     
 class CustomerLoginForm(FlaskForm):
-    """
-    Form for existing customers to log in.
-    """
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email()]
-    )
-    password = PasswordField(
-        'Password',
-        validators=[DataRequired()]
-    )
+    email = StringField('Email Address', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
     submit = SubmitField('Log In')
 
 class CustomerEditForm(FlaskForm):
-    """
-    Form for admin to edit a customer's details.
-    """
-    name = StringField(
-        'Full Name',
-        validators=[DataRequired(), Length(min=3, max=255)]
-    )
+    name = StringField('Full Name', validators=[DataRequired(), Length(min=3, max=255)])
+    
+    # ADDED STRICT VALIDATION HERE
     contact_number = StringField(
         'Contact Number',
-        validators=[DataRequired(), Length(min=7, max=20)]
+        validators=[
+            DataRequired(), 
+            Length(min=11, max=11, message="Phone number must be exactly 11 digits."),
+            Regexp(r'^\d+$', message="Phone number must contain only digits.")
+        ]
     )
-    email = StringField(
-        'Email Address',
-        validators=[DataRequired(), Email()]
-    )
-    password = PasswordField(
-        'New Password (Optional)',
-        validators=[Optional(), Length(min=8), password_complexity]
-    )
-    confirm_password = PasswordField(
-        'Confirm New Password',
-        validators=[EqualTo('password', message='Passwords must match.')]
-    )
+    
+    email = StringField('Email Address', validators=[DataRequired(), Email()])
+    password = PasswordField('New Password (Optional)', validators=[Optional(), Length(min=8), password_complexity])
+    confirm_password = PasswordField('Confirm New Password', validators=[EqualTo('password', message='Passwords must match.')])
     submit = SubmitField('Update Customer')
 
 class CustomerProfileForm(FlaskForm):
-    """
-    Form for customers to edit their own profile.
-    """
-    name = StringField(
-        'Full Name',
-        validators=[DataRequired(), Length(min=3, max=255)]
-    )
+    name = StringField('Full Name', validators=[DataRequired(), Length(min=3, max=255)])
+    
+    # ADDED STRICT VALIDATION HERE
     contact_number = StringField(
         'Contact Number',
-        validators=[DataRequired(), Length(min=7, max=20)]
+        validators=[
+            DataRequired(), 
+            Length(min=11, max=11, message="Phone number must be exactly 11 digits."),
+            Regexp(r'^\d+$', message="Phone number must contain only digits.")
+        ]
     )
+    
+    landmark = StringField('Landmark (Optional)', validators=[Optional(), Length(max=255)]) # Ensure this exists if used
     birthdate = DateField('Birthdate', validators=[Optional()])
     submit = SubmitField('Update Profile')
 

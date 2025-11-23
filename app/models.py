@@ -34,6 +34,7 @@ class Product(db.Model):
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     has_variants = db.Column(db.Boolean, default=False, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     
     image_file = db.Column(db.String(100), nullable=False, default='default.jpg')
 
@@ -183,7 +184,6 @@ class Voucher(db.Model):
     max_uses = db.Column(db.Integer, nullable=True) 
     current_uses = db.Column(db.Integer, nullable=False, default=0)
 
-# app/models.py (Replace the entire Review class)
 
 class Review(db.Model):
     """

@@ -39,28 +39,25 @@
 
         <div class="cart-totals">
             <div class="totals-grid">
-                <span>Subtotal:</span>
+                
+                <span>Subtotal (Base):</span>
                 <span>₱{{ "%.2f"|format(total_price) }}</span>
 
-                {% if voucher_discount_amt > 0 %}
-                    <span style="color: #28a745; font-weight: bold;">Voucher ({{ session.get('voucher_code') }}):</span>
-                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(voucher_discount_amt) }}</span>
+                {% if vat_exempt_sales > 0 %}
+                    <span style="color: #0d6efd; font-size: 0.9rem;">VAT-Exempt Sales:</span>
+                    <span style="color: #0d6efd; font-size: 0.9rem;">₱{{ "%.2f"|format(vat_exempt_sales) }}</span>
+                    
+                    <span style="color: #666; font-size: 0.9rem;">Vatable Sales:</span>
+                    <span style="color: #666; font-size: 0.9rem;">₱{{ "%.2f"|format(vatable_sales) }}</span>
                 {% endif %}
 
-                {% if senior_discount_amt > 0 %}
-                    <span style="color: #28a745; font-weight: bold;">Senior Discount (20%):</span>
-                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(senior_discount_amt) }}</span>
+                {% if total_discount_amount > 0 %}
+                    <span style="color: #28a745; font-weight: bold;">Less Discount:</span>
+                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(total_discount_amount) }}</span>
                 {% endif %}
                 
-                {# NEW: Show PWD Discount #}
-                {% if pwd_discount_amt > 0 %}
-                    <span style="color: #28a745; font-weight: bold;">PWD Discount (Capped at ₱150):</span>
-                    <span style="color: #28a745; font-weight: bold;">- ₱{{ "%.2f"|format(pwd_discount_amt) }}</span>
-                {% endif %} 
-                
-                {# NEW: VAT DISPLAY LINE #}
-                <span style="font-weight: bold;">VAT (12%):</span>
-                    <span style="font-weight: bold;">+ ₱{{ "%.2f"|format(vat_amount) }}</span>
+                <span style="font-weight: bold;">Add: VAT (12%):</span>
+                <span style="font-weight: bold;">+ ₱{{ "%.2f"|format(vat_amount) }}</span>
                 
                 {% if delivery_fee > 0 %}
                     <span>Delivery Fee:</span>

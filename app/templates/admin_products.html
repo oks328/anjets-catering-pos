@@ -50,26 +50,37 @@
         </thead>
         <tbody>
           {% for product in products %}
-          <tr>
+          <tr class="{{ 'row-inactive' if not product.is_active else '' }}">
             <td>
                 <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
                      alt="{{ product.name }}" 
-                     class="admin-table-img">
+                     class="admin-table-img"
+                     style="{{ 'opacity: 0.5; filter: grayscale(100%);' if not product.is_active else '' }}">
             </td>
-            <td><strong>{{ product.name }}</strong></td>
+            <td>
+                <strong>{{ product.name }}</strong>
+                {% if not product.is_active %}
+                    <span style="background: #dc3545; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 5px; vertical-align: middle;">
+                        INACTIVE
+                    </span>
+                {% endif %}
+            </td>
             <td>{{ product.category.name }}</td>
 
             <td>
               {% if product.has_variants %}
               <a
                 href="{{ url_for('admin_product_variants', product_id=product.product_id) }}"
-                class="btn btn-secondary" 
+                class="btn btn-secondary btn-sm" 
                 >Manage Variants</a
               >
-              {% else %} {% if product.variants %} ₱{{
-              "%.2f"|format(product.variants[0].price) }} {% else %}
-              <span style="color: red">No price set</span>
-              {% endif %} {% endif %}
+              {% else %} 
+                  {% if product.variants %} 
+                    ₱{{ "%.2f"|format(product.variants[0].price) }} 
+                  {% else %}
+                    <span style="color: red">No price set</span>
+                  {% endif %} 
+              {% endif %}
             </td>
 
             <td class="action-buttons">
@@ -79,19 +90,33 @@
                 >Edit</a
               >
 
+              <form method="POST" action="{{ url_for('admin_toggle_product_status', product_id=product.product_id) }}" style="display:inline;">
+                  {% if product.is_active %}
+                      <button type="submit" class="btn btn-warning" title="Deactivate">
+                          <i class="fa-solid fa-ban"></i>
+                      </button>
+                  {% else %}
+                      <button type="submit" class="btn btn-success" title="Activate">
+                          <i class="fa-solid fa-check"></i>
+                      </button>
+                  {% endif %}
+              </form>
+
               <form
                 method="POST"
                 action="{{ url_for('admin_delete_product', product_id=product.product_id) }}"
                 style="display: inline"
                 class="delete-form-modal"
               >
-                <input type="submit" value="Delete" class="btn btn-danger" />
+                <button type="submit" class="btn btn-danger" title="Delete Permanently">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
               </form>
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="5">No products found. Add one!</td>
+            <td colspan="5" style="text-align: center; padding: 2rem;">No products found. Add one!</td>
           </tr>
           {% endfor %}
         </tbody>

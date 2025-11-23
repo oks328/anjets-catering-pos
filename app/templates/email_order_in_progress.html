@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee;">
+        <h2 style="color: #155e75;">Your Food is Being Prepared! 🍳</h2>
+        <p>Dear {{ order.customer.name }},</p>
+        <p>Great news! Our kitchen has started preparing your order <strong>#{{ order.order_id }}</strong>.</p>
+        
+        <div style="background: #cffafe; padding: 15px; margin: 20px 0; border-left: 4px solid #155e75;">
+            <p><strong>Status Update:</strong> In the Kitchen</p>
+            <p><strong>Event Date:</strong> {{ order.event_date.strftime('%B %d, %Y') }}</p>
+            <p><strong>Time:</strong> {{ order.event_time.strftime('%I:%M %p') if order.event_time else 'TBD' }}</p>
+        </div>
+
+        <p>We are ensuring everything is fresh and delicious for your event. You will receive another update when your order is ready for pickup or out for delivery.</p>
+        
+        <a href="{{ url_for('client_orders', _external=True) }}" 
+           style="background-color: #155e75; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+           Track Order Status
+        </a>
+        
+        <p style="margin-top: 30px; color: #888; font-size: 12px;">Anjet's Catering Service</p>
+    </div>
+</body>
+</html>

@@ -9,7 +9,7 @@
         <h2>Create an Account</h2>
         <p style="text-align: center; margin-bottom: 1rem;">Create an account to track your orders.</p>
         
-        <form method="POST" action="{{ url_for('client_register') }}" novalidate>
+        <form method="POST" action="{{ url_for('client_register') }}">
             {{ register_form.hidden_tag() }}
             
             <div class="form-group">
@@ -22,7 +22,14 @@
             
             <div class="form-group">
                 {{ register_form.contact_number.label }}
-                {{ register_form.contact_number(class="form-control", placeholder="e.g., 09123456789", type="tel", maxlength="11") }}
+                {# UPDATED INPUT: Restricts to numbers only #}
+                {{ register_form.contact_number(
+                    class="form-control", 
+                    placeholder="e.g., 09123456789", 
+                    type="tel", 
+                    maxlength="11",
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                ) }}
                 {% for error in register_form.contact_number.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
@@ -55,7 +62,8 @@
 
             <div class="form-group">
                 {{ register_form.email.label }}
-                {{ register_form.email(class="form-control", placeholder="e.g., juan@example.com") }}
+                {# UPDATED INPUT: Sets type="email" for browser validation #}
+                {{ register_form.email(class="form-control", placeholder="e.g., juan@example.com", type="email") }}
                 {% for error in register_form.email.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
@@ -106,11 +114,8 @@
 
         if (togglePassword && passwordField) {
             togglePassword.addEventListener('click', function() {
-                // Toggle the type attribute
                 const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
                 passwordField.setAttribute('type', type);
-
-                // Toggle the icon
                 this.classList.toggle('fa-eye');
                 this.classList.toggle('fa-eye-slash');
             });
@@ -122,11 +127,8 @@
 
         if (toggleConfirmPassword && confirmPasswordField) {
             toggleConfirmPassword.addEventListener('click', function() {
-                // Toggle the type attribute
                 const type = confirmPasswordField.getAttribute('type') === 'password' ? 'text' : 'password';
                 confirmPasswordField.setAttribute('type', type);
-
-                // Toggle the icon
                 this.classList.toggle('fa-eye');
                 this.classList.toggle('fa-eye-slash');
             });

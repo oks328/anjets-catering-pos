@@ -39,6 +39,71 @@ CATEGORY_ORDER = [
     'Drinks'
 ]
 
+def calculate_order_totals(cart_items, customer, delivery_fee=0.0, voucher_code=None, voucher_percent=0.0):
+    """
+    Centralized logic for Order Totals.
+    - Senior/PWD: 20% Discount on Exempt Item + 12% VAT on the rest.
+    - Voucher: 12% VAT applied to the DISCOUNTED (Net) amount.
+    """
+    gross_subtotal = 0.0
+    max_item_price = 0.0
+    
+    # 1. Calculate Gross Subtotal & Find Max Item
+    for item in cart_items:
+        price = float(item['price'])
+        quantity = int(item['quantity'])
+        gross_subtotal += price * quantity
+        
+        if price > max_item_price:
+            max_item_price = price
+
+    # Initialize variables
+    vatable_sales = gross_subtotal
+    vat_exempt_sales = 0.0
+    discount_amount = 0.0
+    vat_amount = 0.0
+    
+    # 2. Apply Senior/PWD Logic
+    if customer and customer.is_verified_discount and customer.discount_status == 'Approved':
+        # Exempt the most expensive item from VAT
+        vat_exempt_sales = max_item_price
+        vatable_sales = gross_subtotal - vat_exempt_sales
+        
+        # Discount is 20% of the Exempt item
+        discount_amount = vat_exempt_sales * 0.20
+        
+        # VAT is 12% of the remaining vatable items
+        vat_amount = vatable_sales * 0.12
+        
+    # 3. Apply Voucher Logic (UPDATED)
+    elif voucher_code and voucher_percent > 0:
+        # Calculate Discount
+        discount_amount = gross_subtotal * (voucher_percent / 100)
+        
+        # UPDATE: Calculate VAT on the Net Amount (Gross - Discount)
+        net_vatable_sales = gross_subtotal - discount_amount
+        vat_amount = net_vatable_sales * 0.12
+        
+        # NOTE: We keep 'vatable_sales' as the Gross Amount so the Final Total formula works.
+        # Formula: Gross(1000) + VAT(96) - Discount(200) = 896
+        vatable_sales = gross_subtotal 
+        
+    # 4. Standard Logic (No Discount)
+    else:
+        vat_amount = vatable_sales * 0.12
+    
+    # 5. Final Total Calculation
+    final_total = vatable_sales + vat_amount + vat_exempt_sales - discount_amount + delivery_fee
+    
+    return {
+        'subtotal': gross_subtotal,
+        'vatable_sales': vatable_sales,
+        'vat_exempt_sales': vat_exempt_sales,
+        'vat_amount': vat_amount,
+        'discount_amount': discount_amount,
+        'final_total': final_total
+    }
+
 def get_category_choices():
     """
     Helper function to get all categories for the product form dropdown.
@@ -109,7 +174,10 @@ def client_home():
          .all()
 
     product_ids = [pid for pid, total in top_product_ids]
-    popular_products = Product.query.filter(Product.product_id.in_(product_ids)).all()
+    popular_products = Product.query.filter(
+        Product.product_id.in_(product_ids),
+        Product.is_active == True
+    ).all()
 
     return render_template(
         'client_home.html',
@@ -128,7 +196,10 @@ def client_menu():
     categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
     selected_category = None
 
-    product_query = Product.query.join(Category).filter(Category.is_active==True)
+    product_query = Product.query.join(Category).filter(
+        Category.is_active == True,
+        Product.is_active == True
+    )
 
     if category_id:
         product_query = product_query.filter(Product.category_id==category_id)
@@ -200,7 +271,36 @@ def admin_add_category():
 
     return redirect(url_for('admin_categories') + '#add-category-card')
 
-# app/routes.py (Add this function back, e.g., after client_my_account)
+# In app/routes.py
+
+@app.route('/admin/categories/delete/<int:category_id>', methods=['POST'])
+@login_required
+def admin_delete_category(category_id):
+    # 1. Security Check: Verify Password
+    password_attempt = request.form.get('admin_confirm_password')
+    if not verify_admin_password(password_attempt):
+        flash('Incorrect password. Action cancelled.', 'danger')
+        return redirect(url_for('admin_categories'))
+
+    category = Category.query.get_or_404(category_id)
+
+    # 2. Dependency Check: Does it have products?
+    # We use count() for efficiency
+    product_count = Product.query.filter_by(category_id=category_id).count()
+    
+    if product_count > 0:
+        flash(f"Cannot delete category '{category.name}'. It contains {product_count} products. Please delete or move them first.", 'warning')
+        return redirect(url_for('admin_categories'))
+
+    try:
+        db.session.delete(category)
+        db.session.commit()
+        flash(f"Category '{category.name}' has been deleted.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting category: {e}", 'danger')
+
+    return redirect(url_for('admin_categories'))
 
 @app.route('/my-account/order/<int:order_id>/receipt')
 @customer_login_required
@@ -486,6 +586,9 @@ def add_to_cart():
         return jsonify({'status': 'error', 'message': 'Could not find that product option.'}), 404
 
     product = variant.product 
+
+    if not product.is_active:
+        return jsonify({'status': 'error', 'message': 'This product is currently unavailable.'}), 400
     
     if variant_id in cart:
         cart[variant_id]['quantity'] += quantity
@@ -531,98 +634,67 @@ def product_details(product_id):
 @app.route('/cart')
 @customer_login_required
 def client_cart():
-    """
-    (R)EAD: Display the user's shopping cart with smart totals.
-    NOW INCLUDES VAT calculation and order history.
-    """
     cart_session = session.get('cart', {})
     cart_items = []
-
-    ala_carte_subtotal = 0.0
-    buffet_subtotal = 0.0
-    total_price = 0.0 # Gross Subtotal
-
+    
+    # Rebuild the list for the template
     for item_id, item_data in cart_session.items():
-        if 'name' not in item_data or 'price' not in item_data:
-            continue
-        quantity = item_data['quantity']
-        price = item_data['price']
-        line_total = float(price) * quantity
-        total_price += line_total
-        if item_data.get('is_buffet_item', False):
-            buffet_subtotal += line_total
-        else:
-            ala_carte_subtotal += line_total
         cart_items.append({
             'product_id': item_data['product_id'],
-            'variant_id': item_id, 'name': item_data['name'],
-            'variant_name': item_data['variant_name'], 'image': item_data['image'],
-            'price': float(price), 'quantity': quantity,
-            'line_total': line_total, 'is_buffet_item': item_data.get('is_buffet_item', False)
+            'variant_id': item_id, 
+            'name': item_data['name'],
+            'variant_name': item_data['variant_name'], 
+            'image': item_data['image'],
+            'price': float(item_data['price']), 
+            'quantity': int(item_data['quantity']),
+            'line_total': float(item_data['price']) * int(item_data['quantity']),
+            'is_buffet_item': item_data.get('is_buffet_item', False)
         })
 
     customer = Customer.query.get(session['customer_id'])
+    
+    # Get Voucher info
+    voucher_code = session.get('voucher_code')
+    voucher_percent = session.get('discount_percentage', 0.0)
 
-    voucher_discount_amt = 0.0
-    senior_discount_amt = 0.0
-    pwd_discount_amt = 0.0
-    subtotal = total_price
+    # Handle the UI message for override if they have a verified discount
+    if customer and customer.is_verified_discount and voucher_code:
+        session.pop('voucher_code', None)
+        session.pop('discount_percentage', None)
+        voucher_code = None
+        voucher_percent = 0.0
+        flash(f"Your verified {customer.discount_type} discount has replaced the voucher.", 'info')
 
-    if customer and customer.is_verified_discount:
-        if 'voucher_code' in session:
-            session.pop('voucher_code', None)
-            session.pop('discount_percentage', None)
-            flash(f"Your verified {customer.discount_type} discount has replaced the voucher.", 'info')
+    # --- USE THE HELPER ---
+    totals = calculate_order_totals(cart_items, customer, 0.0, voucher_code, voucher_percent)
 
-        if customer.discount_type == 'Senior':
-            senior_discount_amt = subtotal * 0.20
-
-        elif customer.discount_type == 'PWD':
-            pwd_discount_amt = subtotal * 0.20
-            if pwd_discount_amt > 150.00:
-                pwd_discount_amt = 150.00
-
-    else:
-        voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
-
-    total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-
-    # --- NEW VAT CALCULATION ---
-    taxable_base = subtotal - total_discount_amount
-    vat_amount = taxable_base * VAT_RATE
-
-    # Final Total includes VAT
-    final_total = taxable_base + vat_amount
-    # --- END NEW VAT CALCULATION ---
-
+    # Get available vouchers for the dropdown
     available_vouchers = Voucher.query.filter(
         Voucher.is_active == True,
         (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
     ).all()
 
-# --- NEW: Fetch Order History for the Cart Page ---
-    orders = Order.query\
-        .filter_by(customer_id=session['customer_id'])\
-        .order_by(Order.order_date.desc())\
-        .all()  
-    
     return render_template(
         'client_cart.html', 
         cart_items=cart_items, 
-        total_price=total_price,
-        ala_carte_subtotal=ala_carte_subtotal,
-        buffet_subtotal=buffet_subtotal,
-        voucher_discount_amt=voucher_discount_amt,
-        senior_discount_amt=senior_discount_amt,
-        pwd_discount_amt=pwd_discount_amt,
-        vat_amount=vat_amount,
-        total_discount_amount=total_discount_amount,
-        final_total=final_total,
+        
+        # Pass the new calculation values
+        total_price=totals['subtotal'],
+        vatable_sales=totals['vatable_sales'],
+        vat_exempt_sales=totals['vat_exempt_sales'],
+        vat_amount=totals['vat_amount'],
+        total_discount_amount=totals['discount_amount'],
+        final_total=totals['final_total'],
+        
+        # Keep these simplified or 0 for now as the helper handles the logic
+        ala_carte_subtotal=0, 
+        buffet_subtotal=0,    
+        voucher_discount_amt=0,
+        senior_discount_amt=totals['discount_amount'] if customer.is_verified_discount else 0,
+        pwd_discount_amt=0, 
+        
         available_vouchers=available_vouchers,
-        customer=customer,
-        orders=orders,                          # <--- NEW
-        has_reviewed_product=has_reviewed_product # <--- NEW
+        customer=customer
     )
 
 @app.route('/cart/clear')
@@ -702,7 +774,7 @@ def apply_voucher():
 def client_checkout():
     """
     (R)EAD: Display the FINAL checkout page with ALL totals.
-    NOW INCLUDES VAT calculation.
+    UPDATED: Uses the centralized PH Senior/PWD & VAT logic.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
@@ -712,70 +784,59 @@ def client_checkout():
         flash("Please select your delivery or pickup option first.", 'info')
         return redirect(url_for('client_checkout_options'))
 
+    # 1. Reconstruct items for display AND calculation
     cart_items = []
-    ala_carte_subtotal = 0.0
-    buffet_subtotal = 0.0
-    total_price = 0.0
-
+    calc_items = [] # Simplified list for the helper
+    
     for item_id, item_data in cart_session.items():
+        # Skip invalid entries
         if 'name' not in item_data or 'price' not in item_data:
             continue
-        quantity = item_data['quantity']
-        price = item_data['price']
-        line_total = float(price) * quantity
-        total_price += line_total
-        if item_data.get('is_buffet_item', False):
-            buffet_subtotal += line_total
-        else:
-            ala_carte_subtotal += line_total
+            
+        # Data for Display
         cart_items.append({
             'product_id': item_data['product_id'],
-            'variant_id': item_id, 'name': item_data['name'],
-            'variant_name': item_data['variant_name'], 'image': item_data['image'],
-            'price': float(price), 'quantity': quantity,
-            'line_total': line_total, 'is_buffet_item': item_data.get('is_buffet_item', False)
+            'variant_id': item_id, 
+            'name': item_data['name'],
+            'variant_name': item_data['variant_name'], 
+            'image': item_data['image'],
+            'price': float(item_data['price']), 
+            'quantity': int(item_data['quantity']),
+            'line_total': float(item_data['price']) * int(item_data['quantity']),
+            'is_buffet_item': item_data.get('is_buffet_item', False)
+        })
+        
+        # Data for Calculator
+        calc_items.append({
+            'price': float(item_data['price']),
+            'quantity': int(item_data['quantity'])
         })
 
     customer = Customer.query.get(session['customer_id'])
-
-    voucher_discount_amt = 0.0
-    senior_discount_amt = 0.0
-    pwd_discount_amt = 0.0
     delivery_fee = session.get('delivery_fee', 0.0)
-    subtotal = total_price 
+    voucher_code = session.get('voucher_code')
+    voucher_percent = session.get('discount_percentage', 0.0)
 
-    if customer and customer.is_verified_discount:
-        if customer.discount_type == 'Senior':
-            senior_discount_amt = subtotal * 0.20
-        elif customer.discount_type == 'PWD':
-            pwd_discount_amt = subtotal * 0.20
-            if pwd_discount_amt > 150.00:
-                pwd_discount_amt = 150.00
-    else:
-        voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
-
-    total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-    
-    # --- NEW VAT CALCULATION ---
-    taxable_base = subtotal - total_discount_amount
-    vat_amount = taxable_base * VAT_RATE
-    
-    # Final Total includes VAT and Delivery Fee
-    final_total = taxable_base + vat_amount + delivery_fee 
-    # --- END NEW VAT CALCULATION ---
+    # 2. USE THE HELPER (Single Source of Truth)
+    totals = calculate_order_totals(calc_items, customer, delivery_fee, voucher_code, voucher_percent)
 
     return render_template(
         'client_checkout.html',
         cart_items=cart_items,
-        total_price=total_price,
-        voucher_discount_amt=voucher_discount_amt,
-        senior_discount_amt=senior_discount_amt,
-        pwd_discount_amt=pwd_discount_amt,
-        vat_amount=vat_amount, # <-- PASS VAT
+        
+        # Pass calculated values
+        total_price=totals['subtotal'],
+        vatable_sales=totals['vatable_sales'],
+        vat_exempt_sales=totals['vat_exempt_sales'],
+        vat_amount=totals['vat_amount'],
+        total_discount_amount=totals['discount_amount'],
         delivery_fee=delivery_fee,
-        total_discount_amount=total_discount_amount,
-        final_total=final_total
+        final_total=totals['final_total'],
+        
+        # Keep for template compatibility
+        voucher_discount_amt=0,
+        senior_discount_amt=totals['discount_amount'] if customer.is_verified_discount else 0,
+        pwd_discount_amt=0
     )
 
 @app.route('/checkout/options', methods=['GET'])
@@ -883,97 +944,44 @@ def save_checkout_options():
 @app.route('/checkout/place_order', methods=['POST'])
 @customer_login_required
 def place_order():
-    """
-    (C)REATE: Create the order in the database with Event Date logic.
-    """
     cart_session = session.get('cart', {})
     if not cart_session:
-        return jsonify({'status': 'error', 'message': "Your cart is empty. Please try again."}), 400
+        return jsonify({'status': 'error', 'message': "Your cart is empty."}), 400
 
-    # 1. Validate Items and Calculate Base Totals
-    valid_cart_items = {} 
-    ala_carte_subtotal = 0.0
-    buffet_subtotal = 0.0
-    total_price = 0.0 # Gross Subtotal
-
+    # 1. Reconstruct items for helper
+    valid_cart_items = []
     for item_id, item_data in cart_session.items():
-        if 'product_id' not in item_data or 'price' not in item_data:
-            continue
-        valid_cart_items[item_id] = item_data
-        line_total = float(item_data['price']) * item_data['quantity']
-        total_price += line_total
-        if item_data.get('is_buffet_item', False):
-            buffet_subtotal += line_total
-        else:
-            ala_carte_subtotal += line_total
-            
-    if not valid_cart_items:
-        return jsonify({'status': 'error', 'message': "No valid items were found in your cart."}), 400
+        valid_cart_items.append({
+            'price': float(item_data['price']),
+            'quantity': int(item_data['quantity'])
+        })
 
-    # 2. Retrieve Event Details from Session
+    # 2. Get context
+    customer = Customer.query.get(session['customer_id'])
+    delivery_fee = session.get('delivery_fee', 0.0)
+    voucher_code = session.get('voucher_code')
+    voucher_percent = session.get('discount_percentage', 0.0)
+    
+    # Retrieve Event Details
     event_date_str = session.get('event_date_str')
     event_time_str = session.get('event_time_str')
-    
-    event_date = None
-    event_time = None
-    
-    # Parse the date string back into a Python date object
-    if event_date_str:
-        try:
-            event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            pass # Handle error gracefully or log it
-            
-    # Parse the time string back into a Python time object
-    if event_time_str:
-        try:
-            event_time = datetime.strptime(event_time_str, '%H:%M').time()
-        except ValueError:
-            pass
+    event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date() if event_date_str else None
+    event_time = datetime.strptime(event_time_str, '%H:%M').time() if event_time_str else None
 
-    # 3. Calculate Financials (Discounts & VAT)
-    customer = Customer.query.get(session['customer_id'])
-
-    voucher_discount_amt = 0.0
-    senior_discount_amt = 0.0
-    pwd_discount_amt = 0.0
-    delivery_fee = session.get('delivery_fee', 0.0)
-    subtotal = total_price
-
-    if customer and customer.is_verified_discount:
-        if customer.discount_type == 'Senior':
-            senior_discount_amt = subtotal * 0.20
-        elif customer.discount_type == 'PWD':
-            pwd_discount_amt = subtotal * 0.20
-            if pwd_discount_amt > 150.00:
-                pwd_discount_amt = 150.00
-    else:
-        voucher_discount_perc = session.get('discount_percentage', 0.0)
-        voucher_discount_amt = (subtotal * voucher_discount_perc) / 100
-
-    total_discount_amount = voucher_discount_amt + senior_discount_amt + pwd_discount_amt
-    
-    # --- VAT CALCULATION ---
-    taxable_base = subtotal - total_discount_amount
-    vat_amount = taxable_base * VAT_RATE
-    final_total = taxable_base + vat_amount + delivery_fee 
-    # -----------------------
+    # 3. Calculate using Helper
+    totals = calculate_order_totals(valid_cart_items, customer, delivery_fee, voucher_code, voucher_percent)
 
     try:
         special_instructions = request.form.get('special_instructions')
         
-        # 4. Create Order Object
         new_order = Order(
             customer_id=session['customer_id'],
-            total_amount=subtotal,
-            discount_amount=total_discount_amount,
-            vat_amount=vat_amount, 
-            final_amount=final_total,
+            total_amount=totals['subtotal'],
+            discount_amount=totals['discount_amount'],
+            vat_amount=totals['vat_amount'], 
+            final_amount=totals['final_total'],
             
-            # UPDATED STATUS
             status="Pending Approval", 
-            
-            # NEW EVENT FIELDS
             event_date=event_date,
             event_time=event_time,
             
@@ -983,12 +991,11 @@ def place_order():
             special_instructions=special_instructions
         )
         db.session.add(new_order)
-        db.session.commit() # Commit first to get the order_id
+        db.session.commit()
 
-        # 5. Save Order Items
-        for item_key, item_data in valid_cart_items.items():
-            # Handle composite keys for buffet items (e.g., "buffet_12")
-            real_variant_id = item_data.get('variant_id', item_key)
+        # Save Items
+        for item_id, item_data in cart_session.items():
+            real_variant_id = item_data.get('variant_id', item_id)
             if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
                 final_variant_id = int(real_variant_id.split('_')[1])
             else:
@@ -1003,36 +1010,26 @@ def place_order():
             )
             db.session.add(new_item)
 
-        # 6. Update Voucher Usage
-        if session.get('voucher_code'):
-            voucher_to_update = Voucher.query.filter_by(code=session['voucher_code']).first()
-            if voucher_to_update:
-                voucher_to_update.current_uses += 1
-                db.session.add(voucher_to_update)
+        # Update Voucher
+        if voucher_code:
+            voucher = Voucher.query.filter_by(code=voucher_code).first()
+            if voucher:
+                voucher.current_uses += 1
 
         db.session.commit()
 
-        # 7. Clear Session Data
-        session.pop('cart', None)
-        session.pop('voucher_code', None)
-        session.pop('discount_percentage', None)
-        session.pop('delivery_fee', None)
-        session.pop('order_type', None)
-        session.pop('delivery_address', None)
-        
-        # Clear Buffet Session Data
-        session.pop('buffet_package', None)
-        session.pop('buffet_recommendations', None)
-        session.pop('buffet_sequence', None)
-        
-        # Clear New Event Data
-        session.pop('event_date_str', None)
-        session.pop('event_time_str', None)
+        # Clear Session
+        keys_to_clear = ['cart', 'voucher_code', 'discount_percentage', 'delivery_fee', 
+                         'order_type', 'delivery_address', 'buffet_package', 
+                         'buffet_recommendations', 'buffet_sequence', 
+                         'event_date_str', 'event_time_str']
+        for key in keys_to_clear:
+            session.pop(key, None)
 
         return jsonify({
             'status': 'success',
-            'message': f"Order #{new_order.order_id} has been placed! Please wait for admin approval.",
-            'redirect_url': url_for('client_orders') # Redirects to the Orders page
+            'message': f"Order #{new_order.order_id} has been placed!",
+            'redirect_url': url_for('client_orders')
         })
 
     except Exception as e:
@@ -1103,6 +1100,8 @@ def client_register():
         except Exception as e:
             db.session.rollback()
             flash(f"Error creating account: {e}", 'danger')
+
+    return render_template('client_register.html', register_form=register_form)
 
 @app.route('/login', methods=['POST'])
 def client_login():
@@ -1258,8 +1257,10 @@ def buffet_wizard_select(category_name):
         return redirect(url_for('buffet_wizard_start'))
 
     category_obj = Category.query.filter_by(name=category_name, is_active=True).first_or_404()
-    products = Product.query.filter_by(category_id=category_obj.category_id)\
-                            .order_by(Product.name.asc()).all()
+    products = Product.query.filter_by(
+        category_id=category_obj.category_id,
+        is_active=True
+    ).order_by(Product.name.asc()).all()
 
     buffet_package = session.get('buffet_package', {})
     
@@ -1453,6 +1454,9 @@ def buffet_add_item():
         return jsonify({'status': 'error', 'message': 'Item not found.'}), 404
         
     product = variant.product
+
+    if not product.is_active:
+        return jsonify({'status': 'error', 'message': 'This item is currently unavailable.'}), 400
     category_name = product.category.name
 
     # Shared Limit Validation
@@ -1573,6 +1577,13 @@ def admin_dashboard():
     )
 
 
+def verify_admin_password(password_attempt):
+    """
+    Verifies the current logged-in admin's password.
+    Returns True if correct, False otherwise.
+    """
+    return current_user.check_password(password_attempt)
+
 @app.route('/admin/logout')
 @login_required
 def admin_logout():
@@ -1627,7 +1638,7 @@ def send_order_email(order, subject, template_name):
 @login_required
 def admin_update_order_status(order_id):
     """
-    (U)PDATE: Update status and send Email Notifications (Approved, Declined, Delivery, Completed).
+    (U)PDATE: Update status and send Email Notifications (Approved, Declined, In Progress, Delivery, Completed).
     """
     order = Order.query.get_or_404(order_id)
     new_status = request.form.get('status')
@@ -1656,14 +1667,17 @@ def admin_update_order_status(order_id):
                 
             elif new_status == 'Declined':
                 send_order_email(order, f"Update on Order #{order.order_id} - Anjet's Catering", 'email_order_declined.html')
+
+            # --- NEW: IN PROGRESS EMAIL ---
+            elif new_status == 'In Progress' and old_status != 'In Progress':
+                send_order_email(order, f"Order #{order.order_id} is Being Prepared! 🍳", 'email_order_in_progress.html')
+            # ------------------------------
                 
             elif new_status == 'Up for Delivery' and old_status != 'Up for Delivery':
                 send_order_email(order, f"Order #{order.order_id} is Out for Delivery! 🚚", 'email_order_delivery.html')
 
-            # --- NEW: COMPLETED EMAIL ---
             elif new_status == 'Completed' and old_status != 'Completed':
                 send_order_email(order, f"Order #{order.order_id} Completed - Thank You!", 'email_order_completed.html')
-            # ----------------------------
 
             flash(f"Order #{order.order_id} updated to '{new_status}' and customer notified.", 'success')
         else:
@@ -1980,15 +1994,41 @@ def admin_edit_product(product_id):
 @app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
 @login_required
 def admin_delete_product(product_id):
+    # 1. Security Check: Verify Password
+    password_attempt = request.form.get('admin_confirm_password')
+    if not verify_admin_password(password_attempt):
+        flash('Incorrect password. Action cancelled.', 'danger')
+        return redirect(url_for('admin_products'))
+
     product = Product.query.get_or_404(product_id)
 
+    # 2. Dependency Check: Is it in any order?
+    # Check OrderItems table
+    in_orders = OrderItem.query.filter_by(product_id=product_id).first()
+    
+    if in_orders:
+        # OPTION A: Prevent Delete (Recommended)
+        flash(f"Cannot delete '{product.name}' because it is part of existing order history. Please Deactivate it instead.", 'warning')
+        
+        # Automatically deactivate it for them as a convenience
+        if product.is_active:
+            product.is_active = False
+            db.session.commit()
+            flash(f"'{product.name}' has been deactivated automatically.", 'info')
+            
+        return redirect(url_for('admin_products'))
+
+    # If not in any orders, we can safely hard delete
     try:
+        # Delete variants first (if cascade isn't set up in DB)
+        ProductVariant.query.filter_by(product_id=product_id).delete()
+        
         db.session.delete(product)
         db.session.commit()
-        flash(f"Product '{product.name}' deleted.", 'success')
+        flash(f"Product '{product.name}' deleted permanently.", 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f"Error deleting product: {e}. It might be in use in an order.", 'danger')
+        flash(f"Error deleting product: {e}", 'danger')
 
     return redirect(url_for('admin_products'))
 
@@ -2406,19 +2446,28 @@ def admin_customers():
 @app.route('/admin/customers/delete/<int:customer_id>', methods=['POST'])
 @login_required
 def admin_delete_customer(customer_id):
+    # 1. Security Check: Verify Admin Password
+    password_attempt = request.form.get('admin_confirm_password')
+    if not verify_admin_password(password_attempt):
+        flash('Incorrect password. Action cancelled.', 'danger')
+        return redirect(url_for('admin_customers'))
+
     customer = Customer.query.get_or_404(customer_id)
     
+    # 2. Dependency Check: Does this customer have Order History?
+    # We check if they have ANY orders (even completed ones)
+    order_count = Order.query.filter_by(customer_id=customer_id).count()
+
+    if order_count > 0:
+        # PREVENT DELETE: We cannot delete customers with history, or we lose Sales Data.
+        flash(f"Cannot delete customer '{customer.name}' because they have {order_count} orders in the system. Deleting them would corrupt your Sales Reports.", 'warning')
+        return redirect(url_for('admin_customers'))
+
+    # 3. Safe to Delete (No history)
     try:
-        order_ids = [order.order_id for order in customer.orders]
-        if order_ids:
-            OrderItem.query.filter(OrderItem.order_id.in_(order_ids)).delete(synchronize_session=False)
-        
-        Order.query.filter_by(customer_id=customer_id).delete(synchronize_session=False)
-        
         db.session.delete(customer)
-        
         db.session.commit()
-        flash(f"Customer '{customer.name}' and all their associated orders have been deleted.", 'success')
+        flash(f"Customer '{customer.name}' has been deleted successfully.", 'success')
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting customer: {e}", 'danger')
@@ -2723,6 +2772,12 @@ def admin_edit_user(user_id):
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
 def admin_delete_user(user_id):
+    # 1. Security Check: Verify Password
+    password_attempt = request.form.get('admin_confirm_password')
+    if not verify_admin_password(password_attempt):
+        flash('Incorrect password. Action cancelled.', 'danger')
+        return redirect(url_for('admin_users'))
+
     if user_id == current_user.user_id:
         flash("You cannot delete your own account.", 'danger')
         return redirect(url_for('admin_users'))
@@ -2778,3 +2833,13 @@ def admin_reset_menu():
         flash(f"Error resetting database: {e}", "danger")
 
     return redirect(url_for('admin_products'))
+
+    # In app/routes.py
+
+@app.route('/cart/remove_voucher')
+@customer_login_required
+def remove_voucher():
+    session.pop('voucher_code', None)
+    session.pop('discount_percentage', None)
+    flash("Voucher removed.", 'info')
+    return redirect(url_for('client_cart'))
