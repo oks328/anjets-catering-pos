@@ -213,14 +213,22 @@ def client_home():
 def client_menu():
     """
     Client-facing Menu page.
-    Shows ACTIVE categories and products.
-    Can be filtered by category_id.
-    NOW includes average product ratings.
+    APPLIES CUSTOM SORTING for categories.
     """
     category_id = request.args.get('category_id', type=int)
-    categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
-    selected_category = None
+    
+    # 1. Fetch all active categories without SQL sorting
+    categories = Category.query.filter_by(is_active=True).all()
+    
+    # 2. Apply the custom sort order (Fix for alphabetical sorting)
+    def get_sort_index(cat_name):
+        # Fallback to a high number for categories not listed in CATEGORY_ORDER
+        return CATEGORY_ORDER.index(cat_name) if cat_name in CATEGORY_ORDER else 999 
 
+    categories.sort(key=lambda c: get_sort_index(c.name))
+    # ----------------------------------------------------
+    
+    selected_category = None
     product_query = Product.query.join(Category).filter(
         Category.is_active == True,
         Product.is_active == True
@@ -246,7 +254,7 @@ def client_menu():
 
     return render_template(
         'client_menu.html',
-        categories=categories,
+        categories=categories, # Now custom-sorted
         products=products,
         selected_category=selected_category,
         ratings_map=ratings_map
@@ -1031,8 +1039,7 @@ def client_gcash_upload():
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('client_gcash_upload'))
 
-        # Save details to session temporarily before final order placement
-        session['gcash_image_file'] = f"payments/{image_filename}"
+        session['gcash_image_file'] = image_filename #
         session['gcash_reference_no'] = form.reference_number.data
         
         flash("Payment proof uploaded. Proceeding to order placement.", 'success')
@@ -2063,33 +2070,62 @@ def admin_add_product():
     )
 
 
+# app/routes.py
+
+# app/routes.py
+
 @app.route('/admin/products/edit/<int:product_id>', methods=['GET', 'POST'])
 @login_required
 def admin_edit_product(product_id):
     product = Product.query.get_or_404(product_id)
-    form = ProductForm(obj=product)
+    
+    # 1. Instantiate the form (obj=product provides initial data)
+    form = ProductForm(obj=product) 
+    
+    # 2. Set the available choices immediately.
     form.category.choices = get_category_choices()
 
-    if form.validate_on_submit():
+    # --- CRITICAL FIX: Ensure the correct Category ID is bound on initial load ---
+    if request.method == 'GET':
+        # This explicitly sets the correct ID after choices have been loaded, 
+        # preventing the SelectField from defaulting to the first choice (Beef).
+        form.category.data = product.category_id
+        
+        # Load simple product price data explicitly on GET for the form field
+        if not product.has_variants and product.variants:
+            simple_variant = ProductVariant.query.filter_by(
+                product_id=product.product_id,
+                size_name="Regular"
+            ).first()
+            if simple_variant:
+                form.price.data = simple_variant.price
+    # -------------------------------------------------------------------------
 
+    if form.validate_on_submit():
+        
+        # --- Image Upload Logic ---
         if form.image.data:
             try:
+                # Assuming save_picture is a helper function that saves the file and returns the filename
                 image_filename = save_picture(form.image.data)
                 product.image_file = image_filename
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('admin_edit_product', product_id=product_id))
 
-        product.category_id = form.category.data
+        # 3. Update the product using the now-correct form data.
+        product.category_id = form.category.data 
         product.name = form.name.data
         product.description = form.description.data
         product.has_variants = form.has_variants.data
 
+        # Logic for handling simple product price (no variants)
         if not product.has_variants:
             if form.price.data is None:
                 flash('Error: A simple product (no variants) must have a price.', 'danger')
                 return redirect(url_for('admin_edit_product', product_id=product_id))
 
+            # Find or create the single 'Regular' variant
             simple_variant = ProductVariant.query.filter_by(
                 product_id=product.product_id, 
                 size_name="Regular"
@@ -2113,14 +2149,8 @@ def admin_edit_product(product_id):
             db.session.rollback()
             flash(f"Error updating product: {e}", 'danger')
 
-    if not product.has_variants and product.variants:
-        simple_variant = ProductVariant.query.filter_by(
-            product_id=product.product_id,
-            size_name="Regular"
-        ).first()
-        if simple_variant:
-            form.price.data = simple_variant.price
-
+    # This part handles the re-render for POST validation failures or the initial GET
+    
     return render_template(
         'admin_product_form.html',
         form=form,
