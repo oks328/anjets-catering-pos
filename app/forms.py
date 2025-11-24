@@ -140,7 +140,7 @@ class UserAddForm(FlaskForm):
     )
     role = SelectField(
         'Account Type (Role)',
-        choices=[('Admin', 'Admin'), ('Staff', 'Staff')],
+        choices=[('Admin', 'Admin')],
         validators=[DataRequired()]
     )
     password = PasswordField(
@@ -162,7 +162,7 @@ class UserEditForm(FlaskForm):
     )
     role = SelectField(
         'Account Type (Role)',
-        choices=[('Admin', 'Admin'), ('Staff', 'Staff')],
+        choices=[('Admin', 'Admin')],
         validators=[DataRequired()]
     )
     password = PasswordField(
