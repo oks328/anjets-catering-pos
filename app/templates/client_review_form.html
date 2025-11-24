@@ -68,7 +68,6 @@
             });
         }
 
-        // Initialize stars to 5/5 on load
         if (!ratingInput.value) {
             setRating(5); 
         }
@@ -77,11 +76,11 @@
             star.addEventListener('click', function() {
                 setRating(parseInt(this.dataset.rating));
             });
-            // Optional: Hover effect for better UX
+        
             star.addEventListener('mouseover', function() {
                 stars.forEach(s => {
                     if (parseInt(s.dataset.rating) <= parseInt(this.dataset.rating)) {
-                        s.style.color = '#ffeb3b'; // Lighter yellow on hover
+                        s.style.color = '#ffeb3b'; 
                     } else {
                         s.style.color = '#ccc';
                     }

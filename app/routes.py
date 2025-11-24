@@ -14,41 +14,36 @@ from flask import make_response, jsonify
 from flask import current_app as app
 from flask import render_template, redirect, url_for, flash, request, session, jsonify, current_app
 from flask_login import login_user, logout_user, current_user, login_required
-from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem, Review # Rider removed
-from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm, ReviewForm # All Rider forms removed
+from app.models import User, Category, Product, ProductVariant, Voucher, Customer, Order, OrderItem, Review
+from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, VoucherForm, UserAddForm, UserEditForm, CustomerRegisterForm, CustomerLoginForm, CustomerEditForm, CustomerProfileForm, DiscountVerificationForm, ReviewForm
 from functools import wraps
-from threading import Thread # <--- MAKE SURE THIS IS IMPORTED
+from threading import Thread
 from flask_mail import Message
 from flask_mail import Message
 from app import mail
 from app.forms import RequestResetForm, ResetPasswordForm, GCashPaymentForm
 from flask import make_response, jsonify, current_app as app, render_template, redirect, url_for, flash, request, session, jsonify, current_app, get_flashed_messages
 
-VAT_RATE = 0.12 # 12% Value Added Tax
+VAT_RATE = 0.12
 MAIN_CATEGORIES = ['Pork', 'Beef', 'Chicken', 'Seafood']
 
 CATEGORY_ORDER = [
-    'Beef', 
-    'Pork', 
-    'Chicken', 
-    'Seafood', 
-    'Pasta & Noodles', 
+    'Beef',
+    'Pork',
+    'Chicken',
+    'Seafood',
+    'Pasta & Noodles',
     'Noodles',
-    'Vegetables', 
-    'Dessert', 
+    'Vegetables',
+    'Dessert',
     'Drinks'
 ]
 
 def calculate_order_totals(cart_items, customer, delivery_fee=0.0, voucher_code=None, voucher_percent=0.0):
-    """
-    Centralized logic for Order Totals.
-    - Senior/PWD: 20% Discount on Exempt Item + 12% VAT on the rest.
-    - Voucher: 12% VAT applied to the DISCOUNTED (Net) amount.
-    """
+    
     gross_subtotal = 0.0
     max_item_price = 0.0
     
-    # 1. Calculate Gross Subtotal & Find Max Item
     for item in cart_items:
         price = float(item['price'])
         quantity = int(item['quantity'])
@@ -57,42 +52,30 @@ def calculate_order_totals(cart_items, customer, delivery_fee=0.0, voucher_code=
         if price > max_item_price:
             max_item_price = price
 
-    # Initialize variables
     vatable_sales = gross_subtotal
     vat_exempt_sales = 0.0
     discount_amount = 0.0
     vat_amount = 0.0
     
-    # 2. Apply Senior/PWD Logic
     if customer and customer.is_verified_discount and customer.discount_status == 'Approved':
-        # Exempt the most expensive item from VAT
         vat_exempt_sales = max_item_price
         vatable_sales = gross_subtotal - vat_exempt_sales
         
-        # Discount is 20% of the Exempt item
         discount_amount = vat_exempt_sales * 0.20
         
-        # VAT is 12% of the remaining vatable items
         vat_amount = vatable_sales * 0.12
         
-    # 3. Apply Voucher Logic (UPDATED)
     elif voucher_code and voucher_percent > 0:
-        # Calculate Discount
         discount_amount = gross_subtotal * (voucher_percent / 100)
         
-        # UPDATE: Calculate VAT on the Net Amount (Gross - Discount)
         net_vatable_sales = gross_subtotal - discount_amount
         vat_amount = net_vatable_sales * 0.12
         
-        # NOTE: We keep 'vatable_sales' as the Gross Amount so the Final Total formula works.
-        # Formula: Gross(1000) + VAT(96) - Discount(200) = 896
-        vatable_sales = gross_subtotal 
+        vatable_sales = gross_subtotal
         
-    # 4. Standard Logic (No Discount)
     else:
         vat_amount = vatable_sales * 0.12
     
-    # 5. Final Total Calculation
     final_total = vatable_sales + vat_amount + vat_exempt_sales - discount_amount + delivery_fee
     
     return {
@@ -105,58 +88,43 @@ def calculate_order_totals(cart_items, customer, delivery_fee=0.0, voucher_code=
     }
 
 def get_category_choices():
-    """
-    Helper function to get all categories for the product form dropdown.
-    """
+    
     categories = Category.query.filter_by(is_active=True).all()
     return [(c.category_id, c.name) for c in categories]
 
 def save_picture(form_picture):
-    """
-    Helper function to save an uploaded picture.
-    Resizes it and returns the unique filename.
-    """
+    
     random_hex = secrets.token_hex(8)
     _, f_ext = os.path.splitext(form_picture.filename)
     picture_fn = random_hex + f_ext
     picture_path = os.path.join(app.config['UPLOAD_FOLDER'], 'products', picture_fn)
 
-    output_size = (800, 800) 
+    output_size = (800, 800)
     i = Image.open(form_picture)
     i.thumbnail(output_size)
     i.save(picture_path)
 
     return picture_fn
 
-# app/routes.py (Add this function in the helper section)
-
 def save_payment_receipt(form_picture):
-    """
-    Helper function to save an uploaded payment receipt picture.
-    """
+    
     random_hex = secrets.token_hex(8)
-    # Use secure_filename to clean the filename
     _, f_ext = os.path.splitext(form_picture.filename)
     picture_fn = random_hex + f_ext
     
-    # Path inside app/static/uploads/payments
     picture_path = os.path.join(app.config['UPLOAD_FOLDER'], 'payments', picture_fn)
 
-    # Create directory if it doesn't exist
-    os.makedirs(os.path.dirname(picture_path), exist_ok=True) 
+    os.makedirs(os.path.dirname(picture_path), exist_ok=True)
 
-    output_size = (800, 800) 
+    output_size = (800, 800)
     i = Image.open(form_picture)
     i.thumbnail(output_size)
     i.save(picture_path)
 
-    # Returns the filename part needed for DB/session storage (e.g., 'payments/a1b2c3d4.jpg')
     return f"payments/{picture_fn}"
 
 def customer_login_required(f):
-    """
-    A decorator to ensure a customer is logged in by checking the session.
-    """
+    
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'customer_id' not in session:
@@ -165,31 +133,17 @@ def customer_login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# ===============================================
-# HELPER: Check if review exists (NEW)
-# ===============================================
 
 def has_reviewed_product(customer_id, product_id):
-    """
-    Checks only if a customer has already submitted a review for this product.
-    Returns True if a review exists, False otherwise.
-    """
+    
     return Review.query.filter_by(
         customer_id=customer_id,
         product_id=product_id
     ).first() is not None
 
-
-# ===============================================
-# CLIENT-SIDE ROUTES
-# ===============================================
-
 @app.route('/')
 def client_home():
-    """
-    Client-facing homepage.
-    Now fetches top 3 popular products.
-    """
+    
     top_product_ids = db.session.query(
             OrderItem.product_id,
             func.sum(OrderItem.quantity).label('total_sold')
@@ -211,22 +165,19 @@ def client_home():
 
 @app.route('/menu')
 def client_menu():
-    """
-    Client-facing Menu page.
-    APPLIES CUSTOM SORTING for categories.
-    """
+    
     category_id = request.args.get('category_id', type=int)
     
-    # 1. Fetch all active categories without SQL sorting
     categories = Category.query.filter_by(is_active=True).all()
     
-    # 2. Apply the custom sort order (Fix for alphabetical sorting)
     def get_sort_index(cat_name):
-        # Fallback to a high number for categories not listed in CATEGORY_ORDER
-        return CATEGORY_ORDER.index(cat_name) if cat_name in CATEGORY_ORDER else 999 
+        
+        try:
+            return CATEGORY_ORDER.index(cat_name)
+        except ValueError:
+            return 999 
 
     categories.sort(key=lambda c: get_sort_index(c.name))
-    # ----------------------------------------------------
     
     selected_category = None
     product_query = Product.query.join(Category).filter(
@@ -254,43 +205,34 @@ def client_menu():
 
     return render_template(
         'client_menu.html',
-        categories=categories, # Now custom-sorted
+        categories=categories,
         products=products,
         selected_category=selected_category,
         ratings_map=ratings_map
     )
 
 
-# app/routes.py (Add these functions back into the file)
-
 def has_reviewed_product(customer_id, product_id):
-    """
-    Checks only if a customer has already submitted a review for this product.
-    Returns True if a review exists, False otherwise.
-    """
+    
     return Review.query.filter_by(
         customer_id=customer_id,
         product_id=product_id
     ).first() is not None
 
 
-# app/routes.py (Add this function back into the CATEGORY MANAGEMENT section)
-
 @app.route('/admin/categories/add', methods=['POST'])
 @login_required
 def admin_add_category():
-    """
-    (C)REATE: Process the add category form.
-    """
+    
     add_form = CategoryForm()
     
     if add_form.validate_on_submit():
-        # Create new category object
+        
         new_category = Category(
             name=add_form.name.data,
             description=add_form.description.data 
         )
-        # Add to database
+        
         db.session.add(new_category)
         try:
             db.session.commit()
@@ -299,17 +241,15 @@ def admin_add_category():
             db.session.rollback()
             flash(f"Error adding category: {e}", 'danger')
     else:
-        # Form had validation errors
+        
         flash('Error: Could not add category. Please check form.', 'danger')
 
     return redirect(url_for('admin_categories') + '#add-category-card')
 
-# In app/routes.py
-
 @app.route('/admin/categories/delete/<int:category_id>', methods=['POST'])
 @login_required
 def admin_delete_category(category_id):
-    # 1. Security Check: Verify Password
+    
     password_attempt = request.form.get('admin_confirm_password')
     if not verify_admin_password(password_attempt):
         flash('Incorrect password. Action cancelled.', 'danger')
@@ -317,8 +257,7 @@ def admin_delete_category(category_id):
 
     category = Category.query.get_or_404(category_id)
 
-    # 2. Dependency Check: Does it have products?
-    # We use count() for efficiency
+    
     product_count = Product.query.filter_by(category_id=category_id).count()
     
     if product_count > 0:
@@ -338,114 +277,103 @@ def admin_delete_category(category_id):
 @app.route('/my-account/order/<int:order_id>/receipt')
 @customer_login_required
 def client_view_receipt(order_id):
-    """
-    Renders a printable receipt for a specific order.
-    """
-    # 1. Fetch the order and related data (customer, items, products, variants)
+    
+    
     order = Order.query.options(
         db.joinedload(Order.customer),
         db.joinedload(Order.items).joinedload(OrderItem.product),
         db.joinedload(Order.items).joinedload(OrderItem.variant)
     ).filter_by(order_id=order_id).first_or_404()
 
-    # 2. Security Check: Ensure the order belongs to the logged-in customer
+    
     if order.customer_id != session['customer_id']:
         flash("You do not have permission to view that receipt.", 'danger')
         return redirect(url_for('client_orders'))
 
-    # 3. Render the receipt template (which you should have already created)
+    
     return render_template(
         'client_receipt.html', 
         order=order
     )
-# app/routes.py (Add this function back, e.g., before admin_dashboard)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    """
-    Handle the admin login page.
-    """
-    # If user is already logged in, redirect to a future admin dashboard
+    
+    
     if current_user.is_authenticated:
-        return redirect(url_for('admin_dashboard')) # We will create 'admin_dashboard' next
+        return redirect(url_for('admin_dashboard'))
 
     form = AdminLoginForm()
     if form.validate_on_submit():
-        # Form has been submitted and is valid
+        
         username = form.username.data
         password = form.password.data
         
-        # 1. Check if the user exists in the database
+        
         user = User.query.filter_by(username=username).first()
         
-        # 2. Check if the password is correct
+        
         if user and user.check_password(password):
-            # Password is correct! Log the user in.
+            
             login_user(user)
             flash('Login successful!', 'success')
-            return redirect(url_for('admin_dashboard')) # Redirect to the dashboard
+            return redirect(url_for('admin_dashboard'))
         else:
-            # Invalid credentials
+            
             flash('Invalid username or password. Please try again.', 'danger')
             return redirect(url_for('admin_login'))
 
-    # If it's a 'GET' request or form validation failed, show the login page
+    
     return render_template('admin_login.html', form=form)
 
 @app.route('/my-account')
 @customer_login_required
 def client_my_account():
-    """
-    (R)EAD: Redirects the main account URL directly to the profile.
-    This removes the redundant dashboard step.
-    """
+    
     return redirect(url_for('client_profile'))
 
 @app.route('/my-account/profile', methods=['GET', 'POST'])
 @customer_login_required
 def client_profile():
-    """
-    (R)EAD and (U)PDATE the customer's own profile.
-    NOW revokes senior discount if birthdate is changed.
-    """
+    
     customer = Customer.query.get_or_404(session['customer_id'])
     form = CustomerProfileForm(obj=customer) 
     upload_form = DiscountVerificationForm()
 
     if form.validate_on_submit():
-        # Get the new birthdate from the form
+        
         new_birthdate = form.birthdate.data
         profile_updated_message = 'Your profile has been updated.'
 
-        # --- NEW LOGIC: Auto-revoke discount if age changes ---
+        
         if new_birthdate:
             today = date.today()
             age = today.year - new_birthdate.year - ((today.month, today.day) < (new_birthdate.month, new_birthdate.day))
             
-            # Check if they are currently verified as a Senior
+            
             if customer.is_verified_discount and customer.discount_type == 'Senior':
                 if age < 60:
-                    # They are no longer a senior, revoke the discount!
+                    
                     customer.is_verified_discount = False
-                    customer.discount_status = None # Reset status
+                    customer.discount_status = None
                     customer.discount_type = None
-                    customer.id_image_file = None # Clear the old ID
+                    customer.id_image_file = None
                     flash('Your Senior discount has been revoked as your new birthdate makes you ineligible.', 'warning')
-                    # Change the success message so it doesn't conflict
+                    
                     profile_updated_message = 'Your profile and discount status have been updated.'
-        # --- END NEW LOGIC ---
+        
 
-        # Update the customer's details
+        
         customer.name = form.name.data
         customer.contact_number = form.contact_number.data
-        customer.birthdate = new_birthdate # Save the new birthdate
+        customer.birthdate = new_birthdate
 
         customer.landmark = form.landmark.data
         try:
             db.session.commit()
             session['customer_name'] = customer.name
             
-            # Check if a warning was just flashed. If not, flash the success message.
+            
             if 'warning' not in [m[0] for m in get_flashed_messages(with_categories=True)]:
                  flash(profile_updated_message, 'success')
                  
@@ -454,7 +382,7 @@ def client_profile():
             db.session.rollback()
             flash(f"Error updating profile: {e}", 'danger')
 
-    # This handles GET requests AND POST requests that fail validation
+    
     return render_template(
         'client_profile.html',
         form=form,
@@ -465,12 +393,10 @@ def client_profile():
 @app.route('/my-account/orders')
 @customer_login_required
 def client_orders():
-    """
-    (R)EAD: Display the customer's order history (Active and Past).
-    """
+    
     customer_id = session['customer_id']
     
-    # Fetch all orders, newest first
+    
     orders = Order.query\
         .filter_by(customer_id=customer_id)\
         .order_by(Order.order_date.desc())\
@@ -479,15 +405,13 @@ def client_orders():
     return render_template(
         'client_orders.html',
         orders=orders,
-        has_reviewed_product=has_reviewed_product # Pass the helper function
+        has_reviewed_product=has_reviewed_product
     )
 
 @app.route('/my-account/upload-id', methods=['POST'])
 @customer_login_required
 def client_upload_id():
-    """
-    (C)REATE: Process the ID upload form for discount verification.
-    """
+    
     form = DiscountVerificationForm()
     customer = Customer.query.get_or_404(session['customer_id'])
 
@@ -535,19 +459,17 @@ def client_upload_id():
 @app.route('/review/product/<int:product_id>', methods=['GET', 'POST'])
 @customer_login_required
 def client_review_product(product_id):
-    """
-    Renders the review form for a specific product and processes submission.
-    """
+    
     product = Product.query.get_or_404(product_id)
     customer_id = session['customer_id']
     form = ReviewForm()
 
-    # Check 1: Prevent submission if already reviewed (using the new helper)
+    
     if has_reviewed_product(customer_id, product_id):
         flash("You have already submitted a review for this product.", 'danger')
         return redirect(url_for('client_orders'))
     
-    # Check 2: Ensure the product was bought in a COMPLETED order
+    
     has_bought = db.session.query(OrderItem.order_item_id)\
         .join(Order)\
         .filter(
@@ -583,25 +505,19 @@ def client_review_product(product_id):
         product=product
     )
 
-# ===============================================
-# CLIENT-SIDE: SHOPPING CART & ORDERING
-# ===============================================
 @app.route('/cart/add', methods=['POST'])
 def add_to_cart():
-    """
-    Add a product to the user's session cart.
-    NOW checks for login status.
-    """
-    # --- NEW: Manual Login Check ---
+    
+    
     if 'customer_id' not in session:
         return jsonify({'status': 'login_required', 'url': url_for('client_account_page')})
-    # --- End New Check ---
+    
 
     cart = session.get('cart', {})
     
-    # Get all data from the modal form
+    
     product_id = request.form.get('product_id')
-    # ... (rest of the function remains the same)
+    
     variant_id = request.form.get('variant_id')
     
     try:
@@ -670,7 +586,7 @@ def client_cart():
     cart_session = session.get('cart', {})
     cart_items = []
     
-    # Rebuild the list for the template
+    
     for item_id, item_data in cart_session.items():
         cart_items.append({
             'product_id': item_data['product_id'],
@@ -686,11 +602,11 @@ def client_cart():
 
     customer = Customer.query.get(session['customer_id'])
     
-    # Get Voucher info
+    
     voucher_code = session.get('voucher_code')
     voucher_percent = session.get('discount_percentage', 0.0)
 
-    # Handle the UI message for override if they have a verified discount
+    
     if customer and customer.is_verified_discount and voucher_code:
         session.pop('voucher_code', None)
         session.pop('discount_percentage', None)
@@ -698,10 +614,10 @@ def client_cart():
         voucher_percent = 0.0
         flash(f"Your verified {customer.discount_type} discount has replaced the voucher.", 'info')
 
-    # --- USE THE HELPER ---
+    
     totals = calculate_order_totals(cart_items, customer, 0.0, voucher_code, voucher_percent)
 
-    # Get available vouchers for the dropdown
+    
     available_vouchers = Voucher.query.filter(
         Voucher.is_active == True,
         (Voucher.max_uses == None) | (Voucher.current_uses < Voucher.max_uses)
@@ -711,7 +627,7 @@ def client_cart():
         'client_cart.html', 
         cart_items=cart_items, 
         
-        # Pass the new calculation values
+        
         total_price=totals['subtotal'],
         vatable_sales=totals['vatable_sales'],
         vat_exempt_sales=totals['vat_exempt_sales'],
@@ -719,7 +635,7 @@ def client_cart():
         total_discount_amount=totals['discount_amount'],
         final_total=totals['final_total'],
         
-        # Keep these simplified or 0 for now as the helper handles the logic
+        
         ala_carte_subtotal=0, 
         buffet_subtotal=0,    
         voucher_discount_amt=0,
@@ -805,11 +721,8 @@ def apply_voucher():
 @app.route('/checkout')
 @customer_login_required
 def client_checkout():
-    """
-    (R)EAD: Display the FINAL checkout page with ALL totals.
-    UPDATED: Checks payment method.
-    """
-    # ... (Reconstruct items/calculate totals logic remains the same)
+    
+    
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
@@ -818,8 +731,7 @@ def client_checkout():
         flash("Please select your delivery or pickup option first.", 'info')
         return redirect(url_for('client_checkout_options'))
 
-    # 1. Reconstruct items for display AND calculation
-    # ... (Existing logic for cart_items and calc_items remains the same)
+    
     cart_items = []
     calc_items = [] 
     
@@ -850,19 +762,19 @@ def client_checkout():
     voucher_code = session.get('voucher_code')
     voucher_percent = session.get('discount_percentage', 0.0)
 
-    # 2. USE THE HELPER
+    
     totals = calculate_order_totals(calc_items, customer, delivery_fee, voucher_code, voucher_percent)
     
-    # --- NEW: Get Payment Details ---
+    
     payment_method = session.get('payment_method', 'COD/COP')
     gcash_uploaded = payment_method == 'GCash' and session.get('gcash_image_file') is not None
-    # -------------------------------
+    
 
     return render_template(
         'client_checkout.html',
         cart_items=cart_items,
         
-        # Pass calculated values
+        
         total_price=totals['subtotal'],
         vatable_sales=totals['vatable_sales'],
         vat_exempt_sales=totals['vat_exempt_sales'],
@@ -871,12 +783,11 @@ def client_checkout():
         delivery_fee=delivery_fee,
         final_total=totals['final_total'],
         
-        # --- NEW: Pass Payment Info ---
+        
         payment_method=payment_method,
         gcash_uploaded=gcash_uploaded,
-        # ------------------------------
         
-        # Keep for template compatibility
+        
         voucher_discount_amt=0,
         senior_discount_amt=totals['discount_amount'] if customer.is_verified_discount else 0,
         pwd_discount_amt=0
@@ -885,24 +796,22 @@ def client_checkout():
 @app.route('/checkout/options', methods=['GET'])
 @customer_login_required
 def client_checkout_options():
-    """
-    (R)EAD: Show the page for selecting Delivery or Pickup AND Payment Method.
-    """
+    
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
-    # ... (Existing lead time logic)
-    min_days = 3 # Default for standard items
     
-    # Scan cart for buffet items
+    min_days = 3 
+    
+    
     for item in cart_session.values():
         if item.get('is_buffet_item', False):
-            min_days = 7 # Extended time for buffet
+            min_days = 7 
             break
             
-    # Get the customer's default address
+    
     customer = Customer.query.get(session['customer_id'])
     default_address = customer.address
 
@@ -910,44 +819,40 @@ def client_checkout_options():
         'client_checkout_options.html',
         default_address=default_address,
         customer=customer,
-        min_days=min_days # Pass this variable to the template
+        min_days=min_days
     )
 
 @app.route('/checkout/save_options', methods=['POST'])
 @customer_login_required
 def save_checkout_options():
-    """
-    (C)REATE: Validate and save delivery options AND payment method.
-    If GCash is selected, redirects to the GCash upload page.
-    """
+    
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
-    # 1. Recalculate Lead Time (Security Check)
+    
     min_days = 3
     for item in cart_session.values():
         if item.get('is_buffet_item', False):
             min_days = 7
             break
 
-    # 2. Get Form Data
+    
     event_date_str = request.form.get('event_date')
     event_time_str = request.form.get('event_time')
     order_type = request.form.get('order_type')
     delivery_address = request.form.get('delivery_address')
     landmark = request.form.get('landmark')
     
-    # --- NEW: Get Payment Method ---
+    
     payment_method = request.form.get('payment_method')
     if not payment_method:
         flash("Please select a payment method.", 'danger')
         return redirect(url_for('client_checkout_options'))
-    # -------------------------------
+    
 
-    # 3. Strict Date Validation
-    # ... (Existing date validation remains the same)
+    
     if not event_date_str:
         flash("Please select an event date.", 'danger')
         return redirect(url_for('client_checkout_options'))
@@ -966,7 +871,7 @@ def save_checkout_options():
         return redirect(url_for('client_checkout_options'))
 
 
-    # 4. Validate Delivery Logic & Save to Session
+    
     if order_type == 'Delivery':
         if not delivery_address:
             flash("Please provide a delivery address.", 'danger')
@@ -985,14 +890,14 @@ def save_checkout_options():
         session['order_type'] = 'Pickup'
         session['delivery_address'] = 'Store Pickup'
 
-    # 5. Save Validated Data to Session
+    
     session['event_date_str'] = event_date_str
     session['event_time_str'] = event_time_str
-    session['payment_method'] = payment_method # <--- SAVE NEW FIELD
+    session['payment_method'] = payment_method
 
-    # 6. --- NEW: Redirect for GCash Payment ---
+    
     if payment_method == 'GCash':
-        # Need to calculate final total to show on the payment page
+        
         cart_items = []
         for item_id, item_data in cart_session.items():
             cart_items.append({
@@ -1006,18 +911,16 @@ def save_checkout_options():
         totals = calculate_order_totals(cart_items, customer, delivery_fee, voucher_code, voucher_percent)
         session['final_total'] = totals['final_total']
         
-        # Redirect to the new payment upload page
+        
         return redirect(url_for('client_gcash_upload'))
     
-    # 7. For COD/COP, proceed to final review
+    
     return redirect(url_for('client_checkout'))
 
 @app.route('/checkout/gcash/upload', methods=['GET', 'POST'])
 @customer_login_required
 def client_gcash_upload():
-    """
-    Renders the page for GCash receipt upload and processes the submission.
-    """
+    
     if session.get('payment_method') != 'GCash':
         flash("Invalid checkout step.", 'danger')
         return redirect(url_for('client_checkout_options'))
@@ -1030,20 +933,20 @@ def client_gcash_upload():
     form = GCashPaymentForm()
     
     if form.validate_on_submit():
-        # Save the receipt image using a new helper folder 'payments'
+        
         if form.receipt_image.data:
             try:
-                # save_payment_receipt is a new helper defined above
+                
                 image_filename = save_payment_receipt(form.receipt_image.data)
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('client_gcash_upload'))
 
-        session['gcash_image_file'] = image_filename #
+        session['gcash_image_file'] = image_filename
         session['gcash_reference_no'] = form.reference_number.data
         
         flash("Payment proof uploaded. Proceeding to order placement.", 'success')
-        return redirect(url_for('client_checkout')) # <-- Skips COD checkout, goes straight to final review
+        return redirect(url_for('client_checkout'))
 
     return render_template(
         'client_gcash_upload.html',
@@ -1058,7 +961,7 @@ def place_order():
     if not cart_session:
         return jsonify({'status': 'error', 'message': "Your cart is empty."}), 400
 
-    # 1. Reconstruct items for helper
+    
     valid_cart_items = []
     for item_id, item_data in cart_session.items():
         valid_cart_items.append({
@@ -1066,44 +969,44 @@ def place_order():
             'quantity': int(item_data['quantity'])
         })
 
-    # 2. Get context
+    
     customer = Customer.query.get(session['customer_id'])
     delivery_fee = session.get('delivery_fee', 0.0)
     voucher_code = session.get('voucher_code')
     voucher_percent = session.get('discount_percentage', 0.0)
     
-    # Retrieve Event Details
+    
     event_date_str = session.get('event_date_str')
     event_time_str = session.get('event_time_str')
     event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date() if event_date_str else None
     event_time = datetime.strptime(event_time_str, '%H:%M').time() if event_time_str else None
 
-    # 3. Calculate using Helper
+    
     totals = calculate_order_totals(valid_cart_items, customer, delivery_fee, voucher_code, voucher_percent)
 
-    # 4. Get Payment Context from Session
+    
     payment_method = session.get('payment_method', 'COD/COP')
     gcash_image_file = session.get('gcash_image_file')
     gcash_reference_no = session.get('gcash_reference_no')
     
-    # 5. Determine Initial Status and Payment Status
+    
     if payment_method == 'GCash':
-        # GCash requires payment verification before admin approval
-        initial_order_status = "Pending Payment Verification" # New initial status
+        
+        initial_order_status = "Pending Payment Verification"
         initial_payment_status = "Pending Verification"
         
-        # Security Check: Ensure the receipt was uploaded
+        
         if not gcash_image_file or not gcash_reference_no:
             return jsonify({'status': 'error', 'message': "GCash payment proof is missing. Please restart the GCash process."}), 400
     else:
-        # COD/COP - Payment is due on event date
+        
         initial_order_status = "Pending Approval"
         initial_payment_status = "Pending"
     
     try:
         special_instructions = request.form.get('special_instructions')
         
-        # 6. Create the Order Object
+        
         new_order = Order(
             customer_id=session['customer_id'],
             total_amount=totals['subtotal'],
@@ -1120,7 +1023,7 @@ def place_order():
             delivery_fee=delivery_fee,
             special_instructions=special_instructions,
             
-            # New Payment Fields
+            
             payment_method=payment_method,
             payment_status=initial_payment_status,
             payment_image_file=gcash_image_file,
@@ -1129,7 +1032,7 @@ def place_order():
         db.session.add(new_order)
         db.session.commit()
 
-        # 7. Save Order Items
+        
         for item_id, item_data in cart_session.items():
             real_variant_id = item_data.get('variant_id', item_id)
             if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
@@ -1146,7 +1049,7 @@ def place_order():
             )
             db.session.add(new_item)
 
-        # 8. Update Voucher Usage
+        
         if voucher_code:
             voucher = Voucher.query.filter_by(code=voucher_code).first()
             if voucher:
@@ -1154,7 +1057,7 @@ def place_order():
 
         db.session.commit()
 
-        # 9. Clear Session Variables
+        
         keys_to_clear = ['cart', 'voucher_code', 'discount_percentage', 'delivery_fee', 
                          'order_type', 'delivery_address', 'buffet_package', 
                          'buffet_recommendations', 'buffet_sequence', 
@@ -1173,10 +1076,6 @@ def place_order():
         db.session.rollback()
         return jsonify({'status': 'error', 'message': f"DB Error: {e}"}), 500
     
-# ===============================================
-# CLIENT-SIDE: CUSTOMER ACCOUNTS (Login/Register/Reset)
-# ===============================================
-
 @app.route('/account', methods=['GET'])
 def client_account_page():
     if 'customer_id' in session:
@@ -1221,7 +1120,7 @@ def client_register():
             name=register_form.name.data,
             contact_number=register_form.contact_number.data,
             address=register_form.address.data,
-            landmark=register_form.landmark.data, # <-- ADDED LANDMARK
+            landmark=register_form.landmark.data,
             email=register_form.email.data.lower(),
             birthdate=register_form.birthdate.data
         )
@@ -1269,15 +1168,15 @@ def send_async_email(app, msg):
 def send_reset_email(customer):
     token = customer.get_reset_token()
     
-    # Ensure we have a sender string, otherwise fallback to a dummy string to prevent crash
+    
     sender_email = current_app.config.get('MAIL_USERNAME') or 'noreply@demo.com'
 
     msg = Message(
         'Password Reset Request',
-        sender=sender_email,  # <--- Updated variable
+        sender=sender_email,
         recipients=[customer.email]
     )
-    # ... rest of function ...
+    
     msg.html = render_template('reset_email.html', customer=customer, token=token)
     
     from threading import Thread
@@ -1320,11 +1219,6 @@ def client_reset_token(token):
     
     return render_template('client_reset_password.html', form=form)
 
-# ===============================================
-# CLIENT-SIDE: BUFFET WIZARD
-# (Routes are kept as they do not depend on Rider)
-# ===============================================
-
 @app.route('/buffet-builder', methods=['GET'])
 def buffet_wizard_start():
     categories = Category.query.filter_by(is_active=True).order_by(Category.name.asc()).all()
@@ -1348,20 +1242,20 @@ def buffet_wizard_reco():
         flash("Please select at least one category to include in your buffet.", 'danger')
         return redirect(url_for('buffet_wizard_start'))
 
-    # --- NEW: SORT THE SEQUENCE ---
-    # This ensures Mains come first, then Carbs, then Sides, then Dessert
+    
+    
     def get_sort_index(cat_name):
         try:
             return CATEGORY_ORDER.index(cat_name)
         except ValueError:
-            return 999 # Put unknown/custom categories at the end
+            return 999 
             
     selected_categories.sort(key=get_sort_index)
-    # ------------------------------
+    
 
     recommendations = {}
     
-    # Shared Mains Logic
+    
     total_mains_needed = (guest_count + 9) // 10
     recommendations['Shared_Mains'] = total_mains_needed
 
@@ -1369,7 +1263,7 @@ def buffet_wizard_reco():
         if category_name in MAIN_CATEGORIES:
             continue
         elif category_name in ['Pasta & Noodles', 'Vegetables', 'Dessert']:
-            # Adjust this ratio if needed (e.g. 1 per 15 for sides)
+            
             count = (guest_count + 14) // 15
             recommendations[category_name] = count
         else:
@@ -1379,7 +1273,7 @@ def buffet_wizard_reco():
     session['buffet_guest_count'] = guest_count
     session['buffet_package'] = {}
     
-    # Save the SORTED sequence
+    
     session['buffet_sequence'] = selected_categories
 
     return redirect(url_for('buffet_wizard_select', category_name=selected_categories[0]))
@@ -1402,7 +1296,7 @@ def buffet_wizard_select(category_name):
 
     buffet_package = session.get('buffet_package', {})
     
-    # --- SHARED MAINS LOGIC ---
+    
     is_main_category = category_name in MAIN_CATEGORIES
     
     if is_main_category:
@@ -1418,19 +1312,19 @@ def buffet_wizard_select(category_name):
             if item['category'] == category_name:
                 current_count += item['quantity']
 
-    # Filter selections for display
+    
     current_selections = []
-    current_total_price = 0.0 # <-- NEW: Calculate Total Price
+    current_total_price = 0.0 
     
     for variant_id, item_data in buffet_package.items():
-        # Calculate total for the badge
+        
         current_total_price += (item_data['price'] * item_data['quantity'])
         
         if item_data['category'] == category_name:
             item_data['variant_id'] = variant_id
             current_selections.append(item_data)
 
-    # Navigation Logic
+    
     current_index = wizard_sequence.index(category_name)
     
     if current_index > 0:
@@ -1446,7 +1340,7 @@ def buffet_wizard_select(category_name):
         next_category = wizard_sequence[current_index + 1]
         next_url = url_for('buffet_wizard_select', category_name=next_category)
 
-    # Button Logic
+    
     min_to_proceed = required_count
     if is_main_category:
         remaining_categories = wizard_sequence[current_index+1:]
@@ -1469,7 +1363,7 @@ def buffet_wizard_select(category_name):
         is_final_category=is_final_category,
         is_main_category=is_main_category,
         
-        # --- NEW VARIABLES FOR UI ---
+        
         current_step=current_index + 1,
         total_steps=len(wizard_sequence),
         current_total_price=current_total_price
@@ -1502,11 +1396,8 @@ def buffet_commit_package():
     main_cart = session.get('cart', {})
 
     for variant_id, item_data in buffet_package.items():
-        # --- FIX: ALWAYS PREFIX BUFFET ITEMS ---
-        # Previously, we checked if the item existed and tried to merge.
-        # Now, we force a unique 'buffet_' key. This ensures that even if 
-        # the user adds the exact same item via A La Carte (which uses raw variant_id),
-        # they will be treated as separate entries in the cart.
+        
+        
         cart_key = f"buffet_{variant_id}"
 
         if cart_key in main_cart:
@@ -1515,7 +1406,7 @@ def buffet_commit_package():
             main_cart[cart_key] = {
                 'product_id': item_data['product_id'],
                 'name': item_data['product_name'],
-                'variant_id': variant_id, # Store raw ID inside for reference
+                'variant_id': variant_id,
                 'variant_name': item_data['variant_name'],
                 'price': item_data['price'],
                 'image': item_data['image'],
@@ -1525,7 +1416,7 @@ def buffet_commit_package():
 
     session['cart'] = main_cart
 
-    # Clear the wizard session
+    
     session.pop('buffet_package', None)
     session.pop('buffet_recommendations', None)
     session.pop('buffet_sequence', None)
@@ -1597,7 +1488,7 @@ def buffet_add_item():
         return jsonify({'status': 'error', 'message': 'This item is currently unavailable.'}), 400
     category_name = product.category.name
 
-    # Shared Limit Validation
+    
     if category_name in MAIN_CATEGORIES:
         current_count = 0
         for item in buffet_cart.values():
@@ -1619,7 +1510,7 @@ def buffet_add_item():
             'message': f"You've selected {potential_new_count} items for this section, but the recommendation is {recommended_count}. Add anyway?"
         })
 
-    # Add to cart
+    
     if variant_id in buffet_cart:
         buffet_cart[variant_id]['quantity'] += quantity
     else:
@@ -1635,7 +1526,7 @@ def buffet_add_item():
     
     session['buffet_package'] = buffet_cart
     
-    # --- NEW: CALCULATE NEW TOTAL ---
+    
     new_total_price = 0.0
     for item in buffet_cart.values():
         new_total_price += (item['price'] * item['quantity'])
@@ -1643,7 +1534,7 @@ def buffet_add_item():
     return jsonify({
         'status': 'success',
         'message': f"Added {product.name}",
-        'new_total_price': new_total_price # Return this to JS
+        'new_total_price': new_total_price
     })
 
 @app.route('/buffet/remove_item/<string:variant_id>/<string:category_name>')
@@ -1662,27 +1553,23 @@ def buffet_remove_item_from_package(variant_id, category_name):
 @app.route('/buffet/review')
 @customer_login_required
 def buffet_review_and_add():
-    # This route is deprecated by commit_package, but kept for compatibility.
+    
     return redirect(url_for('client_cart'))
-
-# ===============================================
-# ADMIN-SIDE ROUTES (Rider management removed)
-# ===============================================
 
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
-    # 1. Get "New Orders Today" (All orders except Declined)
+    
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     orders_today_count = Order.query.filter(
         Order.order_date >= today_start,
         Order.status != 'Declined'
     ).count()
 
-    # 2. Get "Total Sales this Month" (Only Confirmed Orders)
+    
     month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
-    # Filter for valid sales only (Approved, In Progress, Completed)
+    
     valid_statuses = ['Approved', 'In Progress', 'Up for Delivery', 'Completed']
     
     total_sales_month_query = db.session.query(func.sum(Order.final_amount)).filter(
@@ -1692,17 +1579,17 @@ def admin_dashboard():
     
     total_sales_month = total_sales_month_query or 0.0
 
-    # 3. Get "New Customer Registrations" this month
+    
     new_customers_month_count = Customer.query.filter(Customer.registration_date >= month_start).count()
 
-    # 4. Get "Recent Pending Requests" (Updated Status)
-    # We want the ones waiting for approval, ordered by Event Date (so urgency is visible)
+    
+    
     recent_pending_orders = Order.query.filter_by(status='Pending Approval')\
         .order_by(Order.event_date.asc())\
         .limit(5)\
         .all()
         
-    # 5. Get Pending Verifications (For Discount IDs)
+    
     pending_verifications_count = Customer.query.filter(Customer.discount_status == 'Pending').count()
 
     return render_template(
@@ -1716,18 +1603,14 @@ def admin_dashboard():
 
 
 def verify_admin_password(password_attempt):
-    """
-    Verifies the current logged-in admin's password.
-    Returns True if correct, False otherwise.
-    """
-   # --- START FIX ---
-    # 1. Explicitly check for None or empty string. A blank password attempt must always fail.
+    
+    
     if not password_attempt:
         return False
         
-    # 2. Proceed with the actual password check
+    
     return current_user.check_password(password_attempt)
-    # --- END FIX ---
+    
 
 @app.route('/admin/logout')
 @login_required
@@ -1736,17 +1619,10 @@ def admin_logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('admin_login'))
 
-# ===============================================
-# MODULE 1: ORDER MANAGEMENT (Simplified)
-# ===============================================
-
 @app.route('/admin/orders')
 @login_required
 def admin_orders():
-    """
-    (R)EAD: Display all customer orders.
-    Rider assignment UI removed.
-    """
+    
     status_filter = request.args.get('status')
     order_query = Order.query.join(Customer).order_by(Order.order_date.desc())
 
@@ -1755,19 +1631,17 @@ def admin_orders():
 
     orders = order_query.all()
     
-    # available_riders list is removed since there are no riders.
+    
 
     return render_template(
         'admin_orders.html', 
         orders=orders, 
         current_filter=status_filter,
-        available_riders=[] # Pass empty list
+        available_riders=[]
     )
 
 def send_order_email(order, subject, template_name):
-    """
-    Helper to send async order emails.
-    """
+    
     msg = Message(
         subject,
         recipients=[order.customer.email],
@@ -1775,37 +1649,35 @@ def send_order_email(order, subject, template_name):
     )
     msg.html = render_template(template_name, order=order)
     
-    # Send asynchronously so the Admin doesn't have to wait
+    
     app = current_app._get_current_object()
     Thread(target=send_async_email, args=(app, msg)).start()
 
 @app.route('/admin/orders/update_status/<int:order_id>', methods=['POST'])
 @login_required
 def admin_update_order_status(order_id):
-    """
-    (U)PDATE: Update status and send Email Notifications (Approved, Declined, In Progress, Delivery, Completed).
-    """
+    
     order = Order.query.get_or_404(order_id)
     new_status = request.form.get('status')
     decline_reason = request.form.get('decline_reason')
     
     try:
         if new_status and new_status != order.status:
-            old_status = order.status # Track old status to prevent spam
+            old_status = order.status
             order.status = new_status
             
-            # 1. Handle Declined Reason
+            
             if new_status == 'Declined' and decline_reason:
                 order.decline_reason = decline_reason
             
-            # 2. Clear reason if Approved (in case it was declined before)
+            
             if new_status == 'Approved':
                 order.decline_reason = None
 
             db.session.commit()
             
-            # 3. --- EMAIL NOTIFICATION LOGIC ---
-            # Only send email if status actually changed
+            
+            
             
             if new_status == 'Approved' and old_status != 'Approved':
                 send_order_email(order, f"Order #{order.order_id} Confirmed - Anjet's", 'email_order_approved.html')
@@ -1813,10 +1685,10 @@ def admin_update_order_status(order_id):
             elif new_status == 'Declined':
                 send_order_email(order, f"Update on Order #{order.order_id} - Anjet's", 'email_order_declined.html')
 
-            # --- NEW: IN PROGRESS EMAIL ---
+            
             elif new_status == 'In Progress' and old_status != 'In Progress':
                 send_order_email(order, f"Order #{order.order_id} is Being Prepared! 🍳", 'email_order_in_progress.html')
-            # ------------------------------
+            
                 
             elif new_status == 'Up for Delivery' and old_status != 'Up for Delivery':
                 send_order_email(order, f"Order #{order.order_id} is Out for Delivery! 🚚", 'email_order_delivery.html')
@@ -1901,10 +1773,6 @@ def admin_export_orders_json():
         flash(f"An error occurred while generating the JSON: {e}", 'danger')
         return redirect(url_for('admin_orders'))
 
-# ===============================================
-# MODULE 3: CATEGORY MANAGEMENT
-# ===============================================
-
 @app.route('/admin/categories', methods=['GET'])
 @login_required
 def admin_categories():
@@ -1988,10 +1856,6 @@ def admin_toggle_category_status(category_id):
     return redirect(url_for('admin_categories') + '#existing-categories-card')
 
 
-# ===============================================
-# MODULE 2: PRODUCT MANAGEMENT
-# ===============================================
-
 @app.route('/admin/products', methods=['GET'])
 @login_required
 def admin_products():
@@ -2070,28 +1934,23 @@ def admin_add_product():
     )
 
 
-# app/routes.py
-
-# app/routes.py
-
 @app.route('/admin/products/edit/<int:product_id>', methods=['GET', 'POST'])
 @login_required
 def admin_edit_product(product_id):
     product = Product.query.get_or_404(product_id)
     
-    # 1. Instantiate the form (obj=product provides initial data)
+    
     form = ProductForm(obj=product) 
     
-    # 2. Set the available choices immediately.
+    
     form.category.choices = get_category_choices()
 
-    # --- CRITICAL FIX: Ensure the correct Category ID is bound on initial load ---
+    
     if request.method == 'GET':
-        # This explicitly sets the correct ID after choices have been loaded, 
-        # preventing the SelectField from defaulting to the first choice (Beef).
+        
         form.category.data = product.category_id
         
-        # Load simple product price data explicitly on GET for the form field
+        
         if not product.has_variants and product.variants:
             simple_variant = ProductVariant.query.filter_by(
                 product_id=product.product_id,
@@ -2099,33 +1958,33 @@ def admin_edit_product(product_id):
             ).first()
             if simple_variant:
                 form.price.data = simple_variant.price
-    # -------------------------------------------------------------------------
+    
 
     if form.validate_on_submit():
         
-        # --- Image Upload Logic ---
+        
         if form.image.data:
             try:
-                # Assuming save_picture is a helper function that saves the file and returns the filename
+                
                 image_filename = save_picture(form.image.data)
                 product.image_file = image_filename
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
                 return redirect(url_for('admin_edit_product', product_id=product_id))
 
-        # 3. Update the product using the now-correct form data.
-        product.category_id = form.category.data 
+        
+        product.category_id = form.category.data
         product.name = form.name.data
         product.description = form.description.data
         product.has_variants = form.has_variants.data
 
-        # Logic for handling simple product price (no variants)
+        
         if not product.has_variants:
             if form.price.data is None:
                 flash('Error: A simple product (no variants) must have a price.', 'danger')
                 return redirect(url_for('admin_edit_product', product_id=product_id))
 
-            # Find or create the single 'Regular' variant
+            
             simple_variant = ProductVariant.query.filter_by(
                 product_id=product.product_id, 
                 size_name="Regular"
@@ -2149,7 +2008,7 @@ def admin_edit_product(product_id):
             db.session.rollback()
             flash(f"Error updating product: {e}", 'danger')
 
-    # This part handles the re-render for POST validation failures or the initial GET
+    
     
     return render_template(
         'admin_product_form.html',
@@ -2162,7 +2021,7 @@ def admin_edit_product(product_id):
 @app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
 @login_required
 def admin_delete_product(product_id):
-    # 1. Security Check: Verify Password
+    
     password_attempt = request.form.get('admin_confirm_password')
     if not verify_admin_password(password_attempt):
         flash('Incorrect password. Action cancelled.', 'danger')
@@ -2170,15 +2029,15 @@ def admin_delete_product(product_id):
 
     product = Product.query.get_or_404(product_id)
 
-    # 2. Dependency Check: Is it in any order?
-    # Check OrderItems table
+    
+    
     in_orders = OrderItem.query.filter_by(product_id=product_id).first()
     
     if in_orders:
-        # OPTION A: Prevent Delete (Recommended)
+        
         flash(f"Cannot delete '{product.name}' because it is part of existing order history. Please Deactivate it instead.", 'warning')
         
-        # Automatically deactivate it for them as a convenience
+        
         if product.is_active:
             product.is_active = False
             db.session.commit()
@@ -2186,9 +2045,9 @@ def admin_delete_product(product_id):
             
         return redirect(url_for('admin_products'))
 
-    # If not in any orders, we can safely hard delete
+    
     try:
-        # Delete variants first (if cascade isn't set up in DB)
+        
         ProductVariant.query.filter_by(product_id=product_id).delete()
         
         db.session.delete(product)
@@ -2227,7 +2086,7 @@ def admin_export_products_xml():
                 ET.SubElement(variant_elem, 'Price').text = str(variant.price)
 
         xml_str = minidom.parseString(ET.tostring(root))\
-                         .toprettyxml(indent="   ")
+                         .toprettyxml(indent="    ")
 
         response = make_response(xml_str)
         response.headers["Content-Disposition"] = "attachment; filename=menu_export.xml"
@@ -2238,10 +2097,6 @@ def admin_export_products_xml():
     except Exception as e:
         flash(f"An error occurred while generating the XML: {e}", 'danger')
         return redirect(url_for('admin_products'))
-
-# ===============================================
-# MODULE 2b: PRODUCT VARIANT MANAGEMENT
-# ===============================================
 
 @app.route('/admin/products/<int:product_id>/variants', methods=['GET'])
 @login_required
@@ -2377,24 +2232,24 @@ def admin_import_products_csv():
     if file and file.filename.endswith('.csv'):
         try:
             stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
-            # Use csv.reader for headerless reading (returns list of strings)
+            
             csv_reader = csv.reader(stream)
 
             products_added = 0
             errors = []
 
             for row_idx, row in enumerate(csv_reader):
-                # Skip empty rows
+                
                 if not row:
                     continue
                 
-                # Check if row has enough columns (we expect 6)
+                
                 if len(row) < 6:
                     errors.append(f"Row {row_idx + 1}: Skipped (insufficient columns)")
                     continue
 
-                # EXTRACT VALUES BY INDEX
-                # 0: Category, 1: Name, 2: Description, 3: HasVariants, 4: Price, 5: Size
+                
+                
                 r_category    = row[0].strip()
                 r_name        = row[1].strip()
                 r_description = row[2].strip()
@@ -2402,19 +2257,19 @@ def admin_import_products_csv():
                 r_price       = row[4].strip()
                 r_size        = row[5].strip()
 
-                # 1. Find the Category
+                
                 category = Category.query.filter_by(name=r_category).first()
                 if not category:
                     errors.append(f"Row {row_idx + 1}: Category '{r_category}' not found.")
                     continue
 
-                # 2. Check if product already exists
+                
                 existing_product = Product.query.filter_by(name=r_name).first()
                 if existing_product:
                     errors.append(f"Row {row_idx + 1}: Product '{r_name}' already exists.")
                     continue
 
-                # 3. Create the Product
+                
                 has_variants_bool = r_has_variant.lower() == 'true'
                 new_product = Product(
                     name=r_name,
@@ -2424,14 +2279,12 @@ def admin_import_products_csv():
                 )
                 db.session.add(new_product)
 
-                # 4. If it's a simple product, add its one variant
+                
                 if not has_variants_bool:
                     if not r_price or not r_size:
                         errors.append(f"Row {row_idx + 1}: Simple product '{r_name}' missing price or size.")
-                        # We should probably rollback/skip adding the product here if variant fails,
-                        # but for simplicity in this loop we just won't add the variant.
-                        # Ideally, we shouldn't commit the product if this fails.
-                        # For now, let's just continue (the product will exist with no price, requiring admin fix).
+                        
+                        
                         continue
 
                     simple_variant = ProductVariant(
@@ -2448,7 +2301,7 @@ def admin_import_products_csv():
             if products_added > 0:
                 flash(f"Successfully imported {products_added} new products!", 'success')
             if errors:
-                # Show up to 3 errors to avoid flooding the flash message
+                
                 error_msg = " | ".join(errors[:3])
                 if len(errors) > 3:
                     error_msg += f" ...and {len(errors)-3} more errors."
@@ -2461,10 +2314,6 @@ def admin_import_products_csv():
         flash('Invalid file type. Please upload a .csv file.', 'danger')
 
     return redirect(url_for('admin_products'))
-
-# ===============================================
-# MODULE 4: VOUCHER MANAGEMENT
-# ===============================================
 
 @app.route('/admin/vouchers', methods=['GET'])
 @login_required
@@ -2583,11 +2432,7 @@ def admin_toggle_voucher_status(voucher_id):
 
     return redirect(url_for('admin_vouchers') + '#existing-vouchers-card')
 
-# ===============================================
-# MODULE 5: CUSTOMER MANAGEMENT
-# ===============================================
-
-@app.route('/admin/customers')
+@app.route('/admin/customers', methods=['GET'])
 @login_required
 def admin_customers():
     search_query = request.args.get('search')
@@ -2614,7 +2459,7 @@ def admin_customers():
 @app.route('/admin/customers/delete/<int:customer_id>', methods=['POST'])
 @login_required
 def admin_delete_customer(customer_id):
-    # 1. Security Check: Verify Admin Password
+    
     password_attempt = request.form.get('admin_confirm_password')
     if not verify_admin_password(password_attempt):
         flash('Incorrect password. Action cancelled.', 'danger')
@@ -2622,16 +2467,16 @@ def admin_delete_customer(customer_id):
 
     customer = Customer.query.get_or_404(customer_id)
     
-    # 2. Dependency Check: Does this customer have Order History?
-    # We check if they have ANY orders (even completed ones)
+    
+    
     order_count = Order.query.filter_by(customer_id=customer_id).count()
 
     if order_count > 0:
-        # PREVENT DELETE: We cannot delete customers with history, or we lose Sales Data.
+        
         flash(f"Cannot delete customer '{customer.name}' because they have {order_count} orders in the system. Deleting them would corrupt your Sales Reports.", 'warning')
         return redirect(url_for('admin_customers'))
 
-    # 3. Safe to Delete (No history)
+    
     try:
         db.session.delete(customer)
         db.session.commit()
@@ -2694,30 +2539,28 @@ def admin_edit_customer(customer_id):
 @app.route('/admin/verifications')
 @login_required
 def admin_verifications():
-    """
-    (R)EAD: Show all pending Customer verifications AND GCash payment verifications.
-    """
+    
     customers_to_verify = Customer.query.filter(
         Customer.discount_status == 'Pending'
     ).order_by(Customer.registration_date.desc()).all()
 
-    # --- NEW: Fetch Pending GCash Orders ---
+    
     gcash_orders_to_verify = Order.query.filter(
         Order.payment_method == 'GCash',
         Order.payment_status == 'Pending Verification'
     ).order_by(Order.order_date.asc()).all()
-    # --------------------------------------
+    
 
-    # Riders are no longer part of the system
+    
     riders_to_verify = [] 
 
     return render_template(
         'admin_verifications_hub.html', 
         customers=customers_to_verify,
         riders=riders_to_verify,
-        # --- NEW: Pass GCash Orders ---
+        
         gcash_orders=gcash_orders_to_verify
-        # -----------------------------
+        
     )
 
 @app.route('/admin/approve_discount/<int:customer_id>', methods=['POST'])
@@ -2743,7 +2586,7 @@ def admin_approve_payment(order_id):
     order = Order.query.get_or_404(order_id)
     
     order.payment_status = 'Paid'
-    # Automatically move the order to the next stage: Pending Approval
+    
     order.status = 'Pending Approval' 
 
     try:
@@ -2761,7 +2604,7 @@ def admin_deny_payment(order_id):
     order = Order.query.get_or_404(order_id)
     
     order.payment_status = 'Failed'
-    # Move the order to Declined since upfront payment failed
+    
     order.status = 'Declined'
     order.decline_reason = "GCash payment verification failed or expired. Please contact us to resolve or re-order with COD/COP."
 
@@ -2790,10 +2633,6 @@ def admin_deny_discount(customer_id):
         flash(f"Error denying discount: {e}", 'danger')
 
     return redirect(url_for('admin_verifications'))
-
-# ===============================================
-# MODULE 6: SALES REPORTING
-# ===============================================
 
 @app.route('/admin/sales_reports')
 @login_required
@@ -2895,21 +2734,14 @@ def admin_export_sales_csv():
         flash(f"An error occurred while generating the CSV: {e}", 'danger')
         return redirect(url_for('admin_sales_reports'))
 
-# ===============================================
-# MODULE 7: USER (STAFF) MANAGEMENT 
-# (Rider management removed from all user routes)
-# ===============================================
-
 @app.route('/admin/users', methods=['GET'])
 @login_required
 def admin_users():
-    """
-    (R)EAD: Display all staff users (Riders removed).
-    """
+    
     staff_users = User.query.order_by(User.username.asc()).all()
     
-    # Riders list is now empty
-    riders = [] 
+    
+    riders = []
     
     return render_template('admin_users.html', staff_users=staff_users, riders=riders)
 
@@ -2987,7 +2819,7 @@ def admin_edit_user(user_id):
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @login_required
 def admin_delete_user(user_id):
-    # 1. Security Check: Verify Password
+    
     password_attempt = request.form.get('admin_confirm_password')
     if not verify_admin_password(password_attempt):
         flash('Incorrect password. Action cancelled.', 'danger')
@@ -3012,31 +2844,28 @@ def admin_delete_user(user_id):
 @app.route('/admin/dangerous/reset_menu')
 @login_required
 def admin_reset_menu():
-    """
-    DANGEROUS: Deletes all Categories, Products, Variants, and Orders.
-    Use this to clear the DB before importing a fresh CSV.
-    """
+    
     if current_user.role != 'Admin':
         flash("Unauthorized.", "danger")
         return redirect(url_for('admin_dashboard'))
 
     try:
-        # 1. Delete all Order Items first (The lowest child)
+        
         num_items = db.session.query(OrderItem).delete()
         
-        # 2. Delete all Orders (Since they are now empty)
+        
         num_orders = db.session.query(Order).delete()
 
-        # 3. Delete all Product Variants
+        
         num_variants = db.session.query(ProductVariant).delete()
 
-        # 4. Delete all Reviews (If you have them)
+        
         num_reviews = db.session.query(Review).delete()
 
-        # 5. Delete all Products
+        
         num_products = db.session.query(Product).delete()
 
-        # 6. Delete all Categories (The highest parent)
+        
         num_categories = db.session.query(Category).delete()
 
         db.session.commit()
@@ -3048,8 +2877,6 @@ def admin_reset_menu():
         flash(f"Error resetting database: {e}", "danger")
 
     return redirect(url_for('admin_products'))
-
-    # In app/routes.py
 
 @app.route('/cart/remove_voucher')
 @customer_login_required

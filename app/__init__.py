@@ -5,7 +5,6 @@ from flask_bcrypt import Bcrypt
 from flask_login import LoginManager
 from flask_mail import Mail
 
-# Initialize our database
 db = SQLAlchemy()
 
 bcrypt = Bcrypt()
@@ -21,13 +20,11 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Initialize extensions (like the database)
     db.init_app(app)
     bcrypt.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
 
-    # Register our 'routes' (the URLs)
     with app.app_context():
         from . import routes
         from . import models
@@ -36,7 +33,6 @@ def create_app(config_class=Config):
         def load_user(user_id):
             return models.User.query.get(int(user_id))
         
-        # This registers your models with flask shell
         @app.shell_context_processor
         def make_shell_context():
             return {

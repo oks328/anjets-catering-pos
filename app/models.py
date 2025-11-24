@@ -7,8 +7,6 @@ from flask import current_app
 
 bcrypt = Bcrypt()
 
-# This file defines the Python classes for our database tables.
-
 class Category(db.Model):
     """
     Model for food categories.
@@ -125,8 +123,6 @@ class User(db.Model, UserMixin):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
-# In app/models.py
-
 class Order(db.Model):
     """
     Model for a single customer order.
@@ -135,19 +131,17 @@ class Order(db.Model):
     __tablename__ = 'Orders'
     order_id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('Customers.customer_id'), nullable=False)
-    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # When they clicked "Buy"
+    order_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) 
     
-    # --- NEW FIELDS FOR CATERING ---
-    event_date = db.Column(db.Date, nullable=True) # When they need the food
-    event_time = db.Column(db.Time, nullable=True) # What time
-    decline_reason = db.Column(db.Text, nullable=True) # If admin rejects it
-    # -------------------------------
+    event_date = db.Column(db.Date, nullable=True) 
+    event_time = db.Column(db.Time, nullable=True) 
+    decline_reason = db.Column(db.Text, nullable=True) 
 
     total_amount = db.Column(db.Numeric(10, 2), nullable=False)
     discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     final_amount = db.Column(db.Numeric(10, 2), nullable=False)
     
-    # Default status is now 'Pending Approval' instead of just 'Pending'
+    
     status = db.Column(db.String(50), nullable=False, default='Pending Approval')
     
     order_type = db.Column(db.String(50), nullable=False, default='Pickup')
@@ -157,8 +151,8 @@ class Order(db.Model):
     special_instructions = db.Column(db.Text, nullable=True)
 
     payment_method = db.Column(db.String(50), nullable=False, default='COD/COP')
-    payment_status = db.Column(db.String(50), nullable=False, default='Pending') # Tracks payment: Pending, Paid, Failed
-    payment_image_file = db.Column(db.String(100), nullable=True) # For GCash receipt
+    payment_status = db.Column(db.String(50), nullable=False, default='Pending') 
+    payment_image_file = db.Column(db.String(100), nullable=True) 
     gcash_reference_no = db.Column(db.String(50), nullable=True)
 
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
@@ -199,12 +193,8 @@ class Review(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('Products.product_id'), nullable=False)
     customer_id = db.Column(db.Integer, db.ForeignKey('Customers.customer_id'), nullable=False)
     
-    # Review data
     rating = db.Column(db.Integer, nullable=False) 
     comment = db.Column(db.Text, nullable=True)
     review_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
-    # Relationships: ONLY DEFINE THE FOREIGN KEY
-    # The backref in the Product model handles the product property.
-    # We only need to explicitly define the customer relationship here.
     customer = db.relationship('Customer')

@@ -10,11 +10,9 @@ from app.models import Customer
 
 
 def password_complexity(form, field):
-    """
-    Custom validator to ensure password contains letters and numbers.
-    """
+    
     password = field.data
-    if password: # Only run if password is not empty
+    if password: 
         has_letter = any(c.isalpha() for c in password)
         has_number = any(c.isdigit() for c in password)
         
@@ -29,9 +27,7 @@ def email_exists(form, field):
     
 
 class AdminLoginForm(FlaskForm):
-    """
-    Form for admin users to log in.
-    """
+    
     username = StringField(
         'Username',
         validators=[DataRequired()]
@@ -44,9 +40,7 @@ class AdminLoginForm(FlaskForm):
 
 
 class CategoryForm(FlaskForm):
-    """
-    Form for admin to add or edit a category.
-    """
+    
     name = StringField(
         'Category Name',
         validators=[DataRequired(), Length(min=3, max=100)]
@@ -59,10 +53,8 @@ class CategoryForm(FlaskForm):
 
 
 class ProductForm(FlaskForm):
-    """
-    Form for admin to add or edit a product.
-    """
-    # We'll populate 'choices' in our route
+    
+    
     category = SelectField(
         'Category',
         coerce=int,
@@ -79,7 +71,7 @@ class ProductForm(FlaskForm):
         'This product has multiple sizes/prices (e.g., S, M, L)'
     )
 
-    # This price is for SIMPLE products (when has_variants is False)
+    
     price = DecimalField(
         'Price (if no variants)',
         places=2,
@@ -90,15 +82,13 @@ class ProductForm(FlaskForm):
         'Product Image',
         validators=[
             FileAllowed(['jpg', 'png', 'jpeg', 'webp'], 'Images only! (jpg, png, jpeg, webp)'),
-            FileSize(max_size=2 * 1024 * 1024)  # 2MB max size
+            FileSize(max_size=2 * 1024 * 1024)
         ]
     )
     submit = SubmitField('Save Product')
 
 class VariantForm(FlaskForm):
-    """
-    Form for adding/editing a product variant.
-    """
+    
     size_name = StringField(
         'Size / Name',
         validators=[DataRequired(), Length(min=1, max=50)],
@@ -113,9 +103,7 @@ class VariantForm(FlaskForm):
     submit = SubmitField('Save Variant')
 
 class VoucherForm(FlaskForm):
-    """
-    Form for adding/editing a voucher.
-    """
+    
     code = StringField(
         'Voucher Code',
         validators=[DataRequired(), Length(min=3, max=50)],
@@ -130,7 +118,7 @@ class VoucherForm(FlaskForm):
         ],
         description="e.g., Enter 10 for 10%. Max is 20%."
     )
-    # This will be a checkbox
+    
     is_active = BooleanField(
         'Active',
         default=True
@@ -145,9 +133,7 @@ class VoucherForm(FlaskForm):
     submit = SubmitField('Save Voucher')
 
 class UserAddForm(FlaskForm):
-    """
-    Form for admin to add a new staff user.
-    """
+    
     username = StringField(
         'Username',
         validators=[DataRequired(), Length(min=4, max=100)]
@@ -169,9 +155,7 @@ class UserAddForm(FlaskForm):
 
 
 class UserEditForm(FlaskForm):
-    """
-    Form for admin to edit an existing staff user.
-    """
+    
     username = StringField(
         'Username',
         validators=[DataRequired(), Length(min=4, max=100)]
@@ -192,13 +176,12 @@ class UserEditForm(FlaskForm):
     submit = SubmitField('Update User')
 
 class CustomerRegisterForm(FlaskForm):
-    """
-    Form for new customers to register.
-    """
+    
     name = StringField(
         'Full Name',
         validators=[DataRequired(), Length(min=3, max=255)]
     )
+    
     
     contact_number = StringField(
         'Contact Number',
@@ -248,14 +231,14 @@ class CustomerLoginForm(FlaskForm):
 class CustomerEditForm(FlaskForm):
     name = StringField('Full Name', validators=[DataRequired(), Length(min=3, max=255)])
     
-    # ADDED STRICT VALIDATION HERE
+    
     contact_number = StringField(
         'Contact Number',
         validators=[
             DataRequired(), 
             Length(min=11, max=11, message="Phone number must be exactly 11 digits."),
             Regexp(r'^\d+$', message="Phone number must contain only digits.")
-        ]
+        ]   
     )
     
     email = StringField('Email Address', validators=[DataRequired(), Email()])
@@ -266,7 +249,7 @@ class CustomerEditForm(FlaskForm):
 class CustomerProfileForm(FlaskForm):
     name = StringField('Full Name', validators=[DataRequired(), Length(min=3, max=255)])
     
-    # ADDED STRICT VALIDATION HERE
+    
     contact_number = StringField(
         'Contact Number',
         validators=[
@@ -276,14 +259,13 @@ class CustomerProfileForm(FlaskForm):
         ]
     )
     
-    landmark = StringField('Landmark (Optional)', validators=[Optional(), Length(max=255)]) # Ensure this exists if used
+    landmark = StringField('Landmark (Optional)', validators=[Optional(), Length(max=255)])
     birthdate = DateField('Birthdate', validators=[Optional()])
     submit = SubmitField('Update Profile')
 
 class DiscountVerificationForm(FlaskForm):
-    """
-    Form for uploading a Senior/PWD ID.
-    """
+    
+    
     discount_type = SelectField(
         'Discount Type',
         choices=[('Senior', 'Senior Citizen'), ('PWD', 'PWD')],
@@ -294,16 +276,14 @@ class DiscountVerificationForm(FlaskForm):
         validators=[
             DataRequired(),
             FileAllowed(['jpg', 'png', 'jpeg'], 'Images only! (jpg, png, jpeg)'),
-            FileSize(max_size=2 * 1024 * 1024)  # 2MB max size
+            FileSize(max_size=2 * 1024 * 1024)
         ]
     )
     submit = SubmitField('Submit for Verification')
 
 class GCashPaymentForm(FlaskForm):
-    """
-    Form for uploading a GCash receipt/screenshot.
-    """
-    # Note: We don't ask for amount as it's computed server-side
+    
+    
     reference_number = StringField(
         'GCash Reference Number',
         validators=[DataRequired(), Length(max=20)],
@@ -314,15 +294,13 @@ class GCashPaymentForm(FlaskForm):
         validators=[
             DataRequired(),
             FileAllowed(['jpg', 'png', 'jpeg'], 'Images only! (jpg, png, jpeg)'),
-            FileSize(max_size=3 * 1024 * 1024)  # 3MB max size
+            FileSize(max_size=3 * 1024 * 1024)
         ]
     )
     submit = SubmitField('Submit Payment Proof')
 
 class RequestResetForm(FlaskForm):
-    """
-    Form for customer to request a password reset email.
-    """
+    
     email = StringField(
         'Email Address',
         validators=[DataRequired(), Email()]
@@ -335,9 +313,7 @@ class RequestResetForm(FlaskForm):
             raise ValidationError('There is no account with that email. You must register first.')
 
 class ResetPasswordForm(FlaskForm):
-    """
-    Form for customer to enter their new password.
-    """
+    
     password = PasswordField(
         'New Password',
         validators=[DataRequired(), Length(min=8), password_complexity]
@@ -349,10 +325,8 @@ class ResetPasswordForm(FlaskForm):
     submit = SubmitField('Reset Password')
 
 class ReviewForm(FlaskForm):
-    """
-    Form for submitting a short product review.
-    """
-    # 1 to 5 stars
+    
+    
     rating = IntegerField(
         'Rating (1-5 Stars)', 
         validators=[
@@ -362,7 +336,7 @@ class ReviewForm(FlaskForm):
     )
     comment = TextAreaField(
         'Short Comment (Optional)',
-        validators=[Length(max=200)], # Limiting the length as requested
+        validators=[Length(max=200)],
         description="Max 200 characters."
     )
     submit = SubmitField('Submit Review')

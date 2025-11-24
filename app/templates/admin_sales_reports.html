@@ -33,6 +33,14 @@
         </div>
     </div>
 
+    {% if sales_by_day %}
+    <div class="card">
+        <h3>Sales Performance Trend ({{ date_range_str }})</h3>
+        <div style="max-height: 400px; width: 100%;">
+            <canvas id="salesChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
     <div class="card">
         <h3>Top Selling Items ({{ date_range_str }})</h3>
         <table class="admin-table">
@@ -84,4 +92,86 @@
             </tbody>
         </table>
     </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        {% if sales_by_day %}
+        
+        // 1. Prepare Data from Jinja
+        const rawData = [
+            {% for day in sales_by_day %}
+                { date: '{{ day.date.strftime("%Y-%m-%d") }}', sales: {{ day.total_sales }} },
+            {% endfor %}
+        ];
+
+        // Ensure data is sorted chronologically by date for the line chart (crucial for accurate visualization)
+        rawData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const labels = rawData.map(item => item.date);
+        const data = rawData.map(item => item.sales);
+        
+        // 2. Chart Configuration
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        const salesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Sales (PHP)',
+                    data: data,
+                    borderColor: 'rgb(255, 107, 74)', // Matches your primary color variable
+                    backgroundColor: 'rgba(255, 107, 74, 0.2)',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 4,
+                    pointBackgroundColor: 'rgb(255, 107, 74)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Sales Amount (PHP)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    // Format the price for the tooltip
+                                    label += '₱' + context.parsed.y.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        {% endif %}
+    });
+</script>
 {% endblock %}

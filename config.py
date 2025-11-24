@@ -4,10 +4,8 @@ from dotenv import load_dotenv
 # Find the .env file
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# --- THIS IS THE FIX ---
 # Load the .env file *before* the Config class is defined.
 load_dotenv(os.path.join(basedir, '.env'))
-# --- END FIX ---
 
 UPLOAD_FOLDER = os.path.join(basedir, 'app', 'static', 'uploads')
 
