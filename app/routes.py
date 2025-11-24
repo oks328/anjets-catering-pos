@@ -21,7 +21,7 @@ from threading import Thread # <--- MAKE SURE THIS IS IMPORTED
 from flask_mail import Message
 from flask_mail import Message
 from app import mail
-from app.forms import RequestResetForm, ResetPasswordForm
+from app.forms import RequestResetForm, ResetPasswordForm, GCashPaymentForm
 from flask import make_response, jsonify, current_app as app, render_template, redirect, url_for, flash, request, session, jsonify, current_app, get_flashed_messages
 
 VAT_RATE = 0.12 # 12% Value Added Tax
@@ -127,6 +127,31 @@ def save_picture(form_picture):
     i.save(picture_path)
 
     return picture_fn
+
+# app/routes.py (Add this function in the helper section)
+
+def save_payment_receipt(form_picture):
+    """
+    Helper function to save an uploaded payment receipt picture.
+    """
+    random_hex = secrets.token_hex(8)
+    # Use secure_filename to clean the filename
+    _, f_ext = os.path.splitext(form_picture.filename)
+    picture_fn = random_hex + f_ext
+    
+    # Path inside app/static/uploads/payments
+    picture_path = os.path.join(app.config['UPLOAD_FOLDER'], 'payments', picture_fn)
+
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(picture_path), exist_ok=True) 
+
+    output_size = (800, 800) 
+    i = Image.open(form_picture)
+    i.thumbnail(output_size)
+    i.save(picture_path)
+
+    # Returns the filename part needed for DB/session storage (e.g., 'payments/a1b2c3d4.jpg')
+    return f"payments/{picture_fn}"
 
 def customer_login_required(f):
     """
@@ -774,8 +799,9 @@ def apply_voucher():
 def client_checkout():
     """
     (R)EAD: Display the FINAL checkout page with ALL totals.
-    UPDATED: Uses the centralized PH Senior/PWD & VAT logic.
+    UPDATED: Checks payment method.
     """
+    # ... (Reconstruct items/calculate totals logic remains the same)
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
@@ -785,15 +811,14 @@ def client_checkout():
         return redirect(url_for('client_checkout_options'))
 
     # 1. Reconstruct items for display AND calculation
+    # ... (Existing logic for cart_items and calc_items remains the same)
     cart_items = []
-    calc_items = [] # Simplified list for the helper
+    calc_items = [] 
     
     for item_id, item_data in cart_session.items():
-        # Skip invalid entries
         if 'name' not in item_data or 'price' not in item_data:
             continue
             
-        # Data for Display
         cart_items.append({
             'product_id': item_data['product_id'],
             'variant_id': item_id, 
@@ -806,19 +831,24 @@ def client_checkout():
             'is_buffet_item': item_data.get('is_buffet_item', False)
         })
         
-        # Data for Calculator
         calc_items.append({
             'price': float(item_data['price']),
             'quantity': int(item_data['quantity'])
         })
+
 
     customer = Customer.query.get(session['customer_id'])
     delivery_fee = session.get('delivery_fee', 0.0)
     voucher_code = session.get('voucher_code')
     voucher_percent = session.get('discount_percentage', 0.0)
 
-    # 2. USE THE HELPER (Single Source of Truth)
+    # 2. USE THE HELPER
     totals = calculate_order_totals(calc_items, customer, delivery_fee, voucher_code, voucher_percent)
+    
+    # --- NEW: Get Payment Details ---
+    payment_method = session.get('payment_method', 'COD/COP')
+    gcash_uploaded = payment_method == 'GCash' and session.get('gcash_image_file') is not None
+    # -------------------------------
 
     return render_template(
         'client_checkout.html',
@@ -833,6 +863,11 @@ def client_checkout():
         delivery_fee=delivery_fee,
         final_total=totals['final_total'],
         
+        # --- NEW: Pass Payment Info ---
+        payment_method=payment_method,
+        gcash_uploaded=gcash_uploaded,
+        # ------------------------------
+        
         # Keep for template compatibility
         voucher_discount_amt=0,
         senior_discount_amt=totals['discount_amount'] if customer.is_verified_discount else 0,
@@ -843,15 +878,14 @@ def client_checkout():
 @customer_login_required
 def client_checkout_options():
     """
-    (R)EAD: Show the page for selecting Delivery or Pickup.
-    Now includes Dynamic Lead Time Calculation.
+    (R)EAD: Show the page for selecting Delivery or Pickup AND Payment Method.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
         flash("Your cart is empty.", 'info')
         return redirect(url_for('client_cart'))
 
-    # --- DYNAMIC LEAD TIME LOGIC ---
+    # ... (Existing lead time logic)
     min_days = 3 # Default for standard items
     
     # Scan cart for buffet items
@@ -875,8 +909,8 @@ def client_checkout_options():
 @customer_login_required
 def save_checkout_options():
     """
-    (C)REATE: Validate and save delivery options.
-    Now enforces strict server-side date validation.
+    (C)REATE: Validate and save delivery options AND payment method.
+    If GCash is selected, redirects to the GCash upload page.
     """
     cart_session = session.get('cart', {})
     if not cart_session:
@@ -896,8 +930,16 @@ def save_checkout_options():
     order_type = request.form.get('order_type')
     delivery_address = request.form.get('delivery_address')
     landmark = request.form.get('landmark')
+    
+    # --- NEW: Get Payment Method ---
+    payment_method = request.form.get('payment_method')
+    if not payment_method:
+        flash("Please select a payment method.", 'danger')
+        return redirect(url_for('client_checkout_options'))
+    # -------------------------------
 
     # 3. Strict Date Validation
+    # ... (Existing date validation remains the same)
     if not event_date_str:
         flash("Please select an event date.", 'danger')
         return redirect(url_for('client_checkout_options'))
@@ -905,7 +947,6 @@ def save_checkout_options():
     try:
         event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
         today = date.today()
-        # Calculate the earliest valid date
         min_date = today + timedelta(days=min_days)
         
         if event_date < min_date:
@@ -916,7 +957,8 @@ def save_checkout_options():
         flash("Invalid date format.", 'danger')
         return redirect(url_for('client_checkout_options'))
 
-    # 4. Validate Delivery Logic
+
+    # 4. Validate Delivery Logic & Save to Session
     if order_type == 'Delivery':
         if not delivery_address:
             flash("Please provide a delivery address.", 'danger')
@@ -938,8 +980,69 @@ def save_checkout_options():
     # 5. Save Validated Data to Session
     session['event_date_str'] = event_date_str
     session['event_time_str'] = event_time_str
+    session['payment_method'] = payment_method # <--- SAVE NEW FIELD
 
+    # 6. --- NEW: Redirect for GCash Payment ---
+    if payment_method == 'GCash':
+        # Need to calculate final total to show on the payment page
+        cart_items = []
+        for item_id, item_data in cart_session.items():
+            cart_items.append({
+                'price': float(item_data['price']),
+                'quantity': int(item_data['quantity'])
+            })
+        customer = Customer.query.get(session['customer_id'])
+        delivery_fee = session.get('delivery_fee', 0.0)
+        voucher_code = session.get('voucher_code')
+        voucher_percent = session.get('discount_percentage', 0.0)
+        totals = calculate_order_totals(cart_items, customer, delivery_fee, voucher_code, voucher_percent)
+        session['final_total'] = totals['final_total']
+        
+        # Redirect to the new payment upload page
+        return redirect(url_for('client_gcash_upload'))
+    
+    # 7. For COD/COP, proceed to final review
     return redirect(url_for('client_checkout'))
+
+@app.route('/checkout/gcash/upload', methods=['GET', 'POST'])
+@customer_login_required
+def client_gcash_upload():
+    """
+    Renders the page for GCash receipt upload and processes the submission.
+    """
+    if session.get('payment_method') != 'GCash':
+        flash("Invalid checkout step.", 'danger')
+        return redirect(url_for('client_checkout_options'))
+        
+    final_total = session.get('final_total', 0.0)
+    if final_total <= 0:
+        flash("Final total missing. Please restart checkout.", 'danger')
+        return redirect(url_for('client_checkout_options'))
+
+    form = GCashPaymentForm()
+    
+    if form.validate_on_submit():
+        # Save the receipt image using a new helper folder 'payments'
+        if form.receipt_image.data:
+            try:
+                # save_payment_receipt is a new helper defined above
+                image_filename = save_payment_receipt(form.receipt_image.data)
+            except Exception as e:
+                flash(f'Error uploading image: {e}', 'danger')
+                return redirect(url_for('client_gcash_upload'))
+
+        # Save details to session temporarily before final order placement
+        session['gcash_image_file'] = f"payments/{image_filename}"
+        session['gcash_reference_no'] = form.reference_number.data
+        
+        flash("Payment proof uploaded. Proceeding to order placement.", 'success')
+        return redirect(url_for('client_checkout')) # <-- Skips COD checkout, goes straight to final review
+
+    return render_template(
+        'client_gcash_upload.html',
+        form=form,
+        final_total=final_total
+    )
 
 @app.route('/checkout/place_order', methods=['POST'])
 @customer_login_required
@@ -971,9 +1074,29 @@ def place_order():
     # 3. Calculate using Helper
     totals = calculate_order_totals(valid_cart_items, customer, delivery_fee, voucher_code, voucher_percent)
 
+    # 4. Get Payment Context from Session
+    payment_method = session.get('payment_method', 'COD/COP')
+    gcash_image_file = session.get('gcash_image_file')
+    gcash_reference_no = session.get('gcash_reference_no')
+    
+    # 5. Determine Initial Status and Payment Status
+    if payment_method == 'GCash':
+        # GCash requires payment verification before admin approval
+        initial_order_status = "Pending Payment Verification" # New initial status
+        initial_payment_status = "Pending Verification"
+        
+        # Security Check: Ensure the receipt was uploaded
+        if not gcash_image_file or not gcash_reference_no:
+            return jsonify({'status': 'error', 'message': "GCash payment proof is missing. Please restart the GCash process."}), 400
+    else:
+        # COD/COP - Payment is due on event date
+        initial_order_status = "Pending Approval"
+        initial_payment_status = "Pending"
+    
     try:
         special_instructions = request.form.get('special_instructions')
         
+        # 6. Create the Order Object
         new_order = Order(
             customer_id=session['customer_id'],
             total_amount=totals['subtotal'],
@@ -981,19 +1104,25 @@ def place_order():
             vat_amount=totals['vat_amount'], 
             final_amount=totals['final_total'],
             
-            status="Pending Approval", 
+            status=initial_order_status, 
             event_date=event_date,
             event_time=event_time,
             
             order_type=session.get('order_type', 'Pickup'),
             delivery_address=session.get('delivery_address', 'Store Pickup'),
             delivery_fee=delivery_fee,
-            special_instructions=special_instructions
+            special_instructions=special_instructions,
+            
+            # New Payment Fields
+            payment_method=payment_method,
+            payment_status=initial_payment_status,
+            payment_image_file=gcash_image_file,
+            gcash_reference_no=gcash_reference_no
         )
         db.session.add(new_order)
         db.session.commit()
 
-        # Save Items
+        # 7. Save Order Items
         for item_id, item_data in cart_session.items():
             real_variant_id = item_data.get('variant_id', item_id)
             if isinstance(real_variant_id, str) and real_variant_id.startswith('buffet_'):
@@ -1010,7 +1139,7 @@ def place_order():
             )
             db.session.add(new_item)
 
-        # Update Voucher
+        # 8. Update Voucher Usage
         if voucher_code:
             voucher = Voucher.query.filter_by(code=voucher_code).first()
             if voucher:
@@ -1018,11 +1147,12 @@ def place_order():
 
         db.session.commit()
 
-        # Clear Session
+        # 9. Clear Session Variables
         keys_to_clear = ['cart', 'voucher_code', 'discount_percentage', 'delivery_fee', 
                          'order_type', 'delivery_address', 'buffet_package', 
                          'buffet_recommendations', 'buffet_sequence', 
-                         'event_date_str', 'event_time_str']
+                         'event_date_str', 'event_time_str', 'payment_method', 
+                         'gcash_image_file', 'gcash_reference_no', 'final_total']
         for key in keys_to_clear:
             session.pop(key, None)
 
@@ -1035,6 +1165,7 @@ def place_order():
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': f"DB Error: {e}"}), 500
+    
 # ===============================================
 # CLIENT-SIDE: CUSTOMER ACCOUNTS (Login/Register/Reset)
 # ===============================================
@@ -1582,7 +1713,14 @@ def verify_admin_password(password_attempt):
     Verifies the current logged-in admin's password.
     Returns True if correct, False otherwise.
     """
+   # --- START FIX ---
+    # 1. Explicitly check for None or empty string. A blank password attempt must always fail.
+    if not password_attempt:
+        return False
+        
+    # 2. Proceed with the actual password check
     return current_user.check_password(password_attempt)
+    # --- END FIX ---
 
 @app.route('/admin/logout')
 @login_required
@@ -2527,11 +2665,18 @@ def admin_edit_customer(customer_id):
 @login_required
 def admin_verifications():
     """
-    (R)EAD: Show all pending Customer verifications (Rider checks removed).
+    (R)EAD: Show all pending Customer verifications AND GCash payment verifications.
     """
     customers_to_verify = Customer.query.filter(
         Customer.discount_status == 'Pending'
     ).order_by(Customer.registration_date.desc()).all()
+
+    # --- NEW: Fetch Pending GCash Orders ---
+    gcash_orders_to_verify = Order.query.filter(
+        Order.payment_method == 'GCash',
+        Order.payment_status == 'Pending Verification'
+    ).order_by(Order.order_date.asc()).all()
+    # --------------------------------------
 
     # Riders are no longer part of the system
     riders_to_verify = [] 
@@ -2539,7 +2684,10 @@ def admin_verifications():
     return render_template(
         'admin_verifications_hub.html', 
         customers=customers_to_verify,
-        riders=riders_to_verify
+        riders=riders_to_verify,
+        # --- NEW: Pass GCash Orders ---
+        gcash_orders=gcash_orders_to_verify
+        # -----------------------------
     )
 
 @app.route('/admin/approve_discount/<int:customer_id>', methods=['POST'])
@@ -2556,6 +2704,43 @@ def admin_approve_discount(customer_id):
     except Exception as e:
         db.session.rollback()
         flash(f"Error approving discount: {e}", 'danger')
+
+    return redirect(url_for('admin_verifications'))
+
+@app.route('/admin/approve_payment/<int:order_id>', methods=['POST'])
+@login_required
+def admin_approve_payment(order_id):
+    order = Order.query.get_or_404(order_id)
+    
+    order.payment_status = 'Paid'
+    # Automatically move the order to the next stage: Pending Approval
+    order.status = 'Pending Approval' 
+
+    try:
+        db.session.commit()
+        flash(f"GCash payment for Order #{order.order_id} approved. Order moved to 'Pending Approval' queue.", 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error approving payment: {e}", 'danger')
+
+    return redirect(url_for('admin_verifications'))
+
+@app.route('/admin/deny_payment/<int:order_id>', methods=['POST'])
+@login_required
+def admin_deny_payment(order_id):
+    order = Order.query.get_or_404(order_id)
+    
+    order.payment_status = 'Failed'
+    # Move the order to Declined since upfront payment failed
+    order.status = 'Declined'
+    order.decline_reason = "GCash payment verification failed or expired. Please contact us to resolve or re-order with COD/COP."
+
+    try:
+        db.session.commit()
+        flash(f"GCash payment for Order #{order.order_id} denied. Order status set to 'Declined'.", 'danger')
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error denying payment: {e}", 'danger')
 
     return redirect(url_for('admin_verifications'))
 

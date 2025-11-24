@@ -75,6 +75,29 @@
                        placeholder="e.g., Near the blue gate, beside 7-Eleven">
             </div>
         </div>
+        
+        {# --- NEW PAYMENT METHOD SELECTION --- #}
+        <h3 style="font-size: 1.2rem; margin-top: 3rem; margin-bottom: 1rem;">Payment Method</h3>
+
+        <label class="option-card">
+            <input type="radio" name="payment_method" value="GCash"
+                   onchange="togglePaymentInstructions()">
+            <div class="option-info">
+                <span class="option-title">GCash (Pay Upfront)</span>
+                <span class="option-desc">Upload proof of payment now. Your order will be secured immediately.</span>
+            </div>
+        </label>
+        
+        <label class="option-card">
+            <input type="radio" name="payment_method" value="COD/COP" checked
+                   onchange="togglePaymentInstructions()">
+            <div class="option-info">
+                <span class="option-title">Cash on Delivery/Pickup</span>
+                <span class="option-desc">Pay the full amount on your event date.</span>
+            </div>
+        </label>
+        {# ------------------------------------ #}
+
 
         <div style="margin-top: 2.5rem;">
             <button type="submit" class="btn-checkout">
@@ -87,6 +110,8 @@
 
 {% block scripts %}
 <script>
+    // ... (Existing functions toggleAddressForm and useDefaultAddress)
+
     function toggleAddressForm() {
         const selectedOption = document.querySelector('input[name="order_type"]:checked').value;
         const addressForm = document.getElementById('delivery-address-form');
@@ -100,7 +125,7 @@
             addressTextarea.required = false;
         }
     }
-
+    
     function useDefaultAddress() {
         const defaultAddress = {{ customer.address|tojson or '""' }}; 
         const defaultLandmark = {{ customer.landmark|tojson or '""' }}; 
@@ -108,21 +133,23 @@
         document.getElementById('delivery_address').value = defaultAddress;
         document.getElementById('landmark').value = defaultLandmark;
     }
+    
+    function togglePaymentInstructions() {
+        // Function exists but has no real-time effect on this page. 
+        // It only exists to ensure the radio button change is captured.
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
         toggleAddressForm();
-
+        
         const dateInput = document.getElementById('event_date');
         const today = new Date();
         
-        // DYNAMIC JS: Inject server variable here
         const minDays = {{ min_days }};
         
-        // Add minDays to today
         const minDate = new Date(today);
         minDate.setDate(today.getDate() + minDays);
         
-        // Format YYYY-MM-DD for HTML5 date input
         const yyyy = minDate.getFullYear();
         const mm = String(minDate.getMonth() + 1).padStart(2, '0');
         const dd = String(minDate.getDate()).padStart(2, '0');
@@ -136,7 +163,6 @@
         const today = new Date();
         today.setHours(0,0,0,0); 
 
-        // DYNAMIC JS: Inject here as well
         const minDays = {{ min_days }};
         const minDate = new Date(today);
         minDate.setDate(today.getDate() + minDays);

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}GCash Payment{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-wrapper">
+        <h2 style="color: #007bff;">GCash Payment</h2>
+        <p style="text-align: center; margin-bottom: 2rem;">
+            Please complete the payment and upload the screenshot below.
+        </p>
+        
+        <div class="card" style="background: #f0f8ff; border: 1px solid #cce5ff; padding: 1.5rem; margin-bottom: 2rem; text-align: center;">
+            <p style="font-size: 1.1rem; margin-bottom: 0.5rem; font-weight: 500;">
+                Amount Due: <strong style="font-size: 1.5rem; color: #007bff;">₱{{ "%.2f"|format(final_total) }}</strong>
+            </p>
+            <p style="font-size: 0.9rem; color: #6c757d;">
+                GCash #: **0917-XXX-XXXX**
+            </p>
+            <p style="font-size: 0.9rem; color: #6c757d;">
+                Account Name: **Anjet's Catering**
+            </p>
+            <div style="margin-top: 1rem;">
+                <img src="{{ url_for('static', filename='images/gcash_qr_placeholder.png') }}" 
+                     alt="GCash QR Code" 
+                     style="width: 150px; height: 150px; border: 1px solid #ccc; border-radius: 8px;">
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('client_gcash_upload') }}" enctype="multipart/form-data" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <div class="form-group">
+                {{ form.reference_number.label }}
+                {{ form.reference_number(class="form-control", placeholder=form.reference_number.description) }}
+                {% for error in form.reference_number.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+            
+            <div class="form-group">
+                {{ form.receipt_image.label }}
+                {{ form.receipt_image(class="form-control") }}
+                {% for error in form.receipt_image.errors %}
+                    <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group" style="margin-top: 2rem;">
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

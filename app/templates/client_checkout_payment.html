@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout - Payment{% endblock %}
+
+{% block content %}
+<div class="checkout-options-container">
+    <h2>Choose Payment Method</h2>
+    <p style="text-align: center; margin-bottom: 2rem; color: var(--text-gray);">
+        Select how you would like to settle the total amount upon delivery or pickup.
+    </p>
+
+    <form action="{{ url_for('client_checkout_payment') }}" method="POST">
+        
+        <h3 style="font-size: 1.2rem; margin-bottom: 1rem;">Payment Options</h3>
+        
+        <label class="option-card">
+            <input type="radio" name="payment_method" value="COD" checked>
+            <div class="option-info">
+                <span class="option-title">Cash on Delivery / Pickup (COD)</span>
+                <span class="option-desc">Pay the final amount in cash when you receive the order or pick up from the store.</span>
+            </div>
+        </label>
+
+        <label class="option-card">
+            <input type="radio" name="payment_method" value="Bank Transfer">
+            <div class="option-info">
+                <span class="option-title">Bank Transfer</span>
+                <span class="option-desc">Admin will provide bank details after order approval. Payment must be made before the event date.</span>
+            </div>
+        </label>
+        
+        <div style="margin-top: 2.5rem;">
+            <button type="submit" class="btn-checkout">
+                Continue to Final Review &rarr;
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

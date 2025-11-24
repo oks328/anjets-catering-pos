@@ -299,6 +299,26 @@ class DiscountVerificationForm(FlaskForm):
     )
     submit = SubmitField('Submit for Verification')
 
+class GCashPaymentForm(FlaskForm):
+    """
+    Form for uploading a GCash receipt/screenshot.
+    """
+    # Note: We don't ask for amount as it's computed server-side
+    reference_number = StringField(
+        'GCash Reference Number',
+        validators=[DataRequired(), Length(max=20)],
+        description="The 13-14 digit reference number from the GCash receipt."
+    )
+    receipt_image = FileField(
+        'Upload GCash Receipt Screenshot',
+        validators=[
+            DataRequired(),
+            FileAllowed(['jpg', 'png', 'jpeg'], 'Images only! (jpg, png, jpeg)'),
+            FileSize(max_size=3 * 1024 * 1024)  # 3MB max size
+        ]
+    )
+    submit = SubmitField('Submit Payment Proof')
+
 class RequestResetForm(FlaskForm):
     """
     Form for customer to request a password reset email.

@@ -75,7 +75,7 @@
 
     <div class="card">
         <form id="checkout-form" action="{{ url_for('place_order') }}" method="POST">
-            <h3>Customer Details</h3>
+            <h3>Customer & Order Details</h3>
             <p>Your order will be placed under this account:</p>
             <p><strong>Name:</strong> {{ session['customer_name'] }}</p>
             <div style="margin-top: 1rem;">
@@ -84,6 +84,31 @@
                     <p><strong>Delivering To:</strong> {{ session.get('delivery_address') }}</p>
                 {% endif %}
             </div>
+
+            {# --- NEW PAYMENT SECTION --- #}
+            <div style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                <h4>Payment Method</h4>
+                <p style="font-weight: bold; font-size: 1.1rem; color: var(--brand-red);">
+                    {{ payment_method }}
+                </p>
+                
+                {% if payment_method == 'GCash' %}
+                    {% if gcash_uploaded %}
+                    <p style="color: #28a745; font-weight: bold; margin-top: 0.5rem;">
+                        <i class="fa-solid fa-check-circle"></i> Payment Proof Uploaded. Order will be verified by admin.
+                    </p>
+                    {% else %}
+                    <p style="color: var(--danger-red); font-weight: bold; margin-top: 0.5rem;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Payment Proof Missing. <a href="{{ url_for('client_gcash_upload') }}" style="color: var(--brand-red);">Click here to upload.</a>
+                    </p>
+                    {% endif %}
+                {% else %}
+                    <p style="color: var(--text-gray); margin-top: 0.5rem;">
+                        Payment is due on {{ session.get('order_type') }}.
+                    </p>
+                {% endif %}
+            </div>
+            {# -------------------------- #}
 
             <div class="form-group" style="margin-top: 2rem;">
                 <label for="special_instructions" style="font-weight: bold; display: block; margin-bottom: 0.5rem; text-align: left;">
@@ -112,6 +137,13 @@
 
         checkoutForm.addEventListener('submit', function(e) {
             e.preventDefault(); // Stop the standard browser submission
+
+            // Check if GCash is selected but proof is missing
+            {% if payment_method == 'GCash' and not gcash_uploaded %}
+                createToast('Payment proof is required for GCash orders. Please upload your receipt.', 'danger');
+                window.location.href = "{{ url_for('client_gcash_upload') }}";
+                return;
+            {% endif %}
 
             // Disable the button and show processing message
             submitButton.disabled = true;

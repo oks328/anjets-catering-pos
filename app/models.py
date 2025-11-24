@@ -156,6 +156,11 @@ class Order(db.Model):
     vat_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     special_instructions = db.Column(db.Text, nullable=True)
 
+    payment_method = db.Column(db.String(50), nullable=False, default='COD/COP')
+    payment_status = db.Column(db.String(50), nullable=False, default='Pending') # Tracks payment: Pending, Paid, Failed
+    payment_image_file = db.Column(db.String(100), nullable=True) # For GCash receipt
+    gcash_reference_no = db.Column(db.String(50), nullable=True)
+
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
 
 class OrderItem(db.Model):
