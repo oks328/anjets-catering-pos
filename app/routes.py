@@ -92,15 +92,24 @@ def get_category_choices():
     categories = Category.query.filter_by(is_active=True).all()
     return [(c.category_id, c.name) for c in categories]
 
+
 def save_picture(form_picture):
-    
+    """
+    Helper function to save an uploaded picture.
+    FIXED: Uses file stream explicitly and ensures the products directory exists.
+    """
     random_hex = secrets.token_hex(8)
     _, f_ext = os.path.splitext(form_picture.filename)
     picture_fn = random_hex + f_ext
     picture_path = os.path.join(app.config['UPLOAD_FOLDER'], 'products', picture_fn)
 
-    output_size = (800, 800)
-    i = Image.open(form_picture)
+    os.makedirs(os.path.dirname(picture_path), exist_ok=True)
+
+    output_size = (800, 800) 
+    
+    form_picture.stream.seek(0) 
+    i = Image.open(form_picture.stream) 
+    
     i.thumbnail(output_size)
     i.save(picture_path)
 
@@ -1882,6 +1891,8 @@ def admin_products():
         search_query=search_query
     )
 
+# app/routes.py (Replace existing admin_add_product function)
+
 @app.route('/admin/products/add', methods=['GET', 'POST'])
 @login_required
 def admin_add_product():
@@ -1893,6 +1904,7 @@ def admin_add_product():
         image_filename = 'default.jpg'
         if form.image.data:
             try:
+                # 1. Save the picture using the fixed helper
                 image_filename = save_picture(form.image.data)
             except Exception as e:
                 flash(f'Error uploading image: {e}', 'danger')
@@ -1902,10 +1914,13 @@ def admin_add_product():
             category_id=form.category.data,
             name=form.name.data,
             description=form.description.data,
-            has_variants=form.has_variants.data
+            has_variants=form.has_variants.data,
+            # 2. Assign the final filename
+            image_file=image_filename 
         )
         db.session.add(new_product)
 
+        # Logic for simple products (without variants)
         if not new_product.has_variants:
             if form.price.data is None:
                 flash('Error: A simple product (no variants) must have a price.', 'danger')
@@ -2018,10 +2033,12 @@ def admin_edit_product(product_id):
     )
 
 
+# app/routes.py (Replace existing admin_delete_product function)
+
 @app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
 @login_required
 def admin_delete_product(product_id):
-    
+    # 1. Security Check: Verify Password
     password_attempt = request.form.get('admin_confirm_password')
     if not verify_admin_password(password_attempt):
         flash('Incorrect password. Action cancelled.', 'danger')
@@ -2029,14 +2046,12 @@ def admin_delete_product(product_id):
 
     product = Product.query.get_or_404(product_id)
 
-    
-    
+    # 2. Dependency Check: Is it in any order history? (Retains original logic)
     in_orders = OrderItem.query.filter_by(product_id=product_id).first()
     
     if in_orders:
-        
+        # Prevents deletion if product is in order history (Data Integrity for Sales)
         flash(f"Cannot delete '{product.name}' because it is part of existing order history. Please Deactivate it instead.", 'warning')
-        
         
         if product.is_active:
             product.is_active = False
@@ -2045,11 +2060,15 @@ def admin_delete_product(product_id):
             
         return redirect(url_for('admin_products'))
 
-    
+    # If not in any orders, we can safely hard delete
     try:
+        # FIX ADDED: 1. Delete all associated reviews first to satisfy the Foreign Key Constraint
+        Review.query.filter_by(product_id=product_id).delete()
         
+        # Existing: 2. Delete variants
         ProductVariant.query.filter_by(product_id=product_id).delete()
         
+        # 3. Delete the product itself
         db.session.delete(product)
         db.session.commit()
         flash(f"Product '{product.name}' deleted permanently.", 'success')
@@ -2580,6 +2599,7 @@ def admin_approve_discount(customer_id):
 
     return redirect(url_for('admin_verifications'))
 
+
 @app.route('/admin/approve_payment/<int:order_id>', methods=['POST'])
 @login_required
 def admin_approve_payment(order_id):
@@ -2587,14 +2607,18 @@ def admin_approve_payment(order_id):
     
     order.payment_status = 'Paid'
     
-    order.status = 'Pending Approval' 
+    order.status = 'Approved' 
+    order.decline_reason = None 
 
     try:
         db.session.commit()
-        flash(f"GCash payment for Order #{order.order_id} approved. Order moved to 'Pending Approval' queue.", 'success')
+        
+        send_order_email(order, f"Order #{order.order_id} Confirmed - Anjet's", 'email_order_approved.html')
+        
+        flash(f"GCash payment for Order #{order.order_id} verified and the order is now 'Approved'. Customer notified.", 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f"Error approving payment: {e}", 'danger')
+        flash(f"Error approving payment and order: {e}", 'danger')
 
     return redirect(url_for('admin_verifications'))
 

@@ -14,12 +14,34 @@
       rel="stylesheet" 
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
-
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     
+    {% if request.endpoint == 'admin_login' %}
+    <style>
+        .body-no-sidebar {
+            /* This overrides the default display: flex; in admin_style.css */
+            display: block; 
+        }
+        .main-content-login {
+            /* Centers the content on a full-width block display */
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            margin-left: 0 !important;
+            width: 100vw !important;
+            min-height: 100vh;
+            padding: 0;
+        }
+        .login-container {
+            margin: 0; /* Remove default card margins */
+        }
+    </style>
+    {% endif %}
   </head>
-  <body>
+  <body class="{% if request.endpoint == 'admin_login' %}body-no-sidebar{% endif %}">
     
+    {% if request.endpoint != 'admin_login' %}
     <div class="sidebar">
         <div class="sidebar-header">
             <h3>Anjet's Admin</h3>
@@ -70,7 +92,7 @@
             <li>
                 <a href="{{ url_for('admin_users') }}" class="{{ 'active' if active_page in user_rider_pages else '' }}">
                     <i class="fa-solid fa-users"></i>
-                    <span>Admin Users</span>
+                    <span>Staff Users</span>
                 </a>
             </li>
 
@@ -115,8 +137,8 @@
             </div>
         </div>
     </div>
-
-    <div class="main-content">
+    {% endif %}
+    <div class="{% if request.endpoint == 'admin_login' %}main-content-login{% else %}main-content{% endif %}">
         <main>
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -147,9 +169,13 @@
         
         <form id="modalDeleteForm" method="POST" action="">
             <div class="form-group">
-                <input type="password" name="admin_confirm_password" class="form-control" 
-                       placeholder="Enter Admin Password" required autocomplete="off">
-            </div>
+                <div class="password-container">
+                    <input type="password" name="admin_confirm_password" class="form-control" 
+                           placeholder="Enter Admin Password" required autocomplete="off" 
+                           id="modal_password_field">
+                    <i class="fas fa-eye toggle-password" id="modal_toggle_password"></i>
+                </div>
+                </div>
             
             <div class="modal-actions">
                 <button type="button" id="modalCancel" class="btn btn-secondary">Cancel</button>
@@ -161,7 +187,6 @@
 
     <div id="toastContainer"></div>
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script> 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
           
@@ -216,7 +241,23 @@
               if(passField) passField.focus();
             });
           });
+          
+          // --- NEW: MODAL PASSWORD TOGGLE LOGIC ---
+          const modalTogglePassword = document.getElementById('modal_toggle_password');
+          const modalPasswordField = document.getElementById('modal_password_field');
+          
+          if (modalTogglePassword && modalPasswordField) {
+              modalTogglePassword.addEventListener('click', function() {
+                  // Toggle the type attribute
+                  const type = modalPasswordField.getAttribute('type') === 'password' ? 'text' : 'password';
+                  modalPasswordField.setAttribute('type', type);
 
+                  // Toggle the icon (fa-eye vs fa-eye-slash)
+                  this.classList.toggle('fa-eye');
+                  this.classList.toggle('fa-eye-slash');
+              });
+          }
+          // --- END NEW LOGIC ---
 
           // --- 2. TOAST NOTIFICATION LOGIC ---
           const toastContainer = document.getElementById('toastContainer');
@@ -264,7 +305,7 @@
           }
 
 
-          // --- 3. CSV IMPORT MODAL LOGIC ---
+          // --- 3. CSV IMPORT MODAL LOGIC (Placeholder) ---
           const importModal = document.getElementById('csvImportModal');
           const openImportModalBtn = document.getElementById('openCsvImportModal');
           const closeImportModalBtn = document.getElementById('csvModalCloseBtn');
