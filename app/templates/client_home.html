@@ -11,9 +11,9 @@
 
         <div class="cta-buttons">
             {% if 'customer_id' in session %}
-                <a href="{{ url_for('client_menu') }}" class="btn btn-hero-primary">Order Now (À la Carte)</a>
+                <a href="{{ url_for('client_menu') }}" class="btn btn-hero-primary">Order Now </a>
             {% else %}
-                <a href="{{ url_for('client_account_page') }}" class="btn btn-hero-primary">Order Now (À la Carte)</a>
+                <a href="{{ url_for('client_account_page') }}" class="btn btn-hero-primary">Order Now </a>
             {% endif %}
             <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-hero-outline">Build a Buffet</a>
         </div>

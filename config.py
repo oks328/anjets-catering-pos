@@ -17,6 +17,9 @@ class Config:
     FLASK_ENV = os.environ.get('FLASK_ENV')
     SECRET_KEY = os.environ.get('SECRET_KEY')
 
+    GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID')
+    GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET')
+
     # This was your edit for the email links, ensure it's here
     # (You should add SERVER_NAME to your .env file)
     SERVER_NAME = os.environ.get('SERVER_NAME') # e.g., '192.168.1.10:5000'

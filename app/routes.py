@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, cast, Integer
 from PIL import Image
+from flask_dance.contrib.google import google
 from xml.dom import minidom
 from flask import make_response, jsonify
 from flask import current_app as app
@@ -19,7 +20,8 @@ from app.forms import AdminLoginForm, CategoryForm, ProductForm, VariantForm, Vo
 from functools import wraps
 from threading import Thread
 from flask_mail import Message
-from flask_mail import Message
+from flask_login import login_user as login_customer 
+from sqlalchemy import func, cast, Integer
 from app import mail
 from app.forms import RequestResetForm, ResetPasswordForm, GCashPaymentForm
 from flask import make_response, jsonify, current_app as app, render_template, redirect, url_for, flash, request, session, jsonify, current_app, get_flashed_messages
@@ -150,6 +152,66 @@ def has_reviewed_product(customer_id, product_id):
         product_id=product_id
     ).first() is not None
 
+@app.route('/login/google/complete') # Matches the redirect_to in __init__.py
+def google_login_complete():
+    # 'google' is the Flask-Dance object
+    if not google.authorized:
+        flash("Google login failed. Please ensure your Redirect URI is correctly configured.", 'danger')
+        return redirect(url_for('client_account_page'))
+
+    try:
+        # Fetch user information from Google API
+        resp = google.get("/oauth2/v1/userinfo")
+        if not resp.ok:
+            flash("Failed to fetch user data from Google.", 'danger')
+            return redirect(url_for('client_account_page'))
+
+        google_data = resp.json()
+        google_id = google_data.get('id')
+        email = google_data.get('email', '').lower()
+        name = google_data.get('name', 'Customer')
+        
+        if not google_id or not email:
+            flash("Google did not provide a valid ID or email. Cannot log you in.", 'danger')
+            return redirect(url_for('client_account_page'))
+
+
+        # 1. Try to find user by Google ID (Best case: already linked)
+        customer = Customer.query.filter_by(google_id=google_id).first()
+
+        if customer is None:
+            # 2. Try to find user by email (Existing account needs linking)
+            customer = Customer.query.filter_by(email=email).first()
+            
+            if customer is None:
+                # 3. Create a new account
+                new_customer = Customer(
+                    name=name,
+                    email=email,
+                    google_id=google_id,
+                    # Note: password_hash must be a non-empty string due to model constraint
+                    password_hash="google_oauth_user_placeholder" 
+                )
+                db.session.add(new_customer)
+                db.session.commit()
+                customer = new_customer
+                flash(f"Welcome, {customer.name}! Account created via Google.", 'success')
+            else:
+                # 4. Link existing account to Google ID
+                customer.google_id = google_id
+                db.session.commit()
+                flash(f"Welcome back, {customer.name}! Your account is now linked to Google.", 'success')
+
+        # Log the customer in using the session helper
+        session['customer_id'] = customer.customer_id
+        session['customer_name'] = customer.name
+        
+        return redirect(url_for('client_home'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"An error occurred during Google login: {e}", 'danger')
+        return redirect(url_for('client_account_page'))
 @app.route('/')
 def client_home():
     

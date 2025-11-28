@@ -62,12 +62,13 @@ class Customer(db.Model, UserMixin):
     password_hash = db.Column(db.String(255), nullable=False)
     registration_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     address = db.Column(db.Text, nullable=True)
-    landmark = db.Column(db.String(255), nullable=True) # <-- Ensure this is correctly defined
+    landmark = db.Column(db.String(255), nullable=True) 
     birthdate = db.Column(db.Date, nullable=True)
     discount_type = db.Column(db.String(50), nullable=True) 
     id_image_file = db.Column(db.String(100), nullable=True)
     is_verified_discount = db.Column(db.Boolean, default=False, nullable=False)
     discount_status = db.Column(db.String(20), nullable=True, default=None) 
+    google_id = db.Column(db.String(100), unique=True, nullable=True)
 
     orders = db.relationship('Order', backref='customer', lazy=True)
 

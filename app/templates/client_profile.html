@@ -38,7 +38,11 @@
             <div class="form-group">
                 {{ form.birthdate.label }}
                 {{ form.birthdate(class="form-control", type="date") }}
-                <p style="font-size: 0.85rem; color: var(--text-gray); margin-top: 0.5rem;">Used for senior discount verification.</p>
+                
+                <p style="font-size: 0.85rem; color: var(--text-gray); margin-top: 0.5rem;">
+                    Must be a valid historical date. Used for senior discount verification.
+                </p>
+                
                 {% for error in form.birthdate.errors %}
                     <span class="error-message" style="color: var(--danger-red);">{{ error }}</span>
                 {% endfor %}

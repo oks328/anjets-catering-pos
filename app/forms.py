@@ -7,23 +7,48 @@ from wtforms import StringField, PasswordField, SubmitField, TextAreaField, Bool
 from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
 from app.models import Customer
+from datetime import date, timedelta
 
 
 def password_complexity(form, field):
     
     password = field.data
     if password: 
-        has_letter = any(c.isalpha() for c in password)
+        if len(password) < 12: 
+            raise ValidationError('Password must be at least 12 characters long.')
+
+        has_lower = any(c.islower() for c in password)
+        has_upper = any(c.isupper() for c in password)
         has_number = any(c.isdigit() for c in password)
+        has_symbol = any(not c.isalnum() for c in password) 
         
-        if not (has_letter and has_number):
-            raise ValidationError('Password must contain a combination of letters and numbers.')
+        if not (has_lower and has_upper and has_number and has_symbol):
+            raise ValidationError(
+                'Password must contain at least one lowercase letter, one uppercase letter, one digit, and one symbol.'
+            )
+
+
+def validate_age_and_future_date(form, field): 
+    birthdate = field.data
+    
+    if birthdate:
+        today = date.today()
         
+        if birthdate > today:
+            raise ValidationError('Birthdate cannot be in the future.')
+            
+        required_age_date = today.replace(year=today.year - 12)
+        
+        if birthdate > required_age_date:
+            raise ValidationError('You must be at least 12 years old to create an account.')
+
+
 def email_exists(form, field):
 
     customer = Customer.query.filter_by(email=field.data).first()
     if customer:
         raise ValidationError('That email address is already in use. Please log in.')
+    
     
 
 class AdminLoginForm(FlaskForm):
@@ -145,7 +170,7 @@ class UserAddForm(FlaskForm):
     )
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
+        validators=[DataRequired(), Length(min=12), password_complexity] 
     )
     confirm_password = PasswordField(
         'Confirm Password',
@@ -167,7 +192,7 @@ class UserEditForm(FlaskForm):
     )
     password = PasswordField(
         'New Password (Optional)',
-        validators=[Optional(), Length(min=8), password_complexity]
+        validators=[Optional(), Length(min=12), password_complexity] 
     )
     confirm_password = PasswordField(
         'Confirm New Password',
@@ -204,8 +229,7 @@ class CustomerRegisterForm(FlaskForm):
         description="e.g., Near 7-Eleven, Blue Gate, etc."
     )
 
-    birthdate = DateField('Birthdate (Optional)', validators=[Optional()])
-    
+    birthdate = DateField('Birthdate', validators=[DataRequired(), validate_age_and_future_date]) 
     email = StringField(
         'Email Address',
         validators=[DataRequired(), Email(), email_exists]
@@ -213,7 +237,7 @@ class CustomerRegisterForm(FlaskForm):
 
     password = PasswordField(
         'Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
+        validators=[DataRequired(), Length(min=12), password_complexity] 
     )
     
     confirm_password = PasswordField(
@@ -242,7 +266,7 @@ class CustomerEditForm(FlaskForm):
     )
     
     email = StringField('Email Address', validators=[DataRequired(), Email()])
-    password = PasswordField('New Password (Optional)', validators=[Optional(), Length(min=8), password_complexity])
+    password = PasswordField('New Password (Optional)', validators=[Optional(), Length(min=12), password_complexity])
     confirm_password = PasswordField('Confirm New Password', validators=[EqualTo('password', message='Passwords must match.')])
     submit = SubmitField('Update Customer')
 
@@ -260,7 +284,8 @@ class CustomerProfileForm(FlaskForm):
     )
     
     landmark = StringField('Landmark (Optional)', validators=[Optional(), Length(max=255)])
-    birthdate = DateField('Birthdate', validators=[Optional()])
+    
+    birthdate = DateField('Birthdate', validators=[DataRequired(), validate_age_and_future_date])
     submit = SubmitField('Update Profile')
 
 class DiscountVerificationForm(FlaskForm):
@@ -316,7 +341,7 @@ class ResetPasswordForm(FlaskForm):
     
     password = PasswordField(
         'New Password',
-        validators=[DataRequired(), Length(min=8), password_complexity]
+        validators=[DataRequired(), Length(min=12), password_complexity] 
     )
     confirm_password = PasswordField(
         'Confirm New Password',

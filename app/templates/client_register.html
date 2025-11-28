@@ -54,7 +54,7 @@
             <div class="form-group">
                 {{ register_form.birthdate.label }}
                 {{ register_form.birthdate(class="form-control", type="date") }}
-                <p style="font-size: 0.9em; color: #555;">Used for senior discount verification.</p>
+                <p style="font-size: 0.9em; color: #555;">Required. Used for age (Min 12) and optional senior discount verification.</p>
                 {% for error in register_form.birthdate.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
@@ -72,13 +72,22 @@
             <div class="form-group">
                 {{ register_form.password.label }}
                 <div class="password-container">
-                    {{ register_form.password(class="form-control", id="password_field") }}
+                    <input type="password" name="password" id="password_field" class="form-control" data-check="password">
                     <i class="fas fa-eye toggle-password" id="toggle_password"></i>
                 </div>
                 {% for error in register_form.password.errors %}
                     <span class="error-message">{{ error }}</span>
                 {% endfor %}
-            </div>
+                
+                <div id="password-feedback" style="margin-top: 0.5rem; text-align: left;">
+                    <p class="pass-req" data-req="length" style="color: var(--text-gray); font-size: 0.85em;"><i class="fa-solid fa-circle"></i> Min 12 characters</p>
+                    <p class="pass-req" data-req="upper" style="color: var(--text-gray); font-size: 0.85em;"><i class="fa-solid fa-circle"></i> Uppercase letter</p>
+                    <p class="pass-req" data-req="lower" style="color: var(--text-gray); font-size: 0.85em;"><i class="fa-solid fa-circle"></i> Lowercase letter</p>
+                    <p class="pass-req" data-req="number" style="color: var(--text-gray); font-size: 0.85em;"><i class="fa-solid fa-circle"></i> Number</p>
+                    <p class="pass-req" data-req="symbol" style="color: var(--text-gray); font-size: 0.85em;"><i class="fa-solid fa-circle"></i> Symbol/Special Character</p>
+                </div>
+                </div>
+            
             <div class="form-group">
                 {{ register_form.confirm_password.label }}
                 <div class="password-container">
@@ -106,19 +115,71 @@
 
 {% block scripts %}
 <script>
+    function updatePasswordFeedback(password) {
+        // Rules must match the constraints in app/forms.py
+        const checks = {
+            length: password.length >= 12,
+            upper: /[A-Z]/.test(password),
+            lower: /[a-z]/.test(password),
+            number: /\d/.test(password),
+            symbol: /[^A-Za-z0-9]/.test(password) 
+        };
+
+        const feedbackContainer = document.getElementById('password-feedback');
+        if (!feedbackContainer) return;
+
+        for (const [key, isMet] of Object.entries(checks)) {
+            const el = feedbackContainer.querySelector(`[data-req="${key}"]`);
+            if (el) {
+                const icon = el.querySelector('i');
+                
+                if (isMet) {
+                    // Requirement met: Green checkmark
+                    el.style.color = '#28a745'; // Success green
+                    icon.className = 'fa-solid fa-check-circle';
+                } else {
+                    // Requirement not met: Neutral circle
+                    el.style.color = 'var(--text-gray)'; 
+                    icon.className = 'fa-solid fa-circle'; 
+                }
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         
-        // --- Logic for the first password field ---
+        // --- Password Field & Feedback Logic ---
         const togglePassword = document.getElementById('toggle_password');
         const passwordField = document.getElementById('password_field');
 
         if (togglePassword && passwordField) {
+            
+            passwordField.addEventListener('input', (e) => {
+                updatePasswordFeedback(e.target.value);
+            });
+            
             togglePassword.addEventListener('click', function() {
                 const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
                 passwordField.setAttribute('type', type);
                 this.classList.toggle('fa-eye');
                 this.classList.toggle('fa-eye-slash');
             });
+            
+            // Run on load to initialize view
+            updatePasswordFeedback(passwordField.value);
+            
+            // --- Birthdate Max Date Logic (Prevents future dates) ---
+            const birthdateField = document.getElementById('birthdate');
+            if (birthdateField) {
+                 // Get today's date in YYYY-MM-DD format
+                 const today = new Date();
+                 const yyyy = today.getFullYear();
+                 const mm = String(today.getMonth() + 1).padStart(2, '0');
+                 const dd = String(today.getDate()).padStart(2, '0');
+                 
+                 // Set the max attribute to today
+                 birthdateField.max = `${yyyy}-${mm}-${dd}`;
+            }
         }
 
         // --- Logic for the confirm password field ---
