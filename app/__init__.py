@@ -5,7 +5,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt       
 from flask_login import LoginManager
 from flask_mail import Mail
-from flask_dance.contrib.google import make_google_blueprint
+
+# Allow insecure HTTP for OAuth in development (REMOVE IN PRODUCTION!)
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 db = SQLAlchemy()
 
 bcrypt = Bcrypt()
@@ -29,14 +32,7 @@ def create_app(config_class=Config):
     with app.app_context():
         from . import routes
         from . import models
-
-        google_bp = make_google_blueprint(
-            client_id=app.config.get('GOOGLE_OAUTH_CLIENT_ID'),
-            client_secret=app.config.get('GOOGLE_OAUTH_CLIENT_SECRET'),
-            scope=["email", "profile"],
-            redirect_to="google_login_complete" 
-        )
-        app.register_blueprint(google_bp, url_prefix="/login") 
+        from . import oauth_routes  # Import custom OAuth routes
 
         @login_manager.user_loader
         def load_user(user_id):

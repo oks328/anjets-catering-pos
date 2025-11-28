@@ -16,7 +16,7 @@
                 {{ login_form.email.label }}
                 {{ login_form.email(class="form-control") }}
                 {% for error in login_form.email.errors %}
-                    <span class="error-message">{{ error }}</span>
+                <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
 
@@ -27,7 +27,7 @@
                     <i class="fas fa-eye toggle-password" id="toggle_password"></i>
                 </div>
                 {% for error in login_form.password.errors %}
-                    <span class="error-message">{{ error }}</span>
+                <span class="error-message">{{ error }}</span>
                 {% endfor %}
             </div>
 
@@ -38,22 +38,22 @@
                 {{ login_form.submit(class="btn btn-primary") }}
             </div>
 
-         </form>
-         
+        </form>
+
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
 
         <div class="form-group">
-            <a href="{{ url_for('google.login') }}" 
-               class="btn btn-secondary" 
-               style="background-color: #db4437; border-color: #db4437; color: white;">
-               <i class="fa-brands fa-google"></i> Log In with Google
+            <a href="{{ url_for('google_login') }}" class="btn btn-secondary"
+                style="background-color: #db4437; border-color: #db4437; color: white;">
+                <i class="fa-brands fa-google"></i> Log In with Google
             </a>
         </div>
-        </div>
 
-    <div class="form-switch-link">
-        <span>Don't have an account?</span>
-        <a href="{{ url_for('client_register_page') }}" class="btn btn-secondary" style="margin-top: 1rem;">Create Account</a>
+        <div class="form-switch-link" style="margin-top: 1.5rem; text-align: center;">
+            <span>Don't have an account?</span>
+            <a href="{{ url_for('client_register_page') }}" class="btn btn-secondary" style="margin-top: 0.5rem;">Create
+                Account</a>
+        </div>
     </div>
 </div>
 
@@ -61,12 +61,12 @@
 
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const togglePassword = document.getElementById('toggle_password');
         const passwordField = document.getElementById('password_field');
 
         if (togglePassword && passwordField) {
-            togglePassword.addEventListener('click', function() {
+            togglePassword.addEventListener('click', function () {
                 // Toggle the type attribute
                 const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
                 passwordField.setAttribute('type', type);

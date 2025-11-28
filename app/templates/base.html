@@ -1,41 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Anjet's Catering{% endblock %}</title>
-    
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
-    
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
+
     {% block styles %}{% endblock %}
 </head>
+
 <body>
     <header class="client-header">
         <div class="logo">
             <a href="{{ url_for('client_home') }}">Anjet's</a>
         </div>
-        
+
         <nav class="client-nav-center">
-            <a href="{{ url_for('client_home') }}" class="{{ 'active' if request.endpoint == 'client_home' else '' }}">Home</a>
-            <a href="{{ url_for('client_menu') }}" class="{{ 'active' if request.endpoint == 'client_menu' else '' }}">Menu</a>
-            <a href="{{ url_for('buffet_wizard_start') }}" class="{{ 'active' if request.endpoint == 'buffet_wizard_start' else '' }}">Build a Buffet</a>
+            <a href="{{ url_for('client_home') }}"
+                class="{{ 'active' if request.endpoint == 'client_home' else '' }}">Home</a>
+            <a href="{{ url_for('client_menu') }}"
+                class="{{ 'active' if request.endpoint == 'client_menu' else '' }}">Menu</a>
+            <a href="{{ url_for('buffet_wizard_start') }}"
+                class="{{ 'active' if request.endpoint == 'buffet_wizard_start' else '' }}">Build a Buffet</a>
         </nav>
 
         <div class="client-nav-right">
             {% if 'customer_id' in session %}
-                <a href="{{ url_for('client_cart') }}" class="icon-link" title="My Cart">
-                    <i class="fa-solid fa-cart-shopping"></i>
-                </a>
-                <a href="{{ url_for('client_my_account') }}" class="icon-link" title="My Profile">
-                    <i class="fa-regular fa-user"></i>
-                </a>
-                <a href="{{ url_for('client_logout') }}" class="icon-link" title="Logout" style="margin-left: 10px;">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                </a>
+            <a href="{{ url_for('client_cart') }}" class="icon-link" title="My Cart">
+                <i class="fa-solid fa-cart-shopping"></i>
+            </a>
+            <a href="{{ url_for('client_my_account') }}" class="icon-link" title="My Profile">
+                <i class="fa-regular fa-user"></i>
+            </a>
+            <a href="{{ url_for('client_logout') }}" class="icon-link" title="Logout" style="margin-left: 10px;">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </a>
             {% else %}
-                <a href="{{ url_for('client_account_page') }}" class="btn btn-login">Login</a>
+            <a href="{{ url_for('client_account_page') }}" class="btn btn-login">Login</a>
             {% endif %}
         </div>
     </header>
@@ -61,12 +66,14 @@
                         <label for="modalVariantId" id="modalVariantLabel" style="font-weight:bold;">Size</label>
                         <select id="modalVariantId" name="variant_id" class="form-control"></select>
                     </div>
-                    <div id="modalCurrentCount" class="modal-current-count" style="display: none; margin-bottom: 1rem;"></div>
+                    <div id="modalCurrentCount" class="modal-current-count" style="display: none; margin-bottom: 1rem;">
+                    </div>
                     <div class="form-group">
                         <label for="modalQuantity" style="font-weight:bold;">Quantity to Add</label>
                         <div class="quantity-stepper">
                             <button type="button" class="btn-qty" id="modal-btn-minus">-</button>
-                            <input type="number" id="modalQuantity" name="quantity" class="form-control-qty" value="1" min="1">
+                            <input type="number" id="modalQuantity" name="quantity" class="form-control-qty" value="1"
+                                min="1">
                             <button type="button" class="btn-qty" id="modal-btn-plus">+</button>
                         </div>
                     </div>
@@ -77,7 +84,7 @@
             </form>
         </div>
     </div>
-    
+
     <div id="clearCartModal" class="modal">
         <div class="modal-content">
             <span class="modal-close-btn" id="clearCartModalCloseBtn">&times;</span>
@@ -89,7 +96,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="warningModal" class="modal">
         <div class="modal-content">
             <span class="modal-close-btn" id="warningModalCloseBtn">&times;</span>
@@ -101,30 +108,43 @@
             </div>
         </div>
     </div>
-    
+
     <div id="toastContainer"></div>
+
+    <div id="welcomeModal" class="welcome-modal">
+        <div class="welcome-modal-content">
+            <div class="welcome-icon">
+                <i class="fa-brands fa-google"></i>
+            </div>
+            <div class="welcome-text">
+                <h3>Welcome to Anjet's!</h3>
+                <p>You've successfully signed in with Google.</p>
+            </div>
+            <button class="welcome-close-btn" onclick="closeWelcomeModal()">&times;</button>
+        </div>
+    </div>
 
     <script>
         // --- Global Toast Function ---
         function createToast(message, category) {
             const toastContainer = document.getElementById('toastContainer');
-            if (!toastContainer) return; 
-            
+            if (!toastContainer) return;
+
             const toast = document.createElement('div');
             toast.classList.add('toast', `toast-${category}`);
-            
+
             const messageNode = document.createElement('span');
             messageNode.innerText = message;
-            
+
             const closeBtn = document.createElement('button');
             closeBtn.classList.add('toast-close-btn');
             closeBtn.innerHTML = '&times;';
-            
+
             const closeToast = () => {
                 toast.style.animation = 'fadeOut 0.5s forwards';
                 toast.addEventListener('animationend', () => toast.remove());
             }
-            
+
             closeBtn.onclick = closeToast;
             toast.appendChild(messageNode);
             toast.appendChild(closeBtn);
@@ -132,37 +152,64 @@
 
             setTimeout(() => {
                 if (toast.parentElement) closeToast();
-            }, 5000); 
+            }, 5000);
         }
-        
+
         // --- GLOBAL HELPER: Opens the Custom Clear Cart Modal ---
-        window.openClearCartModal = function(url) {
+        window.openClearCartModal = function (url) {
             const clearCartModal = document.getElementById('clearCartModal');
             const clearCartModalConfirmBtn = document.getElementById('clearCartModalConfirm');
-            
+
             if (clearCartModal && clearCartModalConfirmBtn) {
-                clearCartModalConfirmBtn.href = url; 
+                clearCartModalConfirmBtn.href = url;
                 clearCartModal.style.display = 'block';
+            }
+        }
+
+        // --- Welcome Modal Logic ---
+        window.closeWelcomeModal = function () {
+            const modal = document.getElementById('welcomeModal');
+            if (modal) {
+                modal.classList.remove('show');
+                // Allow animation to finish if we had a fade out, but for now just hide
+                modal.style.display = 'none';
             }
         }
 
         // --- Global Page Load & Modal Logic ---
         document.addEventListener('DOMContentLoaded', () => {
-            
+
+            // 0. Check for Welcome Modal (Google Login)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('welcome') === 'google') {
+                const welcomeModal = document.getElementById('welcomeModal');
+                if (welcomeModal) {
+                    welcomeModal.classList.add('show');
+                    welcomeModal.style.display = 'flex'; // Ensure it's visible
+
+                    // Clean URL
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+
+                    // Auto close after 5 seconds
+                    setTimeout(window.closeWelcomeModal, 5000);
+                }
+            }
+
             // 1. Show flashed messages from server
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        createToast("{{ message | safe }}", "{{ category }}");
-                    {% endfor %}
-                {% endif %}
+            {% with messages = get_flashed_messages(with_categories = true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            createToast("{{ message | safe }}", "{{ category }}");
+            {% endfor %}
+            {% endif %}
             {% endwith %}
 
             // 2. --- Clear Cart Modal Setup ---
             const clearCartModal = document.getElementById('clearCartModal');
             const clearCartModalCloseBtn = document.getElementById('clearCartModalCloseBtn');
             const clearCartModalCancelBtn = document.getElementById('clearCartModalCancel');
-            
+
             const closeClearCartModal = () => {
                 if (clearCartModal) clearCartModal.style.display = 'none';
             }
@@ -170,10 +217,10 @@
             if (clearCartModalCloseBtn) clearCartModalCloseBtn.onclick = closeClearCartModal;
             if (clearCartModalCancelBtn) clearCartModalCancelBtn.onclick = closeClearCartModal;
 
-            
+
             // 3. --- Product Modal Setup and Initialization ---
             const modal = document.getElementById('productModal');
-            if (!modal) return; 
+            if (!modal) return;
 
             const closeModalBtn = modal.querySelector('.modal-close-btn');
             const modalProductName = document.getElementById('modalProductName');
@@ -186,7 +233,7 @@
             const modalBtnMinus = document.getElementById('modal-btn-minus');
             const modalBtnPlus = document.getElementById('modal-btn-plus');
             const modalCurrentCount = document.getElementById('modalCurrentCount');
-            
+
             let allVariantsData = [];
 
             // 4. --- Global Modal Close Logic ---
@@ -194,7 +241,7 @@
                 modal.style.display = 'none';
             }
             closeModalBtn.onclick = closeProductModal;
-            
+
             // Ensure clicking outside closes EITHER the Product or Clear Cart modal
             window.onclick = (event) => {
                 if (event.target == modal) closeProductModal();
@@ -216,7 +263,7 @@
                     modalQuantityInput.value = currentVal + 1;
                 });
             }
-            
+
             // 6. --- Global Buffet Counter Logic ---
             function updateBuffetCounter() {
                 const selectedVariantId = modalVariantSelect.value;
@@ -234,20 +281,20 @@
 
             // 7. --- Global Modal Open Logic ---
             document.querySelectorAll('.btn-open-product-modal').forEach(button => {
-                button.addEventListener('click', function(e) {
+                button.addEventListener('click', function (e) {
                     e.preventDefault();
                     const productId = this.dataset.productId;
-                    
+
                     fetch(`/product_details/${productId}`)
                         .then(response => response.json())
                         .then(data => {
                             modalProductName.innerText = data.name;
                             modalProductId.value = data.id;
-                            modalQuantityInput.value = 1; 
-                            
-                            allVariantsData = data.variants; 
-                            modalVariantSelect.innerHTML = ''; 
-                            
+                            modalQuantityInput.value = 1;
+
+                            allVariantsData = data.variants;
+                            modalVariantSelect.innerHTML = '';
+
                             if (data.has_variants) {
                                 modalVariantSelector.style.display = 'block';
                                 modalVariantLabel.style.display = 'block';
@@ -268,62 +315,63 @@
                                     modalVariantSelect.appendChild(option);
                                 }
                             }
-                            
+
                             // Check if this button is on the buffet page
                             if (button.hasAttribute('data-category')) {
                                 window.isBuffetPage = true;
                                 modalCartForm.action = "{{ url_for('buffet_add_item') }}";
-                                updateBuffetCounter(); 
+                                updateBuffetCounter();
                             } else {
                                 window.isBuffetPage = false;
                                 modalCartForm.action = "{{ url_for('add_to_cart') }}";
-                                if (modalCurrentCount) modalCurrentCount.style.display = 'none'; 
+                                if (modalCurrentCount) modalCurrentCount.style.display = 'none';
                             }
-                            
+
                             modal.style.display = 'block';
                         });
                 });
-            }); 
+            });
 
             // 8. --- Global Form Submit Logic (Only for Product Modal) ---
             if (modalCartForm) {
                 if (window.isBuffetPage === true) {
                     // Do nothing. The local script from 'client_buffet_select.html' handles this.
                 } else {
-                    modalCartForm.onsubmit = function(e) {
-                        e.preventDefault(); 
+                    modalCartForm.onsubmit = function (e) {
+                        e.preventDefault();
                         const formData = new FormData(modalCartForm);
 
                         fetch("{{ url_for('add_to_cart') }}", {
                             method: 'POST',
                             body: formData
                         })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                createToast(data.message, 'success');
-                                closeProductModal(); 
-                            
-                            } else if (data.status === 'login_required') {
-                                createToast('You must log in to add items to your cart.', 'danger');
-                                window.location.href = data.url; 
-                            
-                            } else {
-                                createToast(data.message, 'danger');
-                            }
-                        })
-                        .catch(err => {
-                            console.error('Error adding to cart:', err);
-                            createToast('An error occurred. Please try again.', 'danger');
-                        });
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    createToast(data.message, 'success');
+                                    closeProductModal();
+
+                                } else if (data.status === 'login_required') {
+                                    createToast('You must log in to add items to your cart.', 'danger');
+                                    window.location.href = data.url;
+
+                                } else {
+                                    createToast(data.message, 'danger');
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Error adding to cart:', err);
+                                createToast('An error occurred. Please try again.', 'danger');
+                            });
                     }
                 }
-            } 
+            }
 
         }); 
     </script>
 
     {% block scripts %}{% endblock %}
-    
+
 </body>
+
 </html>

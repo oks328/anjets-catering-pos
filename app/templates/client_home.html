@@ -11,11 +11,20 @@
 
         <div class="cta-buttons">
             {% if 'customer_id' in session %}
-                <a href="{{ url_for('client_menu') }}" class="btn btn-hero-primary">Order Now </a>
+            <a href="{{ url_for('client_menu') }}" class="btn btn-hero-primary">Order Now </a>
             {% else %}
-                <a href="{{ url_for('client_account_page') }}" class="btn btn-hero-primary">Order Now </a>
+            <a href="{{ url_for('client_account_page') }}" class="btn btn-hero-primary">Order Now </a>
             {% endif %}
             <a href="{{ url_for('buffet_wizard_start') }}" class="btn btn-hero-outline">Build a Buffet</a>
+        </div>
+
+        <div class="ordering-notice"
+            style="margin-top: 2rem; background-color: rgba(0,0,0,0.6); padding: 1rem; border-radius: 8px; display: inline-block;">
+            <p style="margin: 0; color: #fff; font-size: 1.1rem;">
+                <i class="fas fa-info-circle"></i>
+                <strong>Note:</strong> Please order at least <strong>3 days</strong> in advance for regular orders,
+                and <strong>7 days</strong> in advance for buffet services.
+            </p>
         </div>
     </div>
 </div>
@@ -25,35 +34,34 @@
 
     <div class="product-grid">
         {% for product in popular_products %}
-            <div class="product-card">
-                
-                <div class="product-image-wrapper">
-                    <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}" 
-                         class="product-card-image" 
-                         alt="{{ product.name }}">
-                </div>
+        <div class="product-card">
 
-                <div class="product-card-content">
-                    <h3>{{ product.name }}</h3>
-                    <p>{{ product.description or 'Freshly prepared catering favorite.' }}</p>
-                    
-                    <div class="product-card-footer">
-                        <div class="product-price">
-                            {% if product.has_variants %}
-                                ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
-                            {% else %}
-                                ₱{{ "%.2f"|format(product.variants[0].price) }}
-                            {% endif %}
-                        </div>
-                        
-                        <button class="btn btn-card-add btn-open-product-modal" data-product-id="{{ product.product_id }}">
-                            Add to Cart
-                        </button>
+            <div class="product-image-wrapper">
+                <img src="{{ url_for('static', filename='uploads/products/' + product.image_file) }}"
+                    class="product-card-image" alt="{{ product.name }}">
+            </div>
+
+            <div class="product-card-content">
+                <h3>{{ product.name }}</h3>
+                <p>{{ product.description or 'Freshly prepared catering favorite.' }}</p>
+
+                <div class="product-card-footer">
+                    <div class="product-price">
+                        {% if product.has_variants %}
+                        ₱{{ "%.2f"|format(product.variants|map(attribute='price')|min) }}
+                        {% else %}
+                        ₱{{ "%.2f"|format(product.variants[0].price) }}
+                        {% endif %}
                     </div>
+
+                    <button class="btn btn-card-add btn-open-product-modal" data-product-id="{{ product.product_id }}">
+                        Add to Cart
+                    </button>
                 </div>
             </div>
+        </div>
         {% else %}
-            <p>Check out our Menu for more items!</p>
+        <p>Check out our Menu for more items!</p>
         {% endfor %}
     </div>
 </div>
