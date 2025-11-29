@@ -1,8 +1,4 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Length
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField, TextAreaField, BooleanField, DecimalField, SelectField, DateField, IntegerField
 from wtforms.validators import DataRequired, Length, Optional, EqualTo, ValidationError, NumberRange, Email, Regexp
 from flask_wtf.file import FileField, FileAllowed, FileSize
@@ -273,7 +269,6 @@ class CustomerEditForm(FlaskForm):
 class CustomerProfileForm(FlaskForm):
     name = StringField('Full Name', validators=[DataRequired(), Length(min=3, max=255)])
     
-    
     contact_number = StringField(
         'Contact Number',
         validators=[
@@ -288,8 +283,34 @@ class CustomerProfileForm(FlaskForm):
     birthdate = DateField('Birthdate', validators=[DataRequired(), validate_age_and_future_date])
     submit = SubmitField('Update Profile')
 
-class DiscountVerificationForm(FlaskForm):
+class CompleteProfileForm(FlaskForm):
+    """Form for completing profile after Google OAuth signup"""
+    contact_number = StringField(
+        'Contact Number',
+        validators=[
+            DataRequired(), 
+            Length(min=11, max=11, message="Phone number must be exactly 11 digits."),
+            Regexp(r'^\d+$', message="Phone number must contain only digits.")
+        ]
+    )
     
+    address = TextAreaField(
+        'Address',
+        validators=[DataRequired(), Length(min=10, max=500)],
+        description="Please enter your full delivery address."
+    )
+    
+    landmark = StringField(
+        'Landmark (Optional)',
+        validators=[Optional(), Length(max=255)],
+        description="e.g., Near 7-Eleven, Blue Gate, etc."
+    )
+    
+    birthdate = DateField('Birthdate', validators=[DataRequired(), validate_age_and_future_date])
+    
+    submit = SubmitField('Complete Profile')
+
+class DiscountVerificationForm(FlaskForm):
     
     discount_type = SelectField(
         'Discount Type',
@@ -307,7 +328,6 @@ class DiscountVerificationForm(FlaskForm):
     submit = SubmitField('Submit for Verification')
 
 class GCashPaymentForm(FlaskForm):
-    
     
     reference_number = StringField(
         'GCash Reference Number',
@@ -369,3 +389,56 @@ class ReviewForm(FlaskForm):
         description="Max 200 characters."
     )
     submit = SubmitField('Submit Review')
+
+class CreditCardPaymentForm(FlaskForm):
+    """
+    Form for credit/debit card payment with Luhn algorithm validation.
+    """
+    card_number = StringField(
+        'Card Number',
+        validators=[
+            DataRequired(),
+            Length(min=13, max=23, message="Card number must be 13-19 digits."),
+            Regexp(r'^[\d\s]+$', message="Card number must contain only digits.")
+        ],
+        description="Enter your 13-19 digit card number."
+    )
+    
+    card_holder_name = StringField(
+        'Cardholder Name',
+        validators=[
+            DataRequired(),
+            Length(min=3, max=100, message="Name must be 3-100 characters.")
+        ],
+        description="Name as it appears on the card."
+    )
+    
+    expiry_month = SelectField(
+        'Expiry Month',
+        choices=[('', 'Month')] + [(str(i).zfill(2), str(i).zfill(2)) for i in range(1, 13)],
+        validators=[DataRequired()]
+    )
+    
+    expiry_year = SelectField(
+        'Expiry Year',
+        choices=[('', 'Year')] + [(str(i), str(i)) for i in range(2025, 2036)],
+        validators=[DataRequired()]
+    )
+    
+    cvv = StringField(
+        'CVV',
+        validators=[
+            DataRequired(),
+            Length(min=3, max=4, message="CVV must be 3-4 digits."),
+            Regexp(r'^\d{3,4}$', message="CVV must contain only digits.")
+        ],
+        description="3-4 digit security code on the back of your card."
+    )
+    
+    submit = SubmitField('Confirm Payment')
+    
+    def validate_card_number(self, card_number):
+        from app.models import validate_luhn
+        clean_number = ''.join(filter(str.isdigit, card_number.data))
+        if not validate_luhn(clean_number):
+            raise ValidationError('Invalid card number. Please check and try again.')

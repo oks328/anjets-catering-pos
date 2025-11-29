@@ -33,6 +33,11 @@ def create_app(config_class=Config):
         from . import routes
         from . import models
         from . import oauth_routes  # Import custom OAuth routes
+        from .profile_completion import register_profile_routes
+        register_profile_routes(app)
+        
+        from .card_payment_routes import register_card_payment_routes
+        register_card_payment_routes(app)
 
         @login_manager.user_loader
         def load_user(user_id):

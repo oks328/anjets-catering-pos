@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Complete Your Profile{% endblock %}
+
+{% block content %}
+
+<div class="form-container">
+    <div class="form-wrapper">
+        <h2>Complete Your Profile</h2>
+        <p style="text-align: center; margin-bottom: 1rem;">Please provide a few more details to finish your registration.</p>
+
+        <form method="POST" action="{{ url_for('complete_profile') }}" novalidate>
+            {{ form.hidden_tag() }}
+
+            <div class="form-group">
+                {{ form.contact_number.label }}
+                {{ form.contact_number(class="form-control", placeholder="09xxxxxxxxx") }}
+                {% for error in form.contact_number.errors %}
+                <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ form.address.label }}
+                {{ form.address(class="form-control", rows="3") }}
+                {% for error in form.address.errors %}
+                <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ form.landmark.label }}
+                {{ form.landmark(class="form-control") }}
+                {% for error in form.landmark.errors %}
+                <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ form.birthdate.label }}
+                {{ form.birthdate(class="form-control", type="date") }}
+                {% for error in form.birthdate.errors %}
+                <span class="error-message">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+
+        </form>
+    </div>
+</div>
+
+{% endblock %}

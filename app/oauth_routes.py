@@ -144,6 +144,11 @@ def google_callback():
         session.pop('oauth_state', None)
         session.pop('oauth_redirect_uri', None)
         
+        # Check if profile is complete
+        if not customer.contact_number or not customer.address or not customer.birthdate:
+             flash("Please complete your profile to continue.", 'info')
+             return redirect(url_for('complete_profile'))
+
         return redirect(url_for('client_home', welcome='google'))
         
     except Exception as e:

@@ -985,6 +985,23 @@ def save_checkout_options():
         
         return redirect(url_for('client_gcash_upload'))
     
+    elif payment_method == 'Credit/Debit Card':
+        # Calculate totals for card payment page
+        cart_items = []
+        for item_id, item_data in cart_session.items():
+            cart_items.append({
+                'price': float(item_data['price']),
+                'quantity': int(item_data['quantity'])
+            })
+        customer = Customer.query.get(session['customer_id'])
+        delivery_fee = session.get('delivery_fee', 0.0)
+        voucher_code = session.get('voucher_code')
+        voucher_percent = session.get('discount_percentage', 0.0)
+        totals = calculate_order_totals(cart_items, customer, delivery_fee, voucher_code, voucher_percent)
+        session['final_total'] = totals['final_total']
+        
+        return redirect(url_for('client_card_payment'))
+    
     
     return redirect(url_for('client_checkout'))
 
@@ -1073,7 +1090,6 @@ def place_order():
         
         initial_order_status = "Pending Approval"
         initial_payment_status = "Pending"
-    
     try:
         special_instructions = request.form.get('special_instructions')
         
@@ -1094,11 +1110,12 @@ def place_order():
             delivery_fee=delivery_fee,
             special_instructions=special_instructions,
             
-            
             payment_method=payment_method,
             payment_status=initial_payment_status,
             payment_image_file=gcash_image_file,
-            gcash_reference_no=gcash_reference_no
+            gcash_reference_no=gcash_reference_no,
+            card_last_four=session.get('card_last_four'),
+            card_type=session.get('card_type')
         )
         db.session.add(new_order)
         db.session.commit()

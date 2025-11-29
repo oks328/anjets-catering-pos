@@ -7,6 +7,31 @@ from flask import current_app
 
 bcrypt = Bcrypt()
 
+def validate_luhn(card_number):
+    """
+    Validates a credit card number using the Luhn algorithm.
+    Returns True if valid, False otherwise.
+    """
+    # Remove spaces and non-digits
+    card_number = ''.join(filter(str.isdigit, card_number))
+    
+    if len(card_number) < 13 or len(card_number) > 19:
+        return False
+    
+    # Luhn algorithm
+    def digits_of(n):
+        return [int(d) for d in str(n)]
+    
+    digits = digits_of(card_number)
+    odd_digits = digits[-1::-2]
+    even_digits = digits[-2::-2]
+    
+    checksum = sum(odd_digits)
+    for d in even_digits:
+        checksum += sum(digits_of(d * 2))
+    
+    return checksum % 10 == 0
+
 class Category(db.Model):
     """
     Model for food categories.
@@ -155,6 +180,8 @@ class Order(db.Model):
     payment_status = db.Column(db.String(50), nullable=False, default='Pending') 
     payment_image_file = db.Column(db.String(100), nullable=True) 
     gcash_reference_no = db.Column(db.String(50), nullable=True)
+    card_last_four = db.Column(db.String(4), nullable=True)  # Last 4 digits of card
+    card_type = db.Column(db.String(20), nullable=True)  # Visa, Mastercard, etc.
 
     items = db.relationship('OrderItem', backref='order', lazy=True, cascade="all, delete-orphan")
 
