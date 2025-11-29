@@ -1609,4 +1609,11 @@ ul {
         transform: translateY(0);
         opacity: 1;
     }
+}/* Error Message Styling */
+.error-message {
+    display: block;
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    font-weight: 500;
 }

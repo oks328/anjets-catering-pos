@@ -1687,7 +1687,7 @@ def verify_admin_password(password_attempt):
 @login_required
 def admin_logout():
     logout_user()
-    flash('You have been logged out.', 'info')
+    flash('You have been logged out.', 'danger')
     return redirect(url_for('admin_login'))
 
 @app.route('/admin/orders')

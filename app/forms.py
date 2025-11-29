@@ -311,7 +311,11 @@ class GCashPaymentForm(FlaskForm):
     
     reference_number = StringField(
         'GCash Reference Number',
-        validators=[DataRequired(), Length(max=20)],
+        validators=[
+            DataRequired(), 
+            Length(min=13, max=14, message="Reference number must be 13-14 digits."),
+            Regexp(r'^\d{13,14}$', message="Reference number must contain only digits.")
+        ],
         description="The 13-14 digit reference number from the GCash receipt."
     )
     receipt_image = FileField(
