@@ -66,6 +66,7 @@
                 </form> 
                 
                 <form method="POST" action="{{ url_for('admin_toggle_category_status', category_id=category.category_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     {% if category.is_active %}
                         <input type="submit" value="Deactivate" class="btn btn-danger">
                     {% else %}

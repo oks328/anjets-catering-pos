@@ -1,38 +1,4 @@
 /* ==========================================================================
-   1. FONTS & VARIABLES
-   ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap');
-
-:root {
-    /* Brand Colors */
-    --brand-red: #e84c3d;
-    --brand-red-hover: #c0392b;
-    --brand-red-light: #fff5f5;
-
-    /* Neutral Colors */
-    --brand-dark: #1f2937;
-    /* Softer dark blue-gray */
-    --text-gray: #6b7280;
-    /* Modern gray text */
-    --text-light: #9ca3af;
-    --bg-body: #f3f4f6;
-    /* Light gray background */
-    --bg-white: #ffffff;
-
-    /* UI Colors */
-    --border-color: #e5e7eb;
-    --success-green: #10b981;
-    --warning-yellow: #f59e0b;
-    --danger-red: #ef4444;
-
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-/* ==========================================================================
    2. GLOBAL RESET & BASE STYLES
    ========================================================================== */
 * {
@@ -142,6 +108,9 @@ ul {
 }
 
 .client-nav-right .icon-link {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
     font-size: 1.2rem;
     color: var(--brand-dark);
     width: 40px;

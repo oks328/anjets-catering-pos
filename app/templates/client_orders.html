@@ -62,8 +62,8 @@
                                 <ul>
                                     {% for item in order.items %}
                                         <li>
-                                            {{ item.quantity }}x {{ item.product.name }}
-                                            <span class="variant-name">({{ item.variant.size_name }})</span>
+                                            {{ item.quantity }}x {{ item.product_name }}
+                                            <span class="variant-name">({{ item.variant_name }})</span>
                                             
                                             {% set customer_id = session['customer_id'] %}
                                             {% set product_id = item.product.product_id %}
@@ -144,7 +144,7 @@
                                        class="btn btn-secondary" 
                                        title="Print Receipt"
                                        style="padding: 0.4rem 0.6rem; font-size: 0.9rem;">
-                                       <i class="fa-solid fa-receipt"></i> Receipt
+                                       <i class="fa-solid fa-receipt"></i> {{ 'Receipt' if order.payment_status == 'Paid' else 'Order Summary' }}
                                     </a>
                                 {% else %}
                                     <span style="color: #ccc;">-</span>

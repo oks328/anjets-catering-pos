@@ -52,6 +52,7 @@
                         <td>₱{{ "%.2f"|format(item.price) }}</td>
                         <td>
                             <form action="{{ url_for('buffet_update_quantity') }}" method="POST" class="quantity-form-auto">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="variant_id" value="{{ variant_id }}">
                                 
                                 <div class="quantity-stepper">
@@ -95,6 +96,7 @@
             </div>
 
             <form method="POST" action="{{ url_for('buffet_commit_package') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn-checkout">
                     Add Package to Cart <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
                 </button>
@@ -112,7 +114,7 @@
         <p>Are you sure you want to remove this item from your buffet package?</p>
         <div class="modal-actions" style="text-align: right; margin-top: 1.5rem;">
             <button type="button" id="removeItemModalCancel" class="btn btn-secondary">Cancel</button>
-            <a href="#" id="removeItemModalConfirm" class="btn btn-danger">Remove</a>
+            <form id="removeItemModalConfirm" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-danger">Remove</button></form>
         </div>
     </div>
 </div>
@@ -142,7 +144,7 @@
         const confirmBtn = document.getElementById('removeItemModalConfirm');
         
         if (modal && confirmBtn) {
-            confirmBtn.href = removeUrl;
+            confirmBtn.action = removeUrl;
             modal.style.display = 'block';
         }
     }

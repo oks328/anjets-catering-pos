@@ -63,10 +63,10 @@
                     <td>{{ item.quantity }}x</td>
                     <td style="width: 80%;"><strong>{{ item.product_name }}</strong> ({{ item.variant_name }})</td>
                     <td class="action-buttons">
-                        <a href="{{ url_for('buffet_remove_item_from_package', variant_id=item.variant_id, category_name=category_name) }}" 
+                        <form action="{{ url_for('buffet_remove_item_from_package', variant_id=item.variant_id, category_name=category_name) }}" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit"
                            style="color: #d9534f; font-weight: bold;">
                             Remove
-                        </a>
+                        </button></form>
                     </td>
                 </tr>
                 {% endfor %}

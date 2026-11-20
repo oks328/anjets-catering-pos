@@ -1,162 +1,146 @@
-# Anjet's Catering - POS & Online Ordering System
+# Anjet's Catering
 
-A complete web-based catering management system designed for "Made-to-Order" food businesses. It features a sophisticated Buffet Builder, event scheduling logic, Google Sign-In authentication, and a full Admin approval workflow.
+Flask application for advance catering orders, buffet packages, and administrative order management.
 
-## 🚀 Key Features
+## Run locally on Windows
 
-### 🍽️ Client-Side (Customer)
-* **Google Sign-In:** Quick and secure authentication using Google accounts.
-* **Buffet Builder Wizard:**
-    * Step-by-step wizard for building custom catering packages.
-    * **Smart Logic:** "Shared Mains" quota system (e.g., mix and match Pork/Beef/Chicken to reach the required total).
-    * **Real-Time UI:** Floating total price badge and visual progress bar.
-    * **Smart Recommendations:** Suggests quantities based on guest count.
-* **Event-Based Ordering:**
-    * Customers select an **Event Date & Time** instead of immediate delivery.
-    * **Dynamic Lead Time:** Enforces a 3-day minimum for standard orders and a 7-day minimum for buffet packages.
-* **Order Tracking:**
-    * "My Orders" dashboard showing real-time status (Pending, Approved, Kitchen, Out for Delivery).
-    * Visual badges for status updates.
-    * View decline reasons if an order is rejected.
-* **Official Receipts:** Generate and print digital receipts for approved/completed orders.
+Use Python 3.11 or newer. From the project folder in PowerShell:
 
-### 🛠️ Admin-Side (Management)
-* **Approval Workflow:**
-    * New orders arrive as **"Pending Approval"**.
-    * Admins can **Approve** (confirms schedule) or **Decline** (requires a reason text).
-    * Status tracking: Approved → In Progress (Kitchen) → Up for Delivery → Completed.
-* **Dashboard:** Daily overview of new requests, confirmed sales, and pending verifications.
-* **Menu Management:**
-    * Manage Categories and Products.
-    * Support for **Product Variants** (e.g., Small Bilao vs. Family Tray).
-    * **CSV Import:** Bulk upload menu items with auto-category matching.
-* **Sales Reports:** Filterable sales data exportable to CSV.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+```
 
-### 📧 Automated Email Notifications
-The system sends transactional emails using **Flask-Mail** for key events:
-* **Order Confirmed:** Sent when Admin approves the request.
-* **Order Declined:** Sent with the specific reason for rejection.
-* **Out for Delivery:** Sent when the rider leaves.
-* **Order Completed:** Sent with a link to the final receipt.
+Set a unique `SECRET_KEY` in `.env`. Generate one with:
 
----
+```powershell
+.\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
-## ⚙️ Installation & Setup
+For local testing, use `APP_ENV=development`, `DATABASE_URL=sqlite:///site.db`,
+`SESSION_COOKIE_SECURE=0`, and `MAIL_SUPPRESS_SEND=1`. Then run:
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/yourusername/anjets-catering-pos.git
-    cd anjets-catering-pos
-    ```
+```powershell
+.\.venv\Scripts\python.exe -m flask --app run db upgrade
+.\.venv\Scripts\python.exe -m flask --app run create-admin --username dev-admin
+.\.venv\Scripts\python.exe -m flask --app run seed-demo
+.\.venv\Scripts\python.exe -m flask --app run run --host 127.0.0.1 --port 5001
+```
 
-2.  **Create a Virtual Environment**
-    ```bash
-    python -m venv venv
-    # Windows
-    venv\Scripts\activate
-    # Mac/Linux
-    source venv/bin/activate
-    ```
+Open [the customer site](http://127.0.0.1:5001/) and
+[admin login](http://127.0.0.1:5001/admin/login) in separate browser profiles or an incognito window.
+Keep PowerShell open; Ctrl+C stops the server. `python run.py` uses port 5000 instead.
 
-3.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
+The admin command prompts for a hidden, confirmed password and refuses to replace an existing user.
+Demo seeding adds two trays without overwriting existing products and only runs against development
+SQLite databases. On an already configured machine, start from `db upgrade`; keep the existing `.env`,
+database, and accounts. Generated development credentials are in ignored `.local/` files.
 
-4.  **Configure Environment Variables**
-    Create a `.env` file in the root directory (you can copy from `.env.example`):
-    ```ini
-    FLASK_APP=run.py
-    FLASK_ENV=development
-    SECRET_KEY=your_secret_key_here
-    DATABASE_URL=sqlite:///site.db
-    
-    # Email Settings (Required for Notifications)
-    MAIL_USERNAME=your_email@gmail.com
-    MAIL_PASSWORD=your_gmail_app_password
-    
-    # Google OAuth (Required for Google Sign-In)
-    GOOGLE_OAUTH_CLIENT_ID=your_client_id.apps.googleusercontent.com
-    GOOGLE_OAUTH_CLIENT_SECRET=your_client_secret
-    ```
+## Test the workflow
 
-5.  **Set Up Google OAuth (For Google Sign-In)**
-    
-    Follow these steps to enable Google Sign-In:
-    
-    **a. Create a Google Cloud Project**
-    1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-    2. Click "Select a project" → "New Project"
-    3. Enter project name (e.g., "Anjet's Catering") and click "Create"
-    
-    **b. Enable Google+ API**
-    1. In your project, go to "APIs & Services" → "Library"
-    2. Search for "Google+ API"
-    3. Click on it and press "Enable"
-    
-    **c. Create OAuth 2.0 Credentials**
-    1. Go to "APIs & Services" → "Credentials"
-    2. Click "Create Credentials" → "OAuth client ID"
-    3. If prompted, configure the OAuth consent screen:
-       - User Type: External
-       - App name: Anjet's Catering
-       - User support email: your email
-       - Developer contact: your email
-       - Click "Save and Continue" through the remaining steps
-    4. Back in "Create OAuth client ID":
-       - Application type: **Web application**
-       - Name: Anjet's Catering Web Client
-       - Authorized redirect URIs: Add these URLs:
-         - `http://127.0.0.1:5000/login/google/authorized` (for local development)
-         - `http://localhost:5000/login/google/authorized` (alternative local)
-         - Add your production URL when deploying (e.g., `https://yourdomain.com/login/google/authorized`)
-    5. Click "Create"
-    6. Copy the **Client ID** and **Client Secret**
-    7. Add them to your `.env` file as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+1. Register a customer or use the local test account.
+2. Add menu items or build a buffet. Standard orders require three days of lead time; buffet orders require seven.
+3. Choose pickup or delivery and cash or GCash. Delivery currently adds a flat ₱100 fee.
+4. For local GCash testing, use a sample image and dummy 13–14 digit reference; no real payment is needed.
+5. In admin, review GCash proof when applicable, approve the order, and advance the available status.
+6. Complete the order, check the customer's receipt, and review sales reports.
 
-6.  **Initialize the Database**
-    If starting fresh, delete any existing `site.db` and let Flask recreate it on first run, or run:
-    ```bash
-    flask shell
-    >>> from app import db
-    >>> db.create_all()
-    >>> exit()
-    ```
+Pickup proceeds from Approved → In Progress → Completed. Delivery adds Up for Delivery before
+completion. Completing a cash order confirms collection of the full payment. Declining an approval
+request requires a reason. Only completed, paid orders count toward sales, grouped by completion day
+in `BUSINESS_TIMEZONE` (default `Asia/Manila`). Unpaid approved orders have printable summaries.
 
-7.  **Run the Application**
-    ```bash
-    python run.py
-    ```
-    Access the site at `http://127.0.0.1:5000`.
+Card payments are disabled until a real provider is integrated. Local email is suppressed, and
+live Google sign-in requires separate configuration.
 
----
+## Configuration
 
-## 📖 Usage Guide
+See [.env.example](.env.example) for available settings. Google sign-in uses
+`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI`.
+Register the exact callback, such as `http://127.0.0.1:5001/auth/google/callback`, with Google.
+For local HTTP OAuth only, explicitly set `OAUTHLIB_INSECURE_TRANSPORT=1`; production callbacks use HTTPS.
+The flow checks state, PKCE, and verified email before linking accounts.
 
-### 1. Setting Up the Menu (First Run)
-* Log in as an **Admin**.
-* Go to **Categories** and create the required standard categories: `Pork`, `Beef`, `Chicken`, `Seafood`, `Vegetables`, `Pasta & Noodles`, `Dessert`.
-* Go to **Products** and click "Import from CSV". Upload your `menu_import.csv` to populate the database.
+For real email, configure `MAIL_USERNAME` and `MAIL_PASSWORD`, then set `MAIL_SUPPRESS_SEND=0`.
+Notifications currently use background threads: they are best effort, without a durable retry queue.
+`verify_config.py` reports whether credentials are configured without printing their values.
 
-### 2. The Buffet Logic
-* The system sorts categories logically: Mains → Carbs → Sides → Dessert.
-* **Shared Mains:** The wizard sums up all selected items from Pork, Beef, Chicken, and Seafood. The user must meet the *total* required count (e.g., 10 trays for 100 pax) but can distribute them however they like (e.g., 5 Pork, 5 Chicken).
+For deployment, supply a persistent secret, configure the target database, run migrations, use a
+production WSGI server behind HTTPS, and set `SESSION_COOKIE_SECURE=1`. Debug mode is off by default.
+Forwarded IP headers are not trusted automatically; configure trusted proxy handling before relying
+on per-client IP limits behind a proxy. This repository does not include a production deployment pipeline.
 
-### 3. Order Lifecycle
-1.  **Customer** places order → Status: `Pending Approval`.
-2.  **Admin** reviews date/capacity → Clicks `Approve`.
-    * *Email sent to Customer.*
-3.  **Kitchen** starts cooking → Admin sets status to `In Progress`.
-4.  **Delivery** starts → Admin sets status to `Up for Delivery`.
-    * *Email sent to Customer.*
-5.  **Transaction done** → Admin sets status to `Completed`.
-    * *Receipt becomes available to Customer.*
+## Data and migrations
 
----
+The default SQLite database is `instance/site.db`; uploads requiring authorization live in
+`private_uploads/`. Both are ignored by Git and must be backed up together. Admin download routes
+serve IDs and payment proof; public static URLs reject private upload folders and Windows path aliases.
+A reverse proxy must also avoid serving private directories directly.
 
-## 📦 Tech Stack
-* **Backend:** Python, Flask
-* **Database:** SQLAlchemy (SQLite for dev)
-* **Frontend:** HTML5, CSS3, JavaScript (Vanilla)
-* **Email:** Flask-Mail
-* **Authentication:** Flask-Login, Flask-Dance (Google OAuth)
+**Existing installations: preserve uploads before pulling this update.** Copy the contents of
+`app/static/uploads/ids/`, `payments/`, and `riders/documents/` into the matching paths beneath
+`private_uploads/` before source deletions are applied. These local files are not distributed by Git.
+The admin download route retains a protected legacy fallback during migration. This machine's 73
+legacy files were moved locally; files from earlier commits still require a separate history/privacy
+review before making the repository public. No history rewrite is included.
+
+Apply updates with `python -m flask --app run db upgrade`. Do not delete a database to change its schema.
+For a model change, generate and review a migration before applying it:
+
+```powershell
+.\.venv\Scripts\python.exe -m flask --app run db migrate -m "Describe the change"
+.\.venv\Scripts\python.exe -m flask --app run db upgrade
+```
+
+Migrations stop on duplicate normalized emails or invalid legacy menu values instead of merging or
+deleting records. Older completion timestamps are approximated from order dates. Historical item
+names are backfilled from the menu available at migration time; earlier names cannot be reconstructed.
+
+## Pricing, checkout, and imports
+
+Amounts use decimal arithmetic. Discounts round to cents before VAT, using `ROUND_HALF_UP`; the
+final total adds those rounded components. The existing 12% VAT rate and highest-unit verified-discount
+allocation are preserved. Valid prices are positive, have no fractional cents, and fit `Numeric(10, 2)`.
+Oversized carts remain editable but cannot proceed to checkout.
+
+The review uses current menu prices. A changed quote requires reconfirmation, and changed GCash
+quotes invalidate prior proof. A unique server-issued checkout token prevents duplicate orders and
+repeat voucher redemption under overlapping requests. Item descriptions are saved on each order;
+renaming the menu does not change receipts, exports, or historical reports. Referenced sizes cannot be deleted.
+
+CSV imports accept UTF-8, optional BOM/header, and exactly six columns:
+`category, product name, description, has variants, price, size`. Every row needs a valid price and size.
+Repeat a new product with `True` and a different size for multiple variants. Existing products are
+skipped. Valid rows commit together; invalid rows are reported. Malformed files roll back in full.
+
+## Authentication controls
+
+Admin routes require the Admin role. Customer and administrator sessions become invalid after a
+password change. Reset links stop working after a password change; older sessions must sign in again.
+
+| Action | Account limit | Source IP limit |
+| --- | --- | --- |
+| Customer/admin login | 5 per 15 minutes | 30 per 15 minutes, per endpoint |
+| Reset email request | 3 per hour | 10 per hour |
+| Reset submission | — | 10 per hour |
+
+Limits count attempts for known and unknown accounts, persist across workers, and use HMAC keys
+rather than raw identities. Throttling returns HTTP 429 with `Retry-After`; unavailable counter storage
+returns HTTP 503. Expired counters are cleaned up during authentication requests. Limits are in `Config`.
+
+## Development checks
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check app tests config.py run.py recreate_db.py verify_config.py
+.\.venv\Scripts\python.exe -m ruff format --check app tests config.py run.py recreate_db.py verify_config.py
+.\.venv\Scripts\python.exe -m flask --app run db check
+```
+
+Tests use isolated databases. See [tests/README.md](tests/README.md), [DESIGN.md](DESIGN.md),
+[CHANGELOG.md](CHANGELOG.md), and [TODO.md](TODO.md) for verification, UI conventions, release changes,
+and remaining work.
+
+Routes register explicitly for each app instance. Pricing, checkout validation, authentication,
+rate limits, order transitions, reporting, CSV imports, and setup commands have separate modules.

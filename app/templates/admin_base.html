@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Anjet's Admin{% endblock %}</title>
     
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand.css') }}" />
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/admin_style.css') }}"
@@ -15,7 +16,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    {% if request.endpoint == 'admin_sales_reports' %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>{% endif %}
     
     {% if request.endpoint == 'admin_login' %}
     <style>
@@ -44,13 +45,14 @@
     {% if request.endpoint != 'admin_login' %}
     <div class="sidebar">
         <div class="sidebar-header">
-            <h3>Anjet's Admin</h3>
+            <a class="admin-brand" href="{{ url_for('admin_dashboard') }}">Anjet's<span>Admin workspace</span></a>
+            <button class="admin-menu-toggle" type="button" aria-controls="admin-navigation" aria-expanded="false" hidden><i class="fa-solid fa-bars" aria-hidden="true"></i> Menu</button>
         </div>
         
         {% if current_user.is_authenticated %}
         {% set active_page = request.endpoint %}
         
-        <nav class="sidebar-nav">
+        <nav class="sidebar-nav" id="admin-navigation" aria-label="Administration">
           <ul>
             <li>
                 <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if active_page == 'admin_dashboard' else '' }}">
@@ -129,7 +131,7 @@
             <div class="sidebar-user-info">
                 {% if current_user.is_authenticated %}
                     <strong>{{ current_user.username }}</strong>
-                    <a href="{{ url_for('admin_logout') }}">Logout</a>
+                    <form action="{{ url_for('admin_logout') }}" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Logout</button></form>
                 {% else %}
                     <strong>Not Logged In</strong>
                     <a href="{{ url_for('admin_login') }}">Log In</a>
@@ -144,7 +146,7 @@
                 {% if messages %}
                     <div id="flashedMessages" style="display: none;">
                         {% for category, message in messages %}
-                            <span data-category="{{ category }}">{{ message | safe }}</span>
+                            <span data-category="{{ category }}">{{ message }}</span>
                         {% endfor %}
                     </div>
                 {% endif %}
@@ -168,6 +170,7 @@
         </p>
         
         <form id="modalDeleteForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <div class="password-container">
                     <input type="password" name="admin_confirm_password" class="form-control" 
@@ -190,6 +193,23 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
           
+          const sidebar = document.querySelector('.sidebar');
+          const menuToggle = document.querySelector('.admin-menu-toggle');
+          if (sidebar && menuToggle) {
+              sidebar.dataset.menuReady = 'true';
+              menuToggle.hidden = false;
+              menuToggle.addEventListener('click', () => {
+                  const open = sidebar.classList.toggle('is-open');
+                  menuToggle.setAttribute('aria-expanded', String(open));
+              });
+              sidebar.addEventListener('keydown', event => {
+                  if (event.key === 'Escape' && sidebar.classList.contains('is-open')) {
+                      sidebar.classList.remove('is-open');
+                      menuToggle.setAttribute('aria-expanded', 'false');
+                      menuToggle.focus();
+                  }
+              });
+          }
           // --- 1. DELETE MODAL LOGIC ---
           const modal = document.getElementById("deleteModal");
           const modalForm = document.getElementById("modalDeleteForm");

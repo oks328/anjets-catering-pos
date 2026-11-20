@@ -1,23 +1,26 @@
-import os
-from dotenv import load_dotenv
+"""Report configuration presence without exposing credential values."""
 
-# Load .env file
-basedir = os.path.abspath(os.path.dirname(__file__))
-load_dotenv(os.path.join(basedir, '.env'))
+from config import Config
 
-print("--- Configuration Verification ---")
-client_id = os.environ.get('GOOGLE_OAUTH_CLIENT_ID')
-client_secret = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET')
 
-if client_id:
-    print(f"[OK] GOOGLE_OAUTH_CLIENT_ID found: {client_id[:10]}...{client_id[-5:]}")
-else:
-    print("[FAIL] GOOGLE_OAUTH_CLIENT_ID NOT found!")
+def configured(value):
+    return bool(value and not str(value).startswith("your_"))
 
-if client_secret:
-    print(f"[OK] GOOGLE_OAUTH_CLIENT_SECRET found: {client_secret[:5]}...")
-else:
-    print("[FAIL] GOOGLE_OAUTH_CLIENT_SECRET NOT found!")
 
-print(f"SERVER_NAME: {os.environ.get('SERVER_NAME')}")
-print("--------------------------------")
+def main():
+    secret = configured(Config.SECRET_KEY)
+    print("SECRET_KEY: " + ("configured" if secret else "missing or placeholder"))
+    print("Database: " + ("configured" if Config.SQLALCHEMY_DATABASE_URI else "missing"))
+    google = configured(Config.GOOGLE_OAUTH_CLIENT_ID) and configured(
+        Config.GOOGLE_OAUTH_CLIENT_SECRET
+    )
+    print("Google sign-in: " + ("configured" if google else "optional, not configured"))
+    print(
+        "Email delivery: "
+        + ("suppressed for local testing" if Config.MAIL_SUPPRESS_SEND else "enabled")
+    )
+    return 0 if secret else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

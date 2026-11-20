@@ -31,7 +31,7 @@
                     <td><strong>₱{{ "%.2f"|format(order.final_amount) }}</strong></td>
                     <td>{{ order.gcash_reference_no or 'N/A' }}</td>
                     <td>
-                        <a href="{{ url_for('static', filename='uploads/' + order.payment_image_file) }}" 
+                        <a href="{{ url_for('admin_private_upload', filename=order.payment_image_file) }}"
                            target="_blank" 
                            class="btn btn-secondary btn-sm"
                            style="background-color: #17a2b8; border-color: #17a2b8;">
@@ -40,9 +40,11 @@
                     </td>
                     <td class="action-buttons">
                         <form method="POST" action="{{ url_for('admin_approve_payment', order_id=order.order_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="submit" value="Approve" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
                         </form>
                         <form method="POST" action="{{ url_for('admin_deny_payment', order_id=order.order_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="submit" value="Deny" class="btn btn-danger">
                         </form>
                     </td>
@@ -85,7 +87,7 @@
                     </td>
                     <td>{{ customer.discount_type }}</td>
                     <td>
-                        <a href="{{ url_for('static', filename='uploads/' + customer.id_image_file) }}" 
+                        <a href="{{ url_for('admin_private_upload', filename=customer.id_image_file) }}"
                            target="_blank" 
                            class="btn btn-secondary btn-sm"
                            style="background-color: #17a2b8; border-color: #17a2b8;">
@@ -94,9 +96,11 @@
                     </td>
                     <td class="action-buttons">
                         <form method="POST" action="{{ url_for('admin_approve_discount', customer_id=customer.customer_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="submit" value="Approve" class="btn btn-success" style="background-color: #28a745; border-color: #28a745;">
                         </form>
                         <form method="POST" action="{{ url_for('admin_deny_discount', customer_id=customer.customer_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="submit" value="Deny" class="btn btn-danger">
                         </form>
                     </td>

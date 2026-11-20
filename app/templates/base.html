@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Anjet's Catering{% endblock %}</title>
 
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/client_style.css') }}">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -36,9 +37,9 @@
             <a href="{{ url_for('client_my_account') }}" class="icon-link" title="My Profile">
                 <i class="fa-regular fa-user"></i>
             </a>
-            <a href="{{ url_for('client_logout') }}" class="icon-link" title="Logout" style="margin-left: 10px;">
+            <form action="{{ url_for('client_logout') }}" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="icon-link" title="Logout" style="margin-left: 10px;">
                 <i class="fa-solid fa-right-from-bracket"></i>
-            </a>
+            </button></form>
             {% else %}
             <a href="{{ url_for('client_account_page') }}" class="btn btn-login">Login</a>
             {% endif %}
@@ -60,6 +61,7 @@
                 <h2 id="modalProductName">Product Name</h2>
             </div>
             <form id="modalCartForm" method="POST" action="{{ url_for('add_to_cart') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <input type="hidden" id="modalProductId" name="product_id">
                     <div id="modalVariantSelector" class="form-group" style="margin-bottom: 1rem;">
@@ -92,7 +94,7 @@
             <p>Are you sure you want to clear your entire shopping cart? This action cannot be undone.</p>
             <div class="modal-actions" style="text-align: right; margin-top: 1rem;">
                 <button type="button" id="clearCartModalCancel" class="btn btn-secondary">Cancel</button>
-                <a href="#" id="clearCartModalConfirm" class="btn btn-danger">Yes, Clear Cart</a>
+                <form id="clearCartModalConfirm" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-danger">Yes, Clear Cart</button></form>
             </div>
         </div>
     </div>
@@ -161,7 +163,7 @@
             const clearCartModalConfirmBtn = document.getElementById('clearCartModalConfirm');
 
             if (clearCartModal && clearCartModalConfirmBtn) {
-                clearCartModalConfirmBtn.href = url;
+                clearCartModalConfirmBtn.action = url;
                 clearCartModal.style.display = 'block';
             }
         }
@@ -200,7 +202,7 @@
             {% with messages = get_flashed_messages(with_categories = true) %}
             {% if messages %}
             {% for category, message in messages %}
-            createToast("{{ message | safe }}", "{{ category }}");
+            createToast({{ message | tojson }}, {{ category | tojson }});
             {% endfor %}
             {% endif %}
             {% endwith %}

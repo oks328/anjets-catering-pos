@@ -63,6 +63,7 @@ product.name }}{% endblock %} {% block content %}
                         <td class="action-buttons">
                             {{ edit_form.submit(class="btn btn-secondary", value="Update") }}
                     </form> <form method="POST" action="{{ url_for('admin_delete_variant', variant_id=variant.variant_id) }}" style="display:inline;" class="delete-form-modal">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="submit" value="Delete" class="btn btn-danger">
                     </form>
                         </td>

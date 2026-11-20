@@ -37,6 +37,7 @@
                         
                         {% if user.user_id != current_user.user_id %}
                             <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.user_id) }}" style="display:inline;" class="delete-form-modal">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="submit" value="Delete" class="btn btn-danger">
                             </form>
                         {% else %}

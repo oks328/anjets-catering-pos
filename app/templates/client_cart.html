@@ -58,6 +58,7 @@
                         <td>₱{{ "%.2f"|format(item.price) }}</td>
                         <td>
                             <form action="{{ url_for('update_cart_quantity') }}" method="POST" class="quantity-form-auto">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="variant_id" value="{{ item.variant_id }}">
                                 
                                 <div class="quantity-stepper">
@@ -100,9 +101,9 @@
                                 <small style="color: #047857; font-weight: bold; display: block; font-size: 0.75rem; text-transform: uppercase;">Voucher Applied</small>
                                 <span style="color: #065f46; font-weight: 700; font-size: 1.1rem;">{{ session.get('voucher_code') }}</span>
                             </div>
-                            <a href="{{ url_for('remove_voucher') }}" class="btn btn-danger" style="padding: 0.3rem 0.8rem; font-size: 0.85rem; border-radius: 6px;">
+                            <form action="{{ url_for('remove_voucher') }}" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-danger" style="padding: 0.3rem 0.8rem; font-size: 0.85rem; border-radius: 6px;">
                                 <i class="fa-solid fa-xmark"></i> Remove
-                            </a>
+                            </button></form>
                         </div>
 
                     {% else %}
@@ -121,6 +122,7 @@
                         {% endif %}
 
                         <form action="{{ url_for('apply_voucher') }}" method="POST" id="voucherForm" style="display: flex; gap: 0.5rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="text" id="voucherCodeInput" name="voucher_code" class="form-control"
                                 placeholder="Discount Code" value="" style="font-size: 0.9rem;">
                             <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Apply</button>
@@ -130,6 +132,9 @@
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin-bottom: 1.5rem;">
             {% endif %}
 
+            {% if pricing_error %}
+            <p role="alert">Cannot calculate this cart: {{ pricing_error }} Reduce quantities or remove items to continue.</p>
+            {% else %}
             <div class="summary-row">
                 <span>Subtotal (Base)</span>
                 <span>₱{{ "%.2f"|format(total_price) }}</span>
@@ -172,6 +177,7 @@
             <a href="{{ url_for('client_checkout_options') }}" class="btn-checkout">
                 Proceed to Checkout <i class="fa-solid fa-arrow-right" style="margin-left: 8px;"></i>
             </a>
+            {% endif %}
         </div>
 
     </div>
@@ -185,7 +191,7 @@
         <p>Are you sure you want to remove this item from your cart?</p>
         <div class="modal-actions" style="text-align: right; margin-top: 1.5rem;">
             <button type="button" id="removeItemModalCancel" class="btn btn-secondary">Cancel</button>
-            <a href="#" id="removeItemModalConfirm" class="btn btn-danger">Remove</a>
+            <form id="removeItemModalConfirm" method="POST" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-danger">Remove</button></form>
         </div>
     </div>
 </div>
@@ -215,7 +221,7 @@
         const confirmBtn = document.getElementById('removeItemModalConfirm');
         
         if (modal && confirmBtn) {
-            confirmBtn.href = removeUrl;
+            confirmBtn.action = removeUrl;
             modal.style.display = 'block';
         }
     }

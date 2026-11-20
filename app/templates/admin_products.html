@@ -91,6 +91,7 @@
               >
 
               <form method="POST" action="{{ url_for('admin_toggle_product_status', product_id=product.product_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   {% if product.is_active %}
                       <button type="submit" class="btn btn-warning" title="Deactivate">
                           <i class="fa-solid fa-ban"></i>
@@ -108,6 +109,7 @@
                 style="display: inline"
                 class="delete-form-modal"
               >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger" title="Delete Permanently">
                     <i class="fa-solid fa-trash"></i>
                 </button>
@@ -128,7 +130,7 @@
         <span class="modal-close-btn" id="csvModalCloseBtn">&times;</span>
         <h4>Import Products from CSV</h4>
         
-        <p>Upload a CSV file (No headers required).<br>
+        <p>Upload a UTF-8 CSV file (headers optional).<br>
            <strong>Strict Column Order:</strong><br>
            1. Category Name<br>
            2. Product Name<br>
@@ -137,8 +139,12 @@
            5. Price<br>
            6. Size/Variant Name
         </p>
+        <p>Every row needs a positive price and a size. For multiple sizes, repeat the product
+           with <strong>True</strong> and a different size on each row. Existing products are
+           skipped; valid rows are imported and invalid rows are reported.</p>
 
         <form id="csvImportForm" method="POST" action="{{ url_for('admin_import_products_csv') }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="csv_file">CSV File</label>
                 <input type="file" id="csv_file" name="csv_file" class="form-control" accept=".csv" required>

@@ -37,7 +37,7 @@
             </thead>
             <tbody>
                 {% for order in orders %}
-                <tr>
+                <tr id="order-{{ order.order_id }}">
                     <td><strong>#{{ order.order_id }}</strong></td>
                     
                     <td>
@@ -76,8 +76,8 @@
                         <ul>
                             {% for item in order.items %}
                                 <li>
-                                    {{ item.quantity }}x {{ item.product.name }}
-                                    <span class="variant-name">({{ item.variant.size_name }})</span>
+                                    {{ item.quantity }}x {{ item.product_name }}
+                                    <span class="variant-name">({{ item.variant_name }})</span>
                                 </li>
                             {% endfor %}
                         </ul>
@@ -122,13 +122,16 @@
 
                     <td class="action-buttons">
                         {% if order.status == 'Pending Approval' %}
+                            {% if 'Approved' in allowed_order_statuses(order) %}
                             <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="status" value="Approved">
                                 <button type="submit" class="btn btn-success btn-sm" title="Approve Order">
                                     <i class="fa-solid fa-check"></i> Approve
                                 </button>
                             </form>
 
+                            {% endif %}
                             <button type="button" class="btn btn-danger btn-sm" title="Decline Order" 
                                     onclick="openDeclineModal('{{ order.order_id }}')">
                                 <i class="fa-solid fa-xmark"></i> Decline
@@ -136,27 +139,31 @@
 
                         {% elif order.status == 'Declined' %}
                             <form action="{{ url_for('admin_delete_order', order_id=order.order_id) }}" method="POST" class="delete-form-modal" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-danger btn-sm">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </form>
 
                         {% else %}
-                            <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" id="form-update-{{ order.order_id }}" style="margin-bottom: 0.5rem;">
-                                <select name="status" class="form-control" style="min-width: 130px; font-size: 0.85rem; padding: 0.3rem;" onchange="this.form.submit()">
-                                    <option value="{{ order.status }}" selected disabled>{{ order.status }}</option>
-                                    
-                                    <option value="In Progress">In Progress</option>
-                                    
-                                    {% if order.order_type == 'Delivery' %}
-                                        <option value="Up for Delivery">Up for Delivery</option>
-                                    {% endif %}
-                                    
-                                    <option value="Completed">Completed</option>
+                            {% set next_statuses = allowed_order_statuses(order) %}
+                            {% if next_statuses %}
+                            <form action="{{ url_for('admin_update_order_status', order_id=order.order_id) }}" method="POST" style="margin-bottom: 0.5rem;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <select name="status" class="form-control" data-cash="{{ 'true' if order.payment_method == 'COD/COP' else 'false' }}"
+                                        onchange="if (this.value === 'Completed' &amp;&amp; this.dataset.cash === 'true' &amp;&amp; !confirm('Confirm that the full cash payment has been collected?')) { this.selectedIndex = 0; } else { this.form.submit(); }">
+                                    <option value="" selected disabled>{{ order.status }}</option>
+                                    {% for status in next_statuses %}
+                                    <option value="{{ status }}">{{ status }}{{ ' (cash collected)' if status == 'Completed' and order.payment_method == 'COD/COP' else '' }}</option>
+                                    {% endfor %}
                                 </select>
                             </form>
-                            
+                            {% elif order.status == 'Pending Payment Verification' %}
+                            <a href="{{ url_for('admin_verifications') }}" class="btn btn-secondary btn-sm">Verify payment</a>
+                            {% endif %}
+
                             <form action="{{ url_for('admin_delete_order', order_id=order.order_id) }}" method="POST" class="delete-form-modal" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-danger btn-sm" title="Delete" style="padding: 0.3rem 0.6rem;">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
@@ -180,6 +187,7 @@
             <p>Please provide a reason for declining this order. This will be visible to the customer.</p>
             
             <form id="declineForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="status" value="Declined">
                 <div class="form-group">
                     <textarea name="decline_reason" class="form-control" rows="3" required 

@@ -74,6 +74,7 @@
                     </form> 
                     
                     <form method="POST" action="{{ url_for('admin_toggle_voucher_status', voucher_id=voucher.voucher_id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         {% if voucher.is_active %}
                             <input type="submit" value="Deactivate" class="btn btn-danger">
                         {% else %}
@@ -82,6 +83,7 @@
                     </form>
 
                     <form method="POST" action="{{ url_for('admin_delete_voucher', voucher_id=voucher.voucher_id) }}" style="display:inline;" class="delete-form-modal">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="submit" value="Delete" class="btn btn-danger">
                     </form>
                         </td>

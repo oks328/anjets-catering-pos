@@ -1,157 +1,131 @@
-# Custom Google OAuth routes
-# This file contains the custom OAuth implementation to replace Flask-Dance
+"""Google sign-in with verified account linking and one-use OAuth state."""
 
-from flask import current_app as app, redirect, url_for, flash, request, session
+import hmac
+from urllib.parse import urlsplit
+
+import requests
+from flask import current_app as app
+from flask import flash, redirect, request, session, url_for
+from google_auth_oauthlib.flow import Flow
+
 from app import db
+from app.auth import sign_in_customer
 from app.models import Customer
 
-@app.route('/auth/google')
-def google_login():
-    """Initiate Google OAuth flow"""
-    from google_auth_oauthlib.flow import Flow
-    
-    # Determine the correct redirect URI based on the request
-    # This ensures we match whatever domain the user is accessing from
-    if 'localhost' in request.host:
-        redirect_uri = "http://localhost:5000/auth/google/callback"
-    else:
-        redirect_uri = "http://127.0.0.1:5000/auth/google/callback"
-    
-    print(f"DEBUG: Request Host: {request.host}")
-    print(f"DEBUG: Selected Redirect URI: {redirect_uri}")
-    
-    # Create flow instance
-    flow = Flow.from_client_config(
+SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
+
+
+def google_flow(redirect_uri, state=None, code_verifier=None):
+    return Flow.from_client_config(
         {
             "web": {
-                "client_id": app.config.get('GOOGLE_OAUTH_CLIENT_ID'),
-                "client_secret": app.config.get('GOOGLE_OAUTH_CLIENT_SECRET'),
+                "client_id": app.config["GOOGLE_OAUTH_CLIENT_ID"],
+                "client_secret": app.config["GOOGLE_OAUTH_CLIENT_SECRET"],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [redirect_uri]
-            }
-        },
-        scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
-    )
-    
-    # Use the determined redirect URI
-    flow.redirect_uri = redirect_uri
-    
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        prompt='select_account'  # Force account selection every time
-    )
-    
-    print(f"DEBUG: Authorization URL generated with redirect_uri: {redirect_uri}")
-    
-    # Store state AND redirect_uri in session for CSRF protection and consistency
-    session['oauth_state'] = state
-    session['oauth_redirect_uri'] = redirect_uri
-    
-    return redirect(authorization_url)
-
-@app.route('/auth/google/callback')
-def google_callback():
-    """Handle Google OAuth callback"""
-    from google_auth_oauthlib.flow import Flow
-    import requests
-    
-    # Verify state to prevent CSRF
-    state = session.get('oauth_state')
-    print(f"DEBUG: Callback received. State: {state}, Request State: {request.args.get('state')}")
-    
-    if not state or state != request.args.get('state'):
-        flash("Invalid state parameter. Please try again.", 'danger')
-        return redirect(url_for('client_account_page'))
-    
-    # Get the redirect URI that was used in the initial request
-    redirect_uri = session.get('oauth_redirect_uri', "http://127.0.0.1:5000/auth/google/callback")
-    print(f"DEBUG: Callback using redirect_uri from session: {redirect_uri}")
-    
-    try:
-        # Create flow instance with the SAME redirect_uri as the initial request
-        flow = Flow.from_client_config(
-            {
-                "web": {
-                    "client_id": app.config.get('GOOGLE_OAUTH_CLIENT_ID'),
-                    "client_secret": app.config.get('GOOGLE_OAUTH_CLIENT_SECRET'),
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": [redirect_uri]
-                }
+                "redirect_uris": [redirect_uri],
             },
-            scopes=['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'],
-            state=state
-        )
-        
-        # Use the same redirect URI
+        },
+        scopes=SCOPES,
+        state=state,
+        code_verifier=code_verifier,
+    )
+
+
+def google_login():
+    if not app.config.get("GOOGLE_OAUTH_CLIENT_ID") or not app.config.get(
+        "GOOGLE_OAUTH_CLIENT_SECRET"
+    ):
+        flash("Google sign-in is not configured yet.", "info")
+        return redirect(url_for("client_account_page"))
+    redirect_uri = app.config.get("GOOGLE_OAUTH_REDIRECT_URI") or url_for(
+        "google_callback", _external=True
+    )
+    parsed = urlsplit(redirect_uri)
+    if parsed.scheme != "https" and not (
+        parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1", "::1")
+    ):
+        flash("Google sign-in requires a valid HTTPS callback URL.", "danger")
+        return redirect(url_for("client_account_page"))
+    try:
+        flow = google_flow(redirect_uri)
         flow.redirect_uri = redirect_uri
-        
-        # Exchange authorization code for tokens
-        flow.fetch_token(authorization_response=request.url)
-        
-        # Get user info from Google
-        credentials = flow.credentials
-        user_info_response = requests.get(
-            'https://www.googleapis.com/oauth2/v1/userinfo',
-            headers={'Authorization': f'Bearer {credentials.token}'}
+        authorization_url, state = flow.authorization_url(prompt="select_account")
+        session["oauth_state"] = state
+        session["oauth_redirect_uri"] = redirect_uri
+        session["oauth_code_verifier"] = flow.code_verifier
+        return redirect(authorization_url)
+    except Exception:
+        app.logger.exception("Could not initiate Google sign-in")
+        flash("Google sign-in is unavailable. Please try again.", "danger")
+        return redirect(url_for("client_account_page"))
+
+
+def google_callback():
+    state = session.pop("oauth_state", None)
+    redirect_uri = session.pop("oauth_redirect_uri", None)
+    code_verifier = session.pop("oauth_code_verifier", None)
+    if (
+        not state
+        or not redirect_uri
+        or not code_verifier
+        or not hmac.compare_digest(state, request.args.get("state", ""))
+    ):
+        flash("Invalid sign-in request. Please try again.", "danger")
+        return redirect(url_for("client_account_page"))
+    try:
+        flow = google_flow(redirect_uri, state=state, code_verifier=code_verifier)
+        flow.redirect_uri = redirect_uri
+        flow.fetch_token(authorization_response=request.url, timeout=10)
+        response = requests.get(
+            "https://www.googleapis.com/oauth2/v1/userinfo",
+            headers={"Authorization": f"Bearer {flow.credentials.token}"},
+            timeout=10,
         )
-        
-        if not user_info_response.ok:
-            flash("Failed to fetch user data from Google.", 'danger')
-            return redirect(url_for('client_account_page'))
-        
-        google_data = user_info_response.json()
-        google_id = google_data.get('id')
-        email = google_data.get('email', '').lower()
-        name = google_data.get('name', 'Customer')
-        
-        if not google_id or not email:
-            flash("Google did not provide a valid ID or email. Cannot log you in.", 'danger')
-            return redirect(url_for('client_account_page'))
-        
-        # 1. Try to find user by Google ID (Best case: already linked)
+        if not response.ok:
+            raise ValueError("User information unavailable")
+        data = response.json()
+        google_id = data.get("id")
+        email = (data.get("email") or "").strip().lower()
+        if not google_id or not email or data.get("verified_email") is not True:
+            flash("Google must provide a verified email address to sign in.", "danger")
+            return redirect(url_for("client_account_page"))
         customer = Customer.query.filter_by(google_id=google_id).first()
-        
         if customer is None:
-            # 2. Try to find user by email (Existing account needs linking)
             customer = Customer.query.filter_by(email=email).first()
-            
+            if customer and customer.google_id and customer.google_id != google_id:
+                flash(
+                    "This email is linked to another Google account. Please contact support.",
+                    "danger",
+                )
+                return redirect(url_for("client_account_page"))
             if customer is None:
-                # 3. Create a new account
-                new_customer = Customer(
-                    name=name,
+                customer = Customer(
+                    name=data.get("name") or "Customer",
                     email=email,
                     google_id=google_id,
-                    password_hash="google_oauth_user_placeholder" 
+                    password_hash=None,
                 )
-                db.session.add(new_customer)
-                db.session.commit()
-                customer = new_customer
-                flash(f"Welcome, {customer.name}! Account created via Google.", 'success')
+                db.session.add(customer)
             else:
-                # 4. Link existing account to Google ID
                 customer.google_id = google_id
-                db.session.commit()
-                flash(f"Welcome back, {customer.name}! Your account is now linked to Google.", 'success')
-        
-        # Log the customer in
-        session['customer_id'] = customer.customer_id
-        session['customer_name'] = customer.name
-        
-        # Clear OAuth state and redirect URI
-        session.pop('oauth_state', None)
-        session.pop('oauth_redirect_uri', None)
-        
-        # Check if profile is complete
+            db.session.commit()
+        sign_in_customer(customer)
         if not customer.contact_number or not customer.address or not customer.birthdate:
-             flash("Please complete your profile to continue.", 'info')
-             return redirect(url_for('complete_profile'))
-
-        return redirect(url_for('client_home', welcome='google'))
-        
-    except Exception as e:
+            return redirect(url_for("complete_profile"))
+        return redirect(url_for("client_home", welcome="google"))
+    except Exception:
         db.session.rollback()
-        flash(f"An error occurred during Google login: {str(e)}", 'danger')
-        return redirect(url_for('client_account_page'))
+        app.logger.exception("Google sign-in failed")
+        flash("Could not sign in with Google. Please try again.", "danger")
+        return redirect(url_for("client_account_page"))
+
+
+def register_oauth_routes(app):
+    """Register routes on each application instance."""
+    app.add_url_rule("/auth/google", view_func=google_login)
+    app.add_url_rule("/auth/google/callback", view_func=google_callback)

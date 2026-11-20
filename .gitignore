@@ -1,8 +1,20 @@
 # Python virtual environment
 venv/
+.venv/
+.pytest_cache/
+instance/
+private_uploads/
+app/static/uploads/ids/
+app/static/uploads/payments/
+app/static/uploads/riders/
+app/static/uploads/products/*
+!app/static/uploads/products/product-placeholder.svg
+*.db
 
 # Secret keys and environment variables
 .env
+.local/
+.ruff_cache/
 
 # Python cache files
 __pycache__/

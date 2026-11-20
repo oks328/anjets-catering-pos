@@ -75,6 +75,8 @@
 
     <div class="card">
         <form id="checkout-form" action="{{ url_for('place_order') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="checkout_token" value="{{ session.checkout_token }}">
             <h3>Customer & Order Details</h3>
             <p>Your order will be placed under this account:</p>
             <p><strong>Name:</strong> {{ session['customer_name'] }}</p>
@@ -166,6 +168,7 @@
                     window.location.href = data.redirect_url; 
                 } else {
                     // Error handling
+                    if (data.redirect_url) { window.location.href = data.redirect_url; return; }
                     createToast('Could not place order. ' + data.message, 'danger');
                     submitButton.disabled = false;
                     submitButton.innerText = 'Confirm Order';
